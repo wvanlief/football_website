@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Hot List | MatchWatch</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/styles.css?v=1.0.2">
+</head>
+<body>
+    <div class="glow-bg"></div>
+
+    <header class="app-header">
+        <div class="header-container">
+            <div class="logo-area">
+                <i class="fa-solid fa-trophy trophy-logo"></i>
+                <div class="logo-text">
+                    <h1>MATCH<span>WATCH</span></h1>
+                    <p>World Cup Watchability Index</p>
+                </div>
+            </div>
+            
+            <nav class="header-nav">
+                <a href="/" class="nav-link"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
+                <a href="/recommended" class="nav-link active"><i class="fa-solid fa-fire"></i> Hot List</a>
+                <a href="/bracket" class="nav-link"><i class="fa-solid fa-sitemap"></i> Bracket</a>
+            </nav>
+            
+            <div class="controls-area">
+                <div class="theme-select-wrapper">
+                    <i class="fa-solid fa-palette palette-icon"></i>
+                    <select id="theme-select" class="theme-select">
+                        <option value="neon">Midnight Neon</option>
+                        <option value="roman">Roman Empire</option>
+                        <option value="pitch">Clubhouse Sage</option>
+                        <option value="grass">Tactical Pitch</option>
+                        <option value="flag">Big Flag</option>
+                    </select>
+                </div>
+                <div class="timezone-select-wrapper">
+                    <i class="fa-solid fa-globe timezone-icon"></i>
+                    <select id="timezone-select" class="timezone-select">
+                        <option value="local">Auto-Detect</option>
+                        <option value="Europe/Paris">Paris</option>
+                        <option value="America/New_York">New York</option>
+                        <option value="Asia/Shanghai">Beijing</option>
+                    </select>
+                </div>
+                <button id="toggle-weights-btn" class="btn btn-secondary">
+                    <i class="fa-solid fa-sliders"></i> Adjust Weights
+                </button>
+                <button id="refresh-btn" class="btn btn-icon" title="Reset & Refresh Data">
+                    <i class="fa-solid fa-rotate"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Slide-out Adjuster Panel -->
+    <aside id="weights-panel" class="weights-panel">
+        <div class="panel-header">
+            <h3><i class="fa-solid fa-sliders"></i> Engine Weights</h3>
+            <button id="close-panel-btn" class="btn-close">&times;</button>
+        </div>
+        <div class="panel-body">
+            <p class="panel-desc">Customize the engine's formula. Higher weights will prioritize matches based on that criterion. The engine will normalize your values to sum to 100%.</p>
+            
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span><i class="fa-solid fa-scale-balanced"></i> ELO Proximity</span>
+                    <span id="val-elo">50%</span>
+                </div>
+                <input type="range" id="weight-elo" min="0" max="100" value="50" step="5">
+                <span class="slider-hint">Favors matchups between teams of similar overall strength.</span>
+            </div>
+
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span><i class="fa-solid fa-percent"></i> Betting Odds Competitiveness</span>
+                    <span id="val-odds">30%</span>
+                </div>
+                <input type="range" id="weight-odds" min="0" max="100" value="30" step="5">
+                <span class="slider-hint">Favors matches with tight, unpredictable outcomes (even bookmaker odds).</span>
+            </div>
+
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span><i class="fa-solid fa-fire"></i> Player & Team Form</span>
+                    <span id="val-form">15%</span>
+                </div>
+                <input type="range" id="weight-form" min="0" max="100" value="15" step="5">
+                <span class="slider-hint">Highlights teams and players currently on hot scoring streaks.</span>
+            </div>
+
+            <div class="slider-group">
+                <div class="slider-label">
+                    <span><i class="fa-solid fa-circle-exclamation"></i> Match Stage & Stakes</span>
+                    <span id="val-narrative">5%</span>
+                </div>
+                <input type="range" id="weight-narrative" min="0" max="100" value="5" step="5">
+                <span class="slider-hint">Boosts matches based on stage significance (e.g. Knockouts vs Group stage).</span>
+            </div>
+
+            <button id="apply-weights-btn" class="btn btn-primary btn-block">Recalculate Scores</button>
+        </div>
+    </aside>
+
+    <main class="app-main">
+        <!-- Hero Header -->
+        <section class="recommended-hero">
+            <h2>THE HOT LIST</h2>
+            <p>Only the absolute best matchups of the World Cup scoring 75% or higher on our Watchability Index.</p>
+        </section>
+
+        <!-- View Toggle Buttons -->
+        <div class="recommended-toggle-bar">
+            <button id="toggle-schedule-btn" class="toggle-btn active">
+                <i class="fa-regular fa-calendar-days"></i> Chronological Schedule
+            </button>
+            <button id="toggle-leaderboard-btn" class="toggle-btn">
+                <i class="fa-solid fa-list-ol"></i> Watchability Leaderboard
+            </button>
+        </div>
+
+        <!-- Dynamic Grid Container -->
+        <div id="recommended-container">
+            <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading hot picks...</div>
+        </div>
+    </main>
+
+    <!-- Match Details Modal -->
+    <div id="match-modal" class="modal">
+        <div class="modal-content glass">
+            <button class="modal-close">&times;</button>
+            <div id="modal-details-container">
+                <!-- Injected dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast">Weights updated & scores recalculated!</div>
+
+    <footer class="app-footer">
+        <p>&copy; 2026 MatchWatch. Reimagining the way we watch the World Cup.</p>
+    </footer>
+
+    <!-- Custom JS -->
+    <script src="/js/recommended.js?v=1.0.2"></script>
+</body>
+</html>

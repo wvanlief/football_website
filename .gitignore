@@ -1,0 +1,24 @@
+# Python/FastAPI gitignore
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database
+football_games.db
+
+# IDEs
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
