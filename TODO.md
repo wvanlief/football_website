@@ -4,6 +4,8 @@
  - Page for highly recommanded matches 
  - Databases for all the stuff
  - country pages 
+ - Fix main.py 
+ - Refacto 
 
 ## Prio 2
  - Export Good matches to social media (Insta/ Tik Tok)
@@ -13,6 +15,7 @@
  - Scoring in real time
  - team historical data
  - Odds movement
+ - fade disqualified countries
  
 ## Prio 3
  - Match timeline
