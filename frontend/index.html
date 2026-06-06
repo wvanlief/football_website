@@ -52,64 +52,12 @@
                         <option value="Asia/Shanghai">Beijing</option>
                     </select>
                 </div>
-                <button id="toggle-weights-btn" class="btn btn-secondary">
-                    <i class="fa-solid fa-sliders"></i> Adjust Weights
-                </button>
                 <button id="refresh-btn" class="btn btn-icon" title="Reset & Refresh Data">
                     <i class="fa-solid fa-rotate"></i>
                 </button>
             </div>
         </div>
     </header>
-
-    <!-- Slide-out Adjuster Panel -->
-    <aside id="weights-panel" class="weights-panel">
-        <div class="panel-header">
-            <h3><i class="fa-solid fa-sliders"></i> Engine Weights</h3>
-            <button id="close-panel-btn" class="btn-close">&times;</button>
-        </div>
-        <div class="panel-body">
-            <p class="panel-desc">Customize the engine's formula. Higher weights will prioritize matches based on that criterion. The engine will normalize your values to sum to 100%.</p>
-            
-            <div class="slider-group">
-                <div class="slider-label">
-                    <span><i class="fa-solid fa-scale-balanced"></i> ELO Proximity</span>
-                    <span id="val-elo">50%</span>
-                </div>
-                <input type="range" id="weight-elo" min="0" max="100" value="50" step="5">
-                <span class="slider-hint">Favors matchups between teams of similar overall strength.</span>
-            </div>
-
-            <div class="slider-group">
-                <div class="slider-label">
-                    <span><i class="fa-solid fa-percent"></i> Betting Odds Competitiveness</span>
-                    <span id="val-odds">30%</span>
-                </div>
-                <input type="range" id="weight-odds" min="0" max="100" value="30" step="5">
-                <span class="slider-hint">Favors matches with tight, unpredictable outcomes (even bookmaker odds).</span>
-            </div>
-
-            <div class="slider-group">
-                <div class="slider-label">
-                    <span><i class="fa-solid fa-fire"></i> Player & Team Form</span>
-                    <span id="val-form">15%</span>
-                </div>
-                <input type="range" id="weight-form" min="0" max="100" value="15" step="5">
-                <span class="slider-hint">Highlights teams and players currently on hot scoring streaks.</span>
-            </div>
-
-            <div class="slider-group">
-                <div class="slider-label">
-                    <span><i class="fa-solid fa-circle-exclamation"></i> Match Stage & Stakes</span>
-                    <span id="val-narrative">5%</span>
-                </div>
-                <input type="range" id="weight-narrative" min="0" max="100" value="5" step="5">
-                <span class="slider-hint">Boosts matches based on stage significance (e.g. Knockouts vs Group stage).</span>
-            </div>
-
-            <button id="apply-weights-btn" class="btn btn-primary btn-block">Recalculate Scores</button>
-        </div>
-    </aside>
 
     <main class="app-main">
         <!-- Triptych Columns Layout -->

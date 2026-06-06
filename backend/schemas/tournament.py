@@ -27,6 +27,12 @@ class BracketMatch(BaseModel):
     team1: BracketTeam
     team2: BracketTeam
     winner: str
+    home_score: Optional[int] = None
+    away_score: Optional[int] = None
+    has_extra_time: Optional[bool] = False
+    has_penalties: Optional[bool] = False
+    home_penalty_score: Optional[int] = None
+    away_penalty_score: Optional[int] = None
 
 class BracketResponse(BaseModel):
     r32: List[BracketMatch]

@@ -26,29 +26,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // DOM Elements
-    const toggleWeightsBtn = document.getElementById('toggle-weights-btn');
-    const closePanelBtn = document.getElementById('close-panel-btn');
-    const weightsPanel = document.getElementById('weights-panel');
-    const applyWeightsBtn = document.getElementById('apply-weights-btn');
+
     const refreshBtn = document.getElementById('refresh-btn');
     const toast = document.getElementById('toast');
     const themeSelect = document.getElementById('theme-select');
     const timezoneSelect = document.getElementById('timezone-select');
     
-    // Sliders
-    const sliders = {
-        elo: document.getElementById('weight-elo'),
-        odds: document.getElementById('weight-odds'),
-        form: document.getElementById('weight-form'),
-        narrative: document.getElementById('weight-narrative')
-    };
-    
-    const sliderVals = {
-        elo: document.getElementById('val-elo'),
-        odds: document.getElementById('val-odds'),
-        form: document.getElementById('val-form'),
-        narrative: document.getElementById('val-narrative')
-    };
+
 
     // Columns
     const lists = {
@@ -92,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Resolve timezone and trigger fetch
     resolveAndTimezoneFetch();
-    fetchWeights();
+
 
     async function resolveAndTimezoneFetch() {
         if (selectedTimezone === 'local') {
@@ -122,63 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Event Listeners
-    toggleWeightsBtn.addEventListener('click', () => {
-        weightsPanel.classList.toggle('open');
-    });
 
-    closePanelBtn.addEventListener('click', () => {
-        weightsPanel.classList.remove('open');
-    });
 
-    // Close panel if clicked outside
-    document.addEventListener('click', (e) => {
-        if (!weightsPanel.contains(e.target) && e.target !== toggleWeightsBtn && !toggleWeightsBtn.contains(e.target)) {
-            weightsPanel.classList.remove('open');
-        }
-    });
 
-    // Update slider label on input
-    Object.keys(sliders).forEach(key => {
-        sliders[key].addEventListener('input', () => {
-            sliderVals[key].innerText = `${sliders[key].value}%`;
-        });
-    });
-
-    // Apply Weights
-    applyWeightsBtn.addEventListener('click', async () => {
-        const body = {
-            elo: parseFloat(sliders.elo.value) / 100.0,
-            odds: parseFloat(sliders.odds.value) / 100.0,
-            form: parseFloat(sliders.form.value) / 100.0,
-            narrative: parseFloat(sliders.narrative.value) / 100.0
-        };
-
-        try {
-            applyWeightsBtn.disabled = true;
-            applyWeightsBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Processing...';
-            
-            const res = await fetch('/api/weights', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            const data = await res.json();
-            
-            // Set sliders to normalized values returned by server
-            updateSlidersUI(data.weights);
-            
-            // Show toast & refresh lists
-            showToast("Watchability Index updated and matches re-ordered!");
-            weightsPanel.classList.remove('open');
-            await fetchFixtures();
-        } catch (err) {
-            console.error(err);
-            alert("Error recalculating scores.");
-        } finally {
-            applyWeightsBtn.disabled = false;
-            applyWeightsBtn.innerText = 'Recalculate Scores';
-        }
-    });
 
     // Refresh Database
     refreshBtn.addEventListener('click', async () => {
@@ -209,24 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Fetch and Load current weights configuration
-    async function fetchWeights() {
-        try {
-            const res = await fetch('/api/weights');
-            const weights = await res.json();
-            updateSlidersUI(weights);
-        } catch (err) {
-            console.error("Failed to fetch weights", err);
-        }
-    }
 
-    function updateSlidersUI(weights) {
-        Object.keys(weights).forEach(key => {
-            const valPercent = Math.round(weights[key] * 100);
-            if (sliders[key]) sliders[key].value = valPercent;
-            if (sliderVals[key]) sliderVals[key].innerText = `${valPercent}%`;
-        });
-    }
 
     // Fetch and Load Fixtures
     async function fetchFixtures() {

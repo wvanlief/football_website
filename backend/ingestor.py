@@ -1,10 +1,14 @@
 import os
 import json
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
-from backend.database import Team, Player, Fixture
+from backend.database import (
+    Team, Player, Fixture, Competition, Tournament, 
+    TournamentTeam, PlayerContract, FixtureOdds, PlayerMatchStat, EloHistory
+)
 from backend.scoring import update_fixture_score
 
 # Load environment variables
@@ -85,8 +89,6 @@ def normalize_team_name(name: str) -> str:
     return mapping.get(name, name)
 
 def get_fallback_matches():
-    # Keep fallback data if internet connection is down
-    from zoneinfo import ZoneInfo
     base_date = datetime(2026, 6, 11, 12, 0, 0, tzinfo=ZoneInfo("America/New_York")).astimezone(ZoneInfo("UTC"))
     return [
         {
@@ -128,24 +130,21 @@ def get_fallback_matches():
     ]
 
 def calculate_default_odds(home_elo, away_elo):
-    # ELO difference odds calculation fallback
     diff = home_elo - away_elo
     prob_home_expected = 1.0 / (1.0 + 10.0 ** (-diff / 400.0))
     prob_away_expected = 1.0 - prob_home_expected
     
-    # 25% draw probability
     prob_draw = 0.25
     prob_home = prob_home_expected * 0.75
     prob_away = prob_away_expected * 0.75
     
-    # Apply bookmaker margin (~5%)
     odds_home = round(1.05 / max(0.05, prob_home), 2)
     odds_draw = round(1.05 / max(0.05, prob_draw), 2)
     odds_away = round(1.05 / max(0.05, prob_away), 2)
     
     return odds_home, odds_draw, odds_away
 
-def update_odds_from_api(fixtures: list):
+def update_odds_from_api(fixtures: list, db: Session):
     api_key = os.getenv("THE_ODDS_API_KEY")
     if not api_key:
         print("No THE_ODDS_API_KEY found in environment. Skipping Odds API update.")
@@ -187,20 +186,35 @@ def update_odds_from_api(fixtures: list):
             except Exception as ex:
                 pass
                 
-        # Update matching fixtures
+        # Update matching fixtures (appending to odds history)
         count = 0
+        now_time = datetime.now(timezone.utc)
         for f in fixtures:
-            key = (f.home_team_name, f.away_team_name)
-            rev_key = (f.away_team_name, f.home_team_name)
+            # Load relationships eagerly in case they are not loaded
+            home_name = f.home_team.name
+            away_name = f.away_team.name
+            key = (home_name, away_name)
+            rev_key = (away_name, home_name)
             
+            odds_found = None
             if key in odds_lookup:
-                f.odds_home, f.odds_draw, f.odds_away = odds_lookup[key]
-                count += 1
+                odds_found = odds_lookup[key]
             elif rev_key in odds_lookup:
-                f.odds_away, f.odds_draw, f.odds_home = odds_lookup[rev_key]
+                # swap home and away odds
+                odds_found = (odds_lookup[rev_key][2], odds_lookup[rev_key][1], odds_lookup[rev_key][0])
+                
+            if odds_found:
+                db_odds = FixtureOdds(
+                    fixture_id=f.id,
+                    recorded_at=now_time,
+                    odds_home=odds_found[0],
+                    odds_draw=odds_found[1],
+                    odds_away=odds_found[2]
+                )
+                db.add(db_odds)
                 count += 1
                 
-        print(f"Successfully updated odds for {count} matches from The Odds API.")
+        print(f"Successfully updated historicized odds for {count} matches from The Odds API.")
     except Exception as e:
         print(f"Error fetching/updating odds from The Odds API: {e}")
 
@@ -208,11 +222,27 @@ def seed_database(db: Session):
     """
     Seeds database using actual World Cup 2026 schedules from GitHub, falling back to mock fixtures if offline.
     """
-    # 1. Clear database
+    # 1. Clear database in proper dependency order
+    db.query(PlayerMatchStat).delete()
+    db.query(FixtureOdds).delete()
     db.query(Fixture).delete()
+    db.query(PlayerContract).delete()
     db.query(Player).delete()
+    db.query(TournamentTeam).delete()
+    db.query(Tournament).delete()
+    db.query(Competition).delete()
+    db.query(EloHistory).delete()
     db.query(Team).delete()
     db.commit()
+
+    # 1.5 Create Competition and Tournament
+    comp = Competition(name="FIFA World Cup", type="International")
+    db.add(comp)
+    db.flush()
+    
+    tourney = Tournament(competition_id=comp.id, season_name="2026", status="Active")
+    db.add(tourney)
+    db.flush()
 
     # 2. Add Teams
     team_map = {}
@@ -245,7 +275,7 @@ def seed_database(db: Session):
                 
             db_team = Team(
                 name=name,
-                group_name=group,
+                country_code=None,
                 elo=elo,
                 form_score=round(form_score, 1),
                 win_streak=win_streak,
@@ -253,6 +283,25 @@ def seed_database(db: Session):
                 loss_streak=0
             )
             db.add(db_team)
+            db.flush()
+            
+            # Tournament association
+            db_tourney_team = TournamentTeam(
+                tournament_id=tourney.id,
+                team_id=db_team.id,
+                group_name=group,
+                tournament_status="Active"
+            )
+            db.add(db_tourney_team)
+            
+            # ELO History record
+            db_elo_hist = EloHistory(
+                team_id=db_team.id,
+                recorded_at=datetime.now(timezone.utc),
+                elo_rating=elo
+            )
+            db.add(db_elo_hist)
+            
             team_map[t["id"]] = name
     else:
         # Fallback to local ELO ratings & Groups
@@ -265,7 +314,7 @@ def seed_database(db: Session):
                 
                 db_team = Team(
                     name=name,
-                    group_name=group,
+                    country_code=None,
                     elo=elo,
                     form_score=round(form_score, 1),
                     win_streak=win_streak,
@@ -273,24 +322,56 @@ def seed_database(db: Session):
                     loss_streak=0
                 )
                 db.add(db_team)
+                db.flush()
+                
+                db_tourney_team = TournamentTeam(
+                    tournament_id=tourney.id,
+                    team_id=db_team.id,
+                    group_name=group,
+                    tournament_status="Active"
+                )
+                db.add(db_tourney_team)
+                
+                db_elo_hist = EloHistory(
+                    team_id=db_team.id,
+                    recorded_at=datetime.now(timezone.utc),
+                    elo_rating=elo
+                )
+                db.add(db_elo_hist)
+                
                 team_map[str(id_counter)] = name
                 id_counter += 1
                 
     db.commit()
 
-    # 3. Add Players
+    # Re-query all teams to get the team name to id mapping
+    db_teams_by_name = {team.name: team.id for team in db.query(Team).all()}
+
+    # 3. Add Players & Contracts
     for team_name, players in SPOTLIGHT_PLAYERS.items():
+        team_id = db_teams_by_name.get(team_name)
+        if not team_id:
+            continue
         for name, pos, form in players:
             db_player = Player(
                 name=name,
-                team_name=team_name,
                 position=pos,
                 form_score=form
             )
             db.add(db_player)
+            db.flush()
+            
+            contract = PlayerContract(
+                player_id=db_player.id,
+                team_id=team_id,
+                type="Country",
+                is_active=True
+            )
+            db.add(contract)
+            
     db.commit()
 
-    # 4. Add Fixtures
+    # 4. Add Fixtures & Initial Odds
     fetched_matches = []
     try:
         print("Fetching official schedule from GitHub...")
@@ -325,88 +406,108 @@ def seed_database(db: Session):
             # Parse Date: "06/11/2026 13:00"
             date_str = m["local_date"]
             try:
-                from zoneinfo import ZoneInfo
                 stadium_timezones = {
-                    "1": "America/Mexico_City",   # Azteca (CDMX)
-                    "2": "America/Mexico_City",   # Guadalajara
-                    "3": "America/Monterrey",     # Monterrey
-                    "4": "America/Vancouver",     # Vancouver
-                    "5": "America/Los_Angeles",   # Seattle
-                    "6": "America/Los_Angeles",   # San Francisco
-                    "7": "America/Los_Angeles",   # Los Angeles
-                    "8": "America/Chicago",       # Houston
-                    "9": "America/Chicago",       # Dallas
-                    "10": "America/Chicago",      # Kansas City
-                    "11": "America/New_York",     # Atlanta
-                    "12": "America/New_York",     # Miami
-                    "13": "America/New_York",     # Boston
-                    "14": "America/New_York",     # New York
-                    "15": "America/New_York",     # Philadelphia
-                    "16": "America/New_York",     # Toronto
+                    "1": "America/Mexico_City",
+                    "2": "America/Mexico_City",
+                    "3": "America/Monterrey",
+                    "4": "America/Vancouver",
+                    "5": "America/Los_Angeles",
+                    "6": "America/Los_Angeles",
+                    "7": "America/Los_Angeles",
+                    "8": "America/Chicago",
+                    "9": "America/Chicago",
+                    "10": "America/Chicago",
+                    "11": "America/New_York",
+                    "12": "America/New_York",
+                    "13": "America/New_York",
+                    "14": "America/New_York",
+                    "15": "America/New_York",
+                    "16": "America/New_York",
                 }
                 dt_naive = datetime.strptime(date_str, "%m/%d/%Y %H:%M")
                 tz_name = stadium_timezones.get(str(m.get("stadium_id")), "America/New_York")
                 dt_localized = dt_naive.replace(tzinfo=ZoneInfo(tz_name))
-                dt_utc = dt_localized.astimezone(ZoneInfo("UTC"))
-                iso_date = dt_utc.isoformat()
+                dt_utc = dt_localized.astimezone(timezone.utc)
             except Exception as ex:
                 print(f"Error localizing match date: {ex}")
                 try:
                     dt = datetime.strptime(date_str, "%m/%d/%Y %H:%M")
-                    iso_date = dt.isoformat()
+                    dt_utc = dt.replace(tzinfo=timezone.utc)
                 except ValueError:
-                    iso_date = datetime(2026, 6, 11, 12, 0).isoformat()
+                    dt_utc = datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc)
                 
             stage = stage_mapping.get(m["type"], "Group Stage")
             status = "Finished" if m["finished"] == "TRUE" else "Scheduled"
             
-            # Default ELO-based Odds calculation
             h_elo = ELO_RATINGS.get(h_team, 1700)
             a_elo = ELO_RATINGS.get(a_team, 1700)
             odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo)
             
             fixture = Fixture(
-                home_team_name=h_team,
-                away_team_name=a_team,
-                date=iso_date,
+                tournament_id=tourney.id,
+                home_team_id=db_teams_by_name[h_team],
+                away_team_id=db_teams_by_name[a_team],
+                date_utc=dt_utc,
                 stage=stage,
                 status=status,
                 home_score=int(m["home_score"]) if status == "Finished" else None,
                 away_score=int(m["away_score"]) if status == "Finished" else None,
+                winner_id=db_teams_by_name[h_team] if status == "Finished" and int(m["home_score"]) > int(m["away_score"]) else (db_teams_by_name[a_team] if status == "Finished" and int(m["home_score"]) < int(m["away_score"]) else None)
+            )
+            db.add(fixture)
+            db.flush()
+            
+            # Initial odds history record (recorded 2 days before)
+            init_odds = FixtureOdds(
+                fixture_id=fixture.id,
+                recorded_at=dt_utc - timedelta(days=2),
                 odds_home=odds_h,
                 odds_draw=odds_d,
                 odds_away=odds_a
             )
-            db.add(fixture)
+            db.add(init_odds)
             fixtures_to_save.append(fixture)
     else:
         # Fallback Seeding
         fallback_matches = get_fallback_matches()
         for f in fallback_matches:
-            h_elo = ELO_RATINGS.get(f["home"], 1700)
-            a_elo = ELO_RATINGS.get(f["away"], 1700)
+            h_team = f["home"]
+            a_team = f["away"]
+            dt_utc = datetime.fromisoformat(f["date"])
+            
+            h_elo = ELO_RATINGS.get(h_team, 1700)
+            a_elo = ELO_RATINGS.get(a_team, 1700)
             odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo)
             
             fixture = Fixture(
-                home_team_name=f["home"],
-                away_team_name=f["away"],
-                date=f["date"],
+                tournament_id=tourney.id,
+                home_team_id=db_teams_by_name[h_team],
+                away_team_id=db_teams_by_name[a_team],
+                date_utc=dt_utc,
                 stage=f["stage"],
                 status=f["status"],
+                winner_id=None
+            )
+            db.add(fixture)
+            db.flush()
+            
+            init_odds = FixtureOdds(
+                fixture_id=fixture.id,
+                recorded_at=dt_utc - timedelta(days=2),
                 odds_home=odds_h,
                 odds_draw=odds_d,
                 odds_away=odds_a
             )
-            db.add(fixture)
+            db.add(init_odds)
             fixtures_to_save.append(fixture)
             
     db.commit()
     
     # Try updating odds from API if key is present
-    update_odds_from_api(fixtures_to_save)
+    update_odds_from_api(fixtures_to_save, db)
     db.commit()
     
-    # Calculate watchability index
+    # Calculate watchability index using default weights
     for fixture in fixtures_to_save:
         update_fixture_score(fixture, db)
         

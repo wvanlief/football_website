@@ -26,10 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // DOM Elements
-    const toggleWeightsBtn = document.getElementById('toggle-weights-btn');
-    const closePanelBtn = document.getElementById('close-panel-btn');
-    const weightsPanel = document.getElementById('weights-panel');
-    const applyWeightsBtn = document.getElementById('apply-weights-btn');
     const refreshBtn = document.getElementById('refresh-btn');
     const toast = document.getElementById('toast');
     const themeSelect = document.getElementById('theme-select');
@@ -40,21 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const quarterFinalsList = document.getElementById('quarter-finals-list');
     const semiFinalsList = document.getElementById('semi-finals-list');
     const finalsList = document.getElementById('finals-list');
-
-    // Sliders
-    const sliders = {
-        elo: document.getElementById('weight-elo'),
-        odds: document.getElementById('weight-odds'),
-        form: document.getElementById('weight-form'),
-        narrative: document.getElementById('weight-narrative')
-    };
-    
-    const sliderVals = {
-        elo: document.getElementById('val-elo'),
-        odds: document.getElementById('val-odds'),
-        form: document.getElementById('val-form'),
-        narrative: document.getElementById('val-narrative')
-    };
 
     // Initialize Page Themes
     const savedTheme = localStorage.getItem('matchwatch-theme') || 'neon';
@@ -70,60 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Resolve details and trigger fetch
     fetchBracketDetails();
-    fetchWeights();
 
-    // Weight Panel Event Listeners
-    toggleWeightsBtn.addEventListener('click', () => {
-        weightsPanel.classList.toggle('open');
-    });
-
-    closePanelBtn.addEventListener('click', () => {
-        weightsPanel.classList.remove('open');
-    });
-
-    document.addEventListener('click', (e) => {
-        if (!weightsPanel.contains(e.target) && e.target !== toggleWeightsBtn && !toggleWeightsBtn.contains(e.target)) {
-            weightsPanel.classList.remove('open');
-        }
-    });
-
-    Object.keys(sliders).forEach(key => {
-        sliders[key].addEventListener('input', () => {
-            sliderVals[key].innerText = `${sliders[key].value}%`;
-        });
-    });
-
-    applyWeightsBtn.addEventListener('click', async () => {
-        const body = {
-            elo: parseFloat(sliders.elo.value) / 100.0,
-            odds: parseFloat(sliders.odds.value) / 100.0,
-            form: parseFloat(sliders.form.value) / 100.0,
-            narrative: parseFloat(sliders.narrative.value) / 100.0
-        };
-
-        try {
-            applyWeightsBtn.disabled = true;
-            applyWeightsBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Processing...';
-            
-            const res = await fetch('/api/weights', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            const data = await res.json();
-            
-            updateSlidersUI(data.weights);
-            showToast("Weights recalculated & Bracket updated!");
-            weightsPanel.classList.remove('open');
-            await fetchBracketDetails();
-        } catch (err) {
-            console.error(err);
-            alert("Error recalculating weights.");
-        } finally {
-            applyWeightsBtn.disabled = false;
-            applyWeightsBtn.innerText = 'Recalculate Scores';
-        }
-    });
 
     refreshBtn.addEventListener('click', async () => {
         if (!confirm("Are you sure you want to refresh the schedule database? This will reset all mock games and scores.")) return;
@@ -141,23 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    async function fetchWeights() {
-        try {
-            const res = await fetch('/api/weights');
-            const weights = await res.json();
-            updateSlidersUI(weights);
-        } catch (err) {
-            console.error("Failed to fetch weights", err);
-        }
-    }
-
-    function updateSlidersUI(weights) {
-        Object.keys(weights).forEach(key => {
-            const valPercent = Math.round(weights[key] * 100);
-            if (sliders[key]) sliders[key].value = valPercent;
-            if (sliderVals[key]) sliderVals[key].innerText = `${valPercent}%`;
-        });
-    }
 
     // Fetch Bracket Data
     async function fetchBracketDetails() {

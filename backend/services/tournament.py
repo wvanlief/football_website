@@ -1,9 +1,9 @@
 import json
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
-from backend.database import Fixture, Team, Player
+from backend.database import Fixture, Team, Player, PlayerContract, TournamentTeam
 import backend.crud.fixture as crud_fixture
 import backend.crud.team as crud_team
 import backend.crud.player as crud_player
@@ -14,44 +14,61 @@ def get_timezone(tz_str: str) -> ZoneInfo:
     except Exception:
         return ZoneInfo("UTC")
 
-def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo) -> dict:
-    dt = datetime.fromisoformat(f.date)
+def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_map: dict = None, team_group_map: dict = None) -> dict:
+    dt = f.date_utc
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=ZoneInfo("UTC"))
     dt_tz = dt.astimezone(target_tz)
     
-    home_team = crud_team.get_team_by_name(db, f.home_team_name)
-    away_team = crud_team.get_team_by_name(db, f.away_team_name)
+    home_team = f.home_team
+    away_team = f.away_team
     
-    home_players = crud_player.get_players_by_team(db, f.home_team_name)
-    away_players = crud_player.get_players_by_team(db, f.away_team_name)
-    
+    # Get group letter
+    group_letter = None
+    if team_group_map is not None:
+        group_letter = team_group_map.get((f.tournament_id, f.home_team_id))
+    else:
+        tt = db.query(TournamentTeam).filter(
+            TournamentTeam.tournament_id == f.tournament_id,
+            TournamentTeam.team_id == f.home_team_id
+        ).first()
+        if tt:
+            group_letter = tt.group_name
+            
+    # Get players
+    if team_players_map is not None:
+        home_players = team_players_map.get(f.home_team_id, [])
+        away_players = team_players_map.get(f.away_team_id, [])
+    else:
+        home_players = crud_player.get_players_by_team(db, home_team.name) if home_team else []
+        away_players = crud_player.get_players_by_team(db, away_team.name) if away_team else []
+        
     reasons = []
     try:
         reasons = json.loads(f.reasons_json) if f.reasons_json else []
     except Exception:
         pass
         
-    group_letter = home_team.group_name if home_team else None
     display_stage = f"Group {group_letter}" if f.stage == "Group Stage" and group_letter else f.stage
+    latest_odds = f.latest_odds
     
     return {
         "id": f.id,
         "home_team": {
-            "name": f.home_team_name,
+            "name": home_team.name if home_team else "Unknown",
             "elo": home_team.elo if home_team else 1500,
             "form_score": home_team.form_score if home_team else 50.0,
             "win_streak": home_team.win_streak if home_team else 0,
             "players": [{"name": p.name, "position": p.position, "form": p.form_score} for p in home_players]
         },
         "away_team": {
-            "name": f.away_team_name,
+            "name": away_team.name if away_team else "Unknown",
             "elo": away_team.elo if away_team else 1500,
             "form_score": away_team.form_score if away_team else 50.0,
             "win_streak": away_team.win_streak if away_team else 0,
             "players": [{"name": p.name, "position": p.position, "form": p.form_score} for p in away_players]
         },
-        "date": f.date,
+        "date": f.date_utc.isoformat(),
         "formatted_time": dt_tz.strftime("%H:%M"),
         "formatted_date": dt_tz.strftime("%B %d, %Y"),
         "formatted_date_short": dt_tz.strftime("%b %d"),
@@ -60,9 +77,9 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo) -> dict:
         "status": f.status,
         "score": f"{f.home_score} - {f.away_score}" if f.status == "Finished" else None,
         "odds": {
-            "home": f.odds_home,
-            "draw": f.odds_draw,
-            "away": f.odds_away
+            "home": latest_odds.odds_home,
+            "draw": latest_odds.odds_draw,
+            "away": latest_odds.odds_away
         },
         "watchability": {
             "overall": f.watchability_score,
@@ -78,6 +95,20 @@ def get_grouped_fixtures(db: Session, tz_str: str) -> dict:
     target_tz = get_timezone(tz_str)
     fixtures = crud_fixture.get_all_fixtures(db)
     
+    # Preload maps to avoid N+1 queries
+    contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(
+        PlayerContract.type == "Country",
+        PlayerContract.is_active == True
+    ).all()
+    team_players_map = {}
+    for c in contracts:
+        team_players_map.setdefault(c.team_id, []).append(c.player)
+        
+    tts = db.query(TournamentTeam).all()
+    team_group_map = {}
+    for tt in tts:
+        team_group_map[(tt.tournament_id, tt.team_id)] = tt.group_name
+        
     today_fixtures = []
     tomorrow_fixtures = []
     week_fixtures = []
@@ -87,13 +118,13 @@ def get_grouped_fixtures(db: Session, tz_str: str) -> dict:
     max_date = date(2026, 6, 19)
     
     for f in fixtures:
-        dt = datetime.fromisoformat(f.date)
+        dt = f.date_utc
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=ZoneInfo("UTC"))
         dt_tz = dt.astimezone(target_tz)
         match_date = dt_tz.date()
         
-        fixture_data = enrich_fixture(f, db, target_tz)
+        fixture_data = enrich_fixture(f, db, target_tz, team_players_map, team_group_map)
         
         if match_date == today_date:
             today_fixtures.append(fixture_data)
@@ -115,7 +146,22 @@ def get_grouped_fixtures(db: Session, tz_str: str) -> dict:
 def get_recommended_fixtures(db: Session, tz_str: str, min_score: float = 75.0) -> list:
     target_tz = get_timezone(tz_str)
     fixtures = crud_fixture.get_recommended_fixtures(db, min_score)
-    return [enrich_fixture(f, db, target_tz) for f in fixtures]
+    
+    # Preload maps to avoid N+1 queries
+    contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(
+        PlayerContract.type == "Country",
+        PlayerContract.is_active == True
+    ).all()
+    team_players_map = {}
+    for c in contracts:
+        team_players_map.setdefault(c.team_id, []).append(c.player)
+        
+    tts = db.query(TournamentTeam).all()
+    team_group_map = {}
+    for tt in tts:
+        team_group_map[(tt.tournament_id, tt.team_id)] = tt.group_name
+        
+    return [enrich_fixture(f, db, target_tz, team_players_map, team_group_map) for f in fixtures]
 
 def calculate_standings(db: Session, group_letter: str) -> list:
     teams = crud_team.get_teams_by_group(db, group_letter)
@@ -140,8 +186,8 @@ def calculate_standings(db: Session, group_letter: str) -> list:
     standings_map = {s["name"]: s for s in standings}
     
     for f in finished_fixtures:
-        h = standings_map.get(f.home_team_name)
-        a = standings_map.get(f.away_team_name)
+        h = standings_map.get(f.home_team.name)
+        a = standings_map.get(f.away_team.name)
         if not h or not a:
             continue
             
@@ -178,7 +224,10 @@ def get_country_details(db: Session, country_name: str, tz_str: str) -> dict:
     if not team:
         return None
         
-    group_standings = calculate_standings(db, team.group_name)
+    tt = db.query(TournamentTeam).filter(TournamentTeam.team_id == team.id).first()
+    group_name = tt.group_name if tt else None
+    
+    group_standings = calculate_standings(db, group_name) if group_name else []
     rank = 1
     for index, standing in enumerate(group_standings):
         if standing["name"] == country_name:
@@ -189,11 +238,11 @@ def get_country_details(db: Session, country_name: str, tz_str: str) -> dict:
     players_data = [{"name": p.name, "position": p.position, "form": p.form_score} for p in players]
     
     finished_fixtures = crud_fixture.get_finished_fixtures_for_country(db, country_name)
-    finished_fixtures.sort(key=lambda x: x.date, reverse=True)
+    finished_fixtures.sort(key=lambda x: x.date_utc, reverse=True)
     
     form_results = []
     for f in finished_fixtures:
-        if f.home_team_name == country_name:
+        if f.home_team.name == country_name:
             if f.home_score > f.away_score:
                 form_results.append("W")
             elif f.home_score < f.away_score:
@@ -225,14 +274,28 @@ def get_country_details(db: Session, country_name: str, tz_str: str) -> dict:
     form_results.reverse()
     
     future_fixtures = crud_fixture.get_future_fixtures_for_country(db, country_name)
-    future_fixtures.sort(key=lambda x: x.date)
+    future_fixtures.sort(key=lambda x: x.date_utc)
     
-    future_matches_data = [enrich_fixture(f, db, target_tz) for f in future_fixtures]
+    # Preload maps to avoid N+1 queries
+    contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(
+        PlayerContract.type == "Country",
+        PlayerContract.is_active == True
+    ).all()
+    team_players_map = {}
+    for c in contracts:
+        team_players_map.setdefault(c.team_id, []).append(c.player)
+        
+    tts = db.query(TournamentTeam).all()
+    team_group_map = {}
+    for t_t in tts:
+        team_group_map[(t_t.tournament_id, t_t.team_id)] = t_t.group_name
+
+    future_matches_data = [enrich_fixture(f, db, target_tz, team_players_map, team_group_map) for f in future_fixtures]
         
     return {
         "name": team.name,
         "elo": team.elo,
-        "group_name": team.group_name,
+        "group_name": group_name,
         "group_rank": rank,
         "form": form_results,
         "players": players_data,
@@ -249,7 +312,22 @@ def get_group_details(db: Session, group_letter: str, tz_str: str) -> dict:
     team_names = [t.name for t in teams]
     
     fixtures = crud_fixture.get_fixtures_for_group(db, team_names)
-    fixtures_data = [enrich_fixture(f, db, target_tz) for f in fixtures]
+    
+    # Preload maps to avoid N+1 queries
+    contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(
+        PlayerContract.type == "Country",
+        PlayerContract.is_active == True
+    ).all()
+    team_players_map = {}
+    for c in contracts:
+        team_players_map.setdefault(c.team_id, []).append(c.player)
+        
+    tts = db.query(TournamentTeam).all()
+    team_group_map = {}
+    for tt in tts:
+        team_group_map[(tt.tournament_id, tt.team_id)] = tt.group_name
+
+    fixtures_data = [enrich_fixture(f, db, target_tz, team_players_map, team_group_map) for f in fixtures]
         
     return {
         "group_letter": group_letter,
@@ -258,12 +336,16 @@ def get_group_details(db: Session, group_letter: str, tz_str: str) -> dict:
     }
 
 def simulate_group_stage(db: Session) -> dict:
+    from backend.database import TournamentTeam
     teams = crud_team.get_all_teams(db)
+    tts = db.query(TournamentTeam).all()
+    team_group_map = {tt.team_id: tt.group_name for tt in tts}
+    
     team_stats = {}
     for t in teams:
         team_stats[t.name] = {
             "name": t.name,
-            "group_name": t.group_name,
+            "group_name": team_group_map.get(t.id),
             "played": 0,
             "won": 0,
             "drawn": 0,
@@ -277,8 +359,8 @@ def simulate_group_stage(db: Session) -> dict:
         
     fixtures = crud_fixture.get_fixtures_by_stage(db, "Group Stage")
     for f in fixtures:
-        h = team_stats.get(f.home_team_name)
-        a = team_stats.get(f.away_team_name)
+        h = team_stats.get(f.home_team.name)
+        a = team_stats.get(f.away_team.name)
         if not h or not a:
             continue
             
@@ -396,6 +478,7 @@ def assign_third_placed_bipartite(best_thirds: list) -> dict:
         return fallback
 
 def simulate_bracket(db: Session) -> dict:
+    from backend.database import TournamentTeam
     groups_data = simulate_group_stage(db)
     
     winners = {}
@@ -409,48 +492,92 @@ def simulate_bracket(db: Session) -> dict:
     best_thirds = get_best_third_placed_teams(groups_data)
     thirds_assignment = assign_third_placed_bipartite(best_thirds)
     
-    def play_match(t1_name, t2_name):
+    def play_match(t1_name, t2_name, stage="Knockout Stage"):
         t1 = crud_team.get_team_by_name(db, t1_name)
         t2 = crud_team.get_team_by_name(db, t2_name)
         t1_elo = t1.elo if t1 else 1500
         t2_elo = t2.elo if t2 else 1500
         
-        if t1_elo > t2_elo:
-            winner = t1_name
-        elif t1_elo < t2_elo:
-            winner = t2_name
-        else:
-            t1_form = t1.form_score if t1 else 50.0
-            t2_form = t2.form_score if t2 else 50.0
-            if t1_form >= t2_form:
-                winner = t1_name
+        t1_tt = db.query(TournamentTeam).filter(TournamentTeam.team_id == t1.id).first() if t1 else None
+        t2_tt = db.query(TournamentTeam).filter(TournamentTeam.team_id == t2.id).first() if t2 else None
+        
+        import random
+        diff = t1_elo - t2_elo
+        p_t1 = 1.0 / (1.0 + 10.0 ** (-diff / 400.0))
+        
+        t1_goals = random.choices([0, 1, 2, 3, 4], weights=[0.3, 0.4, 0.2, 0.08, 0.02])[0]
+        if p_t1 > 0.6:
+            t1_goals += 1
+        elif p_t1 < 0.4:
+            t1_goals = max(0, t1_goals - 1)
+            
+        t2_goals = random.choices([0, 1, 2, 3], weights=[0.4, 0.4, 0.15, 0.05])[0]
+        if p_t1 < 0.4:
+            t2_goals += 1
+        elif p_t1 > 0.6:
+            t2_goals = max(0, t2_goals - 1)
+            
+        has_extra_time = False
+        has_penalties = False
+        home_penalty_score = None
+        away_penalty_score = None
+        
+        if t1_goals == t2_goals:
+            has_extra_time = True
+            et1 = random.choices([0, 1, 2], weights=[0.7, 0.25, 0.05])[0]
+            et2 = random.choices([0, 1, 2], weights=[0.7, 0.25, 0.05])[0]
+            t1_goals += et1
+            t2_goals += et2
+            
+            if t1_goals == t2_goals:
+                has_penalties = True
+                p1 = 0
+                p2 = 0
+                while p1 == p2:
+                    p1 = random.randint(3, 5)
+                    p2 = random.randint(3, 5)
+                    if p1 == p2:
+                        p1 += random.randint(0, 3)
+                        p2 += random.randint(0, 3)
+                home_penalty_score = p1
+                away_penalty_score = p2
+                winner = t1_name if p1 > p2 else t2_name
             else:
-                winner = t2_name
-                
+                winner = t1_name if t1_goals > t2_goals else t2_name
+        else:
+            winner = t1_name if t1_goals > t2_goals else t2_name
+            
         return {
-            "team1": {"name": t1_name, "elo": t1_elo, "group_name": t1.group_name if t1 else None},
-            "team2": {"name": t2_name, "elo": t2_elo, "group_name": t2.group_name if t2 else None},
-            "winner": winner
+            "team1": {"name": t1_name, "elo": t1_elo, "group_name": t1_tt.group_name if t1_tt else None},
+            "team2": {"name": t2_name, "elo": t2_elo, "group_name": t2_tt.group_name if t2_tt else None},
+            "winner": winner,
+            "home_score": t1_goals,
+            "away_score": t2_goals,
+            "has_extra_time": has_extra_time,
+            "has_penalties": has_penalties,
+            "home_penalty_score": home_penalty_score,
+            "away_penalty_score": away_penalty_score,
+            "stage": stage
         }
 
     r32_matches = []
     
-    m1 = play_match(runners_up["A"]["name"], runners_up["B"]["name"])
-    m2 = play_match(winners["C"]["name"], runners_up["F"]["name"])
-    m3 = play_match(winners["E"]["name"], thirds_assignment["E"]["name"])
-    m4 = play_match(winners["F"]["name"], runners_up["C"]["name"])
-    m5 = play_match(runners_up["E"]["name"], runners_up["I"]["name"])
-    m6 = play_match(winners["I"]["name"], thirds_assignment["I"]["name"])
-    m7 = play_match(winners["A"]["name"], thirds_assignment["A"]["name"])
-    m8 = play_match(winners["L"]["name"], thirds_assignment["L"]["name"])
-    m9 = play_match(winners["G"]["name"], thirds_assignment["G"]["name"])
-    m10 = play_match(winners["D"]["name"], thirds_assignment["D"]["name"])
-    m11 = play_match(winners["H"]["name"], runners_up["J"]["name"])
-    m12 = play_match(runners_up["K"]["name"], runners_up["L"]["name"])
-    m13 = play_match(winners["B"]["name"], thirds_assignment["B"]["name"])
-    m14 = play_match(runners_up["D"]["name"], runners_up["G"]["name"])
-    m15 = play_match(winners["J"]["name"], runners_up["H"]["name"])
-    m16 = play_match(winners["K"]["name"], thirds_assignment["K"]["name"])
+    m1 = play_match(runners_up["A"]["name"], runners_up["B"]["name"], "Round of 32")
+    m2 = play_match(winners["C"]["name"], runners_up["F"]["name"], "Round of 32")
+    m3 = play_match(winners["E"]["name"], thirds_assignment["E"]["name"], "Round of 32")
+    m4 = play_match(winners["F"]["name"], runners_up["C"]["name"], "Round of 32")
+    m5 = play_match(runners_up["E"]["name"], runners_up["I"]["name"], "Round of 32")
+    m6 = play_match(winners["I"]["name"], thirds_assignment["I"]["name"], "Round of 32")
+    m7 = play_match(winners["A"]["name"], thirds_assignment["A"]["name"], "Round of 32")
+    m8 = play_match(winners["L"]["name"], thirds_assignment["L"]["name"], "Round of 32")
+    m9 = play_match(winners["G"]["name"], thirds_assignment["G"]["name"], "Round of 32")
+    m10 = play_match(winners["D"]["name"], thirds_assignment["D"]["name"], "Round of 32")
+    m11 = play_match(winners["H"]["name"], runners_up["J"]["name"], "Round of 32")
+    m12 = play_match(runners_up["K"]["name"], runners_up["L"]["name"], "Round of 32")
+    m13 = play_match(winners["B"]["name"], thirds_assignment["B"]["name"], "Round of 32")
+    m14 = play_match(runners_up["D"]["name"], runners_up["G"]["name"], "Round of 32")
+    m15 = play_match(winners["J"]["name"], runners_up["H"]["name"], "Round of 32")
+    m16 = play_match(winners["K"]["name"], thirds_assignment["K"]["name"], "Round of 32")
     
     r32_matches = [m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16]
     
@@ -458,25 +585,25 @@ def simulate_bracket(db: Session) -> dict:
     for i in range(8):
         t1_name = r32_matches[i*2]["winner"]
         t2_name = r32_matches[i*2+1]["winner"]
-        r16_matches.append(play_match(t1_name, t2_name))
+        r16_matches.append(play_match(t1_name, t2_name, "Round of 16"))
         
     qf_matches = []
     for i in range(4):
         t1_name = r16_matches[i*2]["winner"]
         t2_name = r16_matches[i*2+1]["winner"]
-        qf_matches.append(play_match(t1_name, t2_name))
+        qf_matches.append(play_match(t1_name, t2_name, "Quarter-final"))
         
     sf_matches = []
     for i in range(2):
         t1_name = qf_matches[i*2]["winner"]
         t2_name = qf_matches[i*2+1]["winner"]
-        sf_matches.append(play_match(t1_name, t2_name))
+        sf_matches.append(play_match(t1_name, t2_name, "Semi-final"))
         
     sf1_loser = sf_matches[0]["team1"]["name"] if sf_matches[0]["winner"] == sf_matches[0]["team2"]["name"] else sf_matches[0]["team2"]["name"]
     sf2_loser = sf_matches[1]["team1"]["name"] if sf_matches[1]["winner"] == sf_matches[1]["team2"]["name"] else sf_matches[1]["team2"]["name"]
-    third_match = play_match(sf1_loser, sf2_loser)
+    third_match = play_match(sf1_loser, sf2_loser, "Third-place play-off")
     
-    final_match = play_match(sf_matches[0]["winner"], sf_matches[1]["winner"])
+    final_match = play_match(sf_matches[0]["winner"], sf_matches[1]["winner"], "Final")
     
     return {
         "r32": r32_matches,

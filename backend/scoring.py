@@ -54,12 +54,13 @@ def calculate_watchability(
 
     # 2. Betting Odds Competitiveness
     # Smaller diff in odds means a highly unpredictable, tight game
-    odds_diff = abs(fixture.odds_home - fixture.odds_away)
+    latest_odds = fixture.latest_odds
+    odds_diff = abs(latest_odds.odds_home - latest_odds.odds_away)
     # Proximity: 100 when odds are equal, drops as gap increases
     odds_proximity = max(0.0, 100.0 - (odds_diff * 25.0))
     
     # Draw index: Lower draw odds indicate bookies expect a very tight, hard-to-break game
-    draw_index = max(0.0, 100.0 - ((fixture.odds_draw - 2.5) * 40.0))
+    draw_index = max(0.0, 100.0 - ((latest_odds.odds_draw - 2.5) * 40.0))
     
     odds_score = (odds_proximity * 0.8) + (draw_index * 0.2)
     odds_score = min(100.0, max(0.0, odds_score))
@@ -73,8 +74,9 @@ def calculate_watchability(
     team_form = (home_team.form_score + away_team.form_score) / 2.0
     
     # Query players
-    home_players = db.query(Player).filter(Player.team_name == home_team.name).all()
-    away_players = db.query(Player).filter(Player.team_name == away_team.name).all()
+    from backend.crud.player import get_players_by_team
+    home_players = get_players_by_team(db, home_team.name)
+    away_players = get_players_by_team(db, away_team.name)
     all_players = home_players + away_players
     
     if all_players:
@@ -108,7 +110,13 @@ def calculate_watchability(
     if fixture.stage != "Group Stage":
         reasons.append(f"High stakes: World Cup {fixture.stage} knockout match (winner takes all).")
     else:
-        reasons.append(f"Crucial World Cup Group {home_team.group_name} clash.")
+        from backend.database import TournamentTeam
+        tt = db.query(TournamentTeam).filter(
+            TournamentTeam.tournament_id == fixture.tournament_id,
+            TournamentTeam.team_id == home_team.id
+        ).first()
+        group_letter = tt.group_name if tt else ""
+        reasons.append(f"Crucial World Cup Group {group_letter} clash.")
 
     # Apply Weights
     overall_score = (
@@ -134,8 +142,8 @@ def update_fixture_score(fixture: Fixture, db: Session, weights: dict = None) ->
     """
     Recalculates and updates the watchability scores for a single fixture.
     """
-    home_team = db.query(Team).filter(Team.name == fixture.home_team_name).first()
-    away_team = db.query(Team).filter(Team.name == fixture.away_team_name).first()
+    home_team = fixture.home_team
+    away_team = fixture.away_team
     
     if not home_team or not away_team:
         return fixture

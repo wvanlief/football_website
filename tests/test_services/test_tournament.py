@@ -1,21 +1,36 @@
-from backend.database import Team, Fixture
-from backend.services.tournament import calculate_standings, simulate_group_stage, simulate_bracket
+from datetime import datetime
+from backend.database import Team, Fixture, Competition, Tournament, TournamentTeam
+from backend.services.tournament import calculate_standings, simulate_group_stage
 
 def test_calculate_standings(db_session):
+    comp = Competition(name="World Cup", type="International")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026")
+    db_session.add(tourney)
+    db_session.flush()
+
     # Setup teams in Group A
-    t1 = Team(name="Germany", group_name="A", elo=1900, form_score=80.0, win_streak=1)
-    t2 = Team(name="Scotland", group_name="A", elo=1650, form_score=50.0, win_streak=0)
+    t1 = Team(name="Germany", elo=1900, form_score=80.0, win_streak=1)
+    t2 = Team(name="Scotland", elo=1650, form_score=50.0, win_streak=0)
     db_session.add_all([t1, t2])
+    db_session.flush()
+
+    tt1 = TournamentTeam(tournament_id=tourney.id, team_id=t1.id, group_name="A")
+    tt2 = TournamentTeam(tournament_id=tourney.id, team_id=t2.id, group_name="A")
+    db_session.add_all([tt1, tt2])
+    db_session.flush()
     
     # Finished fixture
     f1 = Fixture(
-        home_team_name="Germany",
-        away_team_name="Scotland",
+        tournament_id=tourney.id,
+        home_team_id=t1.id,
+        away_team_id=t2.id,
         stage="Group Stage",
         status="Finished",
         home_score=3,
         away_score=1,
-        date="2026-06-11T20:00:00"
+        date_utc=datetime.fromisoformat("2026-06-11T20:00:00")
     )
     db_session.add(f1)
     db_session.commit()
@@ -42,28 +57,43 @@ def test_calculate_standings(db_session):
     assert standings[1]["points"] == 0
 
 def test_simulate_group_stage_finished_vs_unplayed(db_session):
+    comp = Competition(name="World Cup", type="International")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026")
+    db_session.add(tourney)
+    db_session.flush()
+
     # Setup teams
-    t1 = Team(name="Germany", group_name="A", elo=1900)
-    t2 = Team(name="Scotland", group_name="A", elo=1650)
+    t1 = Team(name="Germany", elo=1900)
+    t2 = Team(name="Scotland", elo=1650)
     db_session.add_all([t1, t2])
+    db_session.flush()
+
+    tt1 = TournamentTeam(tournament_id=tourney.id, team_id=t1.id, group_name="A")
+    tt2 = TournamentTeam(tournament_id=tourney.id, team_id=t2.id, group_name="A")
+    db_session.add_all([tt1, tt2])
+    db_session.flush()
     
     # One finished match
     f1 = Fixture(
-        home_team_name="Germany",
-        away_team_name="Scotland",
+        tournament_id=tourney.id,
+        home_team_id=t1.id,
+        away_team_id=t2.id,
         stage="Group Stage",
         status="Finished",
         home_score=2,
         away_score=1,
-        date="2026-06-11T20:00:00"
+        date_utc=datetime.fromisoformat("2026-06-11T20:00:00")
     )
     # One scheduled match (needs simulation)
     f2 = Fixture(
-        home_team_name="Scotland",
-        away_team_name="Germany",
+        tournament_id=tourney.id,
+        home_team_id=t2.id,
+        away_team_id=t1.id,
         stage="Group Stage",
         status="Scheduled",
-        date="2026-06-12T20:00:00"
+        date_utc=datetime.fromisoformat("2026-06-12T20:00:00")
     )
     db_session.add_all([f1, f2])
     db_session.commit()
@@ -71,8 +101,6 @@ def test_simulate_group_stage_finished_vs_unplayed(db_session):
     groups_data = simulate_group_stage(db_session)
     
     assert "A" in groups_data
-    # Germany ELO > Scotland ELO, Germany will likely win the simulated match as well,
-    # but let's just make sure both matches were computed.
     germany_stats = next(s for s in groups_data["A"] if s["name"] == "Germany")
     scotland_stats = next(s for s in groups_data["A"] if s["name"] == "Scotland")
     assert germany_stats["played"] == 2
