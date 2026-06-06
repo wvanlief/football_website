@@ -28,7 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
     const refreshBtn = document.getElementById('refresh-btn');
     const toast = document.getElementById('toast');
-    const themeSelect = document.getElementById('theme-select');
     
     const championBannerContainer = document.getElementById('champion-banner-container');
     const round32List = document.getElementById('round-32-list');
@@ -55,17 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let allProbabilities = [];
     let projectedChampion = "";
 
-    // Initialize Page Themes
-    const savedTheme = localStorage.getItem('matchwatch-theme') || 'neon';
-    document.body.className = `theme-${savedTheme}`;
-    themeSelect.value = savedTheme;
 
-    // Theme Switcher Event Listener
-    themeSelect.addEventListener('change', () => {
-        document.body.className = `theme-${themeSelect.value}`;
-        localStorage.setItem('matchwatch-theme', themeSelect.value);
-        showToast(`Theme switched to ${themeSelect.options[themeSelect.selectedIndex].text}!`);
-    });
 
     // Tab Toggling Action
     function switchTab(tabId) {

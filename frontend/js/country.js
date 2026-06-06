@@ -33,7 +33,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
     const refreshBtn = document.getElementById('refresh-btn');
     const toast = document.getElementById('toast');
-    const themeSelect = document.getElementById('theme-select');
     const timezoneSelect = document.getElementById('timezone-select');
     
     const countryHero = document.getElementById('country-hero');
@@ -52,20 +51,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedTimezone = 'local';
     let resolvedTimezone = 'UTC';
 
-    // Initialize Page Themes
-    const savedTheme = localStorage.getItem('matchwatch-theme') || 'neon';
-    document.body.className = `theme-${savedTheme}`;
-    themeSelect.value = savedTheme;
-
+    // Initialize Page
     selectedTimezone = localStorage.getItem('matchwatch-timezone') || 'local';
     timezoneSelect.value = selectedTimezone;
 
-    // Theme Switcher Event Listener
-    themeSelect.addEventListener('change', () => {
-        document.body.className = `theme-${themeSelect.value}`;
-        localStorage.setItem('matchwatch-theme', themeSelect.value);
-        showToast(`Theme switched to ${themeSelect.options[themeSelect.selectedIndex].text}!`);
-    });
+
 
     // Timezone Switcher Event Listener
     timezoneSelect.addEventListener('change', () => {

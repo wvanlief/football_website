@@ -60,3 +60,8 @@ class CombinedBracketResponse(BaseModel):
     probabilities: List[TeamProbability]
     last_updated: Optional[str] = None
     num_simulations: Optional[int] = None
+
+class CountrySimpleOut(BaseModel):
+    name: str
+    elo: int
+    group_name: Optional[str] = None
