@@ -37,6 +37,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const semiFinalsList = document.getElementById('semi-finals-list');
     const finalsList = document.getElementById('finals-list');
 
+    // Tab Elements
+    const tabTreeBtn = document.getElementById('tab-tree-btn');
+    const tabProbBtn = document.getElementById('tab-prob-btn');
+    const treeTabPanel = document.getElementById('tree-tab-panel');
+    const probTabPanel = document.getElementById('prob-tab-panel');
+
+    // Leaderboard Control Elements
+    const teamSearch = document.getElementById('team-search');
+    const leaderboardSort = document.getElementById('leaderboard-sort');
+    const simulationMeta = document.getElementById('simulation-meta');
+    const simulationTimestamp = document.getElementById('simulation-timestamp');
+    const leaderboardBody = document.getElementById('leaderboard-body');
+    const simulationLoadingOverlay = document.getElementById('simulation-loading-overlay');
+
+    // Store fetched probabilities globally for search/filtering
+    let allProbabilities = [];
+    let projectedChampion = "";
+
     // Initialize Page Themes
     const savedTheme = localStorage.getItem('matchwatch-theme') || 'neon';
     document.body.className = `theme-${savedTheme}`;
@@ -49,26 +67,51 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`Theme switched to ${themeSelect.options[themeSelect.selectedIndex].text}!`);
     });
 
+    // Tab Toggling Action
+    function switchTab(tabId) {
+        if (tabId === 'tree') {
+            tabTreeBtn.classList.add('active');
+            tabProbBtn.classList.remove('active');
+            treeTabPanel.classList.add('active');
+            probTabPanel.classList.remove('active');
+            localStorage.setItem('active-bracket-tab', 'tree');
+        } else {
+            tabTreeBtn.classList.remove('active');
+            tabProbBtn.classList.add('active');
+            treeTabPanel.classList.remove('active');
+            probTabPanel.classList.add('active');
+            localStorage.setItem('active-bracket-tab', 'prob');
+            // Force redraw/re-animate of probability fills when switching
+            renderLeaderboard();
+        }
+    }
+
+    tabTreeBtn.addEventListener('click', () => switchTab('tree'));
+    tabProbBtn.addEventListener('click', () => switchTab('prob'));
+
+    // Apply saved tab
+    const savedTab = localStorage.getItem('active-bracket-tab') || 'tree';
+    switchTab(savedTab);
+
     // Resolve details and trigger fetch
     fetchBracketDetails();
 
-
     refreshBtn.addEventListener('click', async () => {
-        if (!confirm("Are you sure you want to refresh the schedule database? This will reset all mock games and scores.")) return;
+        if (!confirm("Are you sure you want to refresh the schedule database? This will reset all mock games and scores, and re-run the 5,000 Monte Carlo simulations.")) return;
         try {
-            refreshBtn.classList.add('fa-spin');
+            simulationLoadingOverlay.classList.add('show');
             const res = await fetch('/api/refresh', { method: 'POST' });
             if (res.ok) {
-                showToast("Database refreshed successfully!");
+                showToast("Database and simulations refreshed successfully!");
                 await fetchBracketDetails();
             }
         } catch (err) {
             console.error(err);
+            showToast("Failed to refresh data.");
         } finally {
-            refreshBtn.classList.remove('fa-spin');
+            simulationLoadingOverlay.classList.remove('show');
         }
     });
-
 
     // Fetch Bracket Data
     async function fetchBracketDetails() {
@@ -77,15 +120,35 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/bracket');
             const data = await res.json();
             
-            renderChampion(data.final);
-            renderRound(round32List, data.r32);
-            renderRound(round16List, data.r16);
-            renderRound(quarterFinalsList, data.qf);
-            renderRound(semiFinalsList, data.sf);
-            renderFinals(data.third, data.final);
+            const bracket = data.bracket;
+            allProbabilities = data.probabilities || [];
+            projectedChampion = bracket.champion;
+
+            // Render Bracket Tree
+            renderChampion(bracket.final);
+            renderRound(round32List, bracket.r32);
+            renderRound(round16List, bracket.r16);
+            renderRound(quarterFinalsList, bracket.qf);
+            renderRound(semiFinalsList, bracket.sf);
+            renderFinals(bracket.third, bracket.final);
+
+            // Populate Leaderboard Metadata
+            if (simulationMeta) {
+                simulationMeta.innerText = `${(data.num_simulations || 5000).toLocaleString()} runs`;
+            }
+            if (simulationTimestamp && data.last_updated) {
+                const dateObj = new Date(data.last_updated);
+                simulationTimestamp.innerText = dateObj.toLocaleString();
+            }
+
+            // Render Leaderboard Table
+            renderLeaderboard();
         } catch (err) {
             console.error("Failed to load bracket data", err);
             round32List.innerHTML = '<p class="text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Error loading bracket.</p>';
+            if (leaderboardBody) {
+                leaderboardBody.innerHTML = '<tr><td colspan="11" class="text-danger text-center"><i class="fa-solid fa-triangle-exclamation"></i> Error loading win probabilities.</td></tr>';
+            }
         }
     }
 
@@ -97,6 +160,9 @@ document.addEventListener('DOMContentLoaded', () => {
         semiFinalsList.innerHTML = spinner;
         finalsList.innerHTML = spinner;
         championBannerContainer.innerHTML = '';
+        if (leaderboardBody) {
+            leaderboardBody.innerHTML = '<tr><td colspan="11" class="text-center"><i class="fa-solid fa-circle-notch fa-spin text-warning"></i> Loading simulation statistics...</td></tr>';
+        }
     }
 
     function renderChampion(finalMatch) {
@@ -197,6 +263,103 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         return card;
+    }
+
+    // Leaderboard Sorting & Filtering
+    function renderLeaderboard() {
+        if (!leaderboardBody) return;
+
+        const searchQuery = teamSearch.value.trim().toLowerCase();
+        const sortBy = leaderboardSort.value;
+
+        // 1. Filter
+        let filtered = allProbabilities.filter(p => p.team.toLowerCase().includes(searchQuery));
+
+        // 2. Sort
+        filtered.sort((a, b) => {
+            if (sortBy === 'champion_pct') {
+                return (b.champion_pct - a.champion_pct) || (b.runner_up_pct - a.runner_up_pct) || (b.sf_exit_pct - a.sf_exit_pct) || (b.elo - a.elo);
+            } else if (sortBy === 'elo') {
+                return (b.elo - a.elo) || (b.champion_pct - a.champion_pct);
+            } else if (sortBy === 'group_exit_pct') {
+                return (b.group_exit_pct - a.group_exit_pct) || (b.elo - a.elo);
+            }
+            return 0;
+        });
+
+        // 3. Render
+        if (filtered.length === 0) {
+            leaderboardBody.innerHTML = '<tr><td colspan="11" class="text-center text-secondary">No teams matching search query found.</td></tr>';
+            return;
+        }
+
+        leaderboardBody.innerHTML = '';
+        filtered.forEach((team, index) => {
+            const tr = document.createElement('tr');
+            tr.className = 'leaderboard-row';
+            if (team.team === projectedChampion) {
+                tr.classList.add('champion-highlight');
+            }
+            tr.setAttribute('data-name', team.team);
+
+            // Helper to get color class for progress fill
+            const getFillClass = (pct, column) => {
+                if (column === 'champion') {
+                    return pct > 15 ? 'high-prob' : pct > 5 ? 'medium-prob' : 'low-prob';
+                }
+                return pct > 40 ? 'high-prob' : pct > 15 ? 'medium-prob' : 'low-prob';
+            };
+
+            // HTML cell helper for probabilities
+            const makeProbCell = (pct, isChamp = false) => {
+                const rounded = Math.round(pct);
+                const fillClass = getFillClass(pct, isChamp ? 'champion' : 'other');
+                return `
+                    <td class="col-prob ${isChamp ? 'champion-col' : ''}">
+                        <div class="leaderboard-prob-cell">
+                            <span class="prob-val-text">${pct.toFixed(1)}%</span>
+                            <div class="prob-bar-track">
+                                <div class="prob-bar-fill ${fillClass}" style="width: ${rounded}%"></div>
+                            </div>
+                        </div>
+                    </td>
+                `;
+            };
+
+            tr.innerHTML = `
+                <td class="col-rank">${index + 1}</td>
+                <td class="col-team-leader">
+                    <div class="team-identity-leader">
+                        <img src="${getFlagUrl(team.team)}" class="leader-team-flag" alt="">
+                        <span class="leader-team-name">${team.team}</span>
+                    </div>
+                </td>
+                <td class="col-elo-leader">ELO ${team.elo}</td>
+                <td class="col-group-leader">Group ${team.group_name || '-'}</td>
+                ${makeProbCell(team.group_exit_pct)}
+                ${makeProbCell(team.r32_exit_pct)}
+                ${makeProbCell(team.r16_exit_pct)}
+                ${makeProbCell(team.qf_exit_pct)}
+                ${makeProbCell(team.sf_exit_pct)}
+                ${makeProbCell(team.runner_up_pct)}
+                ${makeProbCell(team.champion_pct, true)}
+            `;
+
+            // Row click event navigation
+            tr.addEventListener('click', () => {
+                window.location.href = `/country/${encodeURIComponent(team.team)}`;
+            });
+
+            leaderboardBody.appendChild(tr);
+        });
+    }
+
+    // Bind controls to leaderboard rendering
+    if (teamSearch) {
+        teamSearch.addEventListener('input', renderLeaderboard);
+    }
+    if (leaderboardSort) {
+        leaderboardSort.addEventListener('change', renderLeaderboard);
     }
 
     function showToast(message) {

@@ -512,4 +512,11 @@ def seed_database(db: Session):
         update_fixture_score(fixture, db)
         
     db.commit()
-    print("Database seeding completed.")
+    print("Database seeding completed. Triggering tournament Monte Carlo simulation...")
+    from backend.services.tournament import run_monte_carlo_simulation
+    try:
+        run_monte_carlo_simulation(db)
+    except Exception as e:
+        print(f"Error running pre-computed Monte Carlo simulation: {e}")
+        
+    print("Database seeding and simulation completed.")

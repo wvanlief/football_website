@@ -478,139 +478,391 @@ def assign_third_placed_bipartite(best_thirds: list) -> dict:
         return fallback
 
 def simulate_bracket(db: Session) -> dict:
-    from backend.database import TournamentTeam
-    groups_data = simulate_group_stage(db)
+    import os
+    import json
     
-    winners = {}
-    runners_up = {}
-    for g, teams in groups_data.items():
-        if len(teams) >= 1:
-            winners[g] = teams[0]
-        if len(teams) >= 2:
-            runners_up[g] = teams[1]
+    file_path = os.path.join(os.path.dirname(__file__), "..", "data", "simulation_results.json")
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
             
-    best_thirds = get_best_third_placed_teams(groups_data)
-    thirds_assignment = assign_third_placed_bipartite(best_thirds)
-    
-    def play_match(t1_name, t2_name, stage="Knockout Stage"):
-        t1 = crud_team.get_team_by_name(db, t1_name)
-        t2 = crud_team.get_team_by_name(db, t2_name)
-        t1_elo = t1.elo if t1 else 1500
-        t2_elo = t2.elo if t2 else 1500
-        
-        t1_tt = db.query(TournamentTeam).filter(TournamentTeam.team_id == t1.id).first() if t1 else None
-        t2_tt = db.query(TournamentTeam).filter(TournamentTeam.team_id == t2.id).first() if t2 else None
-        
-        import random
-        diff = t1_elo - t2_elo
-        p_t1 = 1.0 / (1.0 + 10.0 ** (-diff / 400.0))
-        
-        t1_goals = random.choices([0, 1, 2, 3, 4], weights=[0.3, 0.4, 0.2, 0.08, 0.02])[0]
-        if p_t1 > 0.6:
-            t1_goals += 1
-        elif p_t1 < 0.4:
-            t1_goals = max(0, t1_goals - 1)
-            
-        t2_goals = random.choices([0, 1, 2, 3], weights=[0.4, 0.4, 0.15, 0.05])[0]
-        if p_t1 < 0.4:
-            t2_goals += 1
-        elif p_t1 > 0.6:
-            t2_goals = max(0, t2_goals - 1)
-            
-        has_extra_time = False
-        has_penalties = False
-        home_penalty_score = None
-        away_penalty_score = None
-        
-        if t1_goals == t2_goals:
-            has_extra_time = True
-            et1 = random.choices([0, 1, 2], weights=[0.7, 0.25, 0.05])[0]
-            et2 = random.choices([0, 1, 2], weights=[0.7, 0.25, 0.05])[0]
-            t1_goals += et1
-            t2_goals += et2
-            
-            if t1_goals == t2_goals:
-                has_penalties = True
-                p1 = 0
-                p2 = 0
-                while p1 == p2:
-                    p1 = random.randint(3, 5)
-                    p2 = random.randint(3, 5)
-                    if p1 == p2:
-                        p1 += random.randint(0, 3)
-                        p2 += random.randint(0, 3)
-                home_penalty_score = p1
-                away_penalty_score = p2
-                winner = t1_name if p1 > p2 else t2_name
-            else:
-                winner = t1_name if t1_goals > t2_goals else t2_name
-        else:
-            winner = t1_name if t1_goals > t2_goals else t2_name
-            
-        return {
-            "team1": {"name": t1_name, "elo": t1_elo, "group_name": t1_tt.group_name if t1_tt else None},
-            "team2": {"name": t2_name, "elo": t2_elo, "group_name": t2_tt.group_name if t2_tt else None},
-            "winner": winner,
-            "home_score": t1_goals,
-            "away_score": t2_goals,
-            "has_extra_time": has_extra_time,
-            "has_penalties": has_penalties,
-            "home_penalty_score": home_penalty_score,
-            "away_penalty_score": away_penalty_score,
-            "stage": stage
-        }
+    # File not found or corrupt -> generate it
+    return run_monte_carlo_simulation(db)
 
-    r32_matches = []
+def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000) -> dict:
+    import random
+    import math
+    import os
+    import json
+    from datetime import datetime, timezone
     
-    m1 = play_match(runners_up["A"]["name"], runners_up["B"]["name"], "Round of 32")
-    m2 = play_match(winners["C"]["name"], runners_up["F"]["name"], "Round of 32")
-    m3 = play_match(winners["E"]["name"], thirds_assignment["E"]["name"], "Round of 32")
-    m4 = play_match(winners["F"]["name"], runners_up["C"]["name"], "Round of 32")
-    m5 = play_match(runners_up["E"]["name"], runners_up["I"]["name"], "Round of 32")
-    m6 = play_match(winners["I"]["name"], thirds_assignment["I"]["name"], "Round of 32")
-    m7 = play_match(winners["A"]["name"], thirds_assignment["A"]["name"], "Round of 32")
-    m8 = play_match(winners["L"]["name"], thirds_assignment["L"]["name"], "Round of 32")
-    m9 = play_match(winners["G"]["name"], thirds_assignment["G"]["name"], "Round of 32")
-    m10 = play_match(winners["D"]["name"], thirds_assignment["D"]["name"], "Round of 32")
-    m11 = play_match(winners["H"]["name"], runners_up["J"]["name"], "Round of 32")
-    m12 = play_match(runners_up["K"]["name"], runners_up["L"]["name"], "Round of 32")
-    m13 = play_match(winners["B"]["name"], thirds_assignment["B"]["name"], "Round of 32")
-    m14 = play_match(runners_up["D"]["name"], runners_up["G"]["name"], "Round of 32")
-    m15 = play_match(winners["J"]["name"], runners_up["H"]["name"], "Round of 32")
-    m16 = play_match(winners["K"]["name"], thirds_assignment["K"]["name"], "Round of 32")
+    # Try importing numpy for faster poisson random number generation, fallback to pure python Knuth's algorithm
+    try:
+        import numpy as np
+        def poisson_random(lam: float) -> int:
+            return int(np.random.poisson(lam))
+    except ImportError:
+        def poisson_random(lam: float) -> int:
+            L = math.exp(-lam)
+            k = 0
+            p = 1.0
+            while p > L:
+                k += 1
+                p *= random.random()
+            return k - 1
+
+    # Load all teams
+    from backend.database import Team, TournamentTeam, Fixture
+    teams = db.query(Team).all()
+    team_dict = {t.name: {"id": t.id, "elo": t.elo, "form_score": t.form_score} for t in teams}
     
-    r32_matches = [m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16]
+    tts = db.query(TournamentTeam).all()
+    team_group_map = {tt.team_id: tt.group_name for tt in tts}
     
-    r16_matches = []
-    for i in range(8):
-        t1_name = r32_matches[i*2]["winner"]
-        t2_name = r32_matches[i*2+1]["winner"]
-        r16_matches.append(play_match(t1_name, t2_name, "Round of 16"))
+    group_fixtures = db.query(Fixture).filter(Fixture.stage == "Group Stage").all()
+    
+    finished_fixtures = []
+    scheduled_fixtures = []
+    for f in group_fixtures:
+        if f.status == "Finished":
+            finished_fixtures.append({
+                "home": f.home_team.name,
+                "away": f.away_team.name,
+                "home_score": f.home_score,
+                "away_score": f.away_score
+            })
+        else:
+            scheduled_fixtures.append({
+                "home": f.home_team.name,
+                "away": f.away_team.name
+            })
+            
+    # We will record stage exits
+    # Exit stages: "group", "r32", "r16", "qf", "sf", "runner_up", "champion"
+    exit_counts = {t.name: {
+        "group": 0, "r32": 0, "r16": 0, "qf": 0, "sf": 0, "runner_up": 0, "champion": 0
+    } for t in teams}
+    
+    all_brackets = []
+    champion_counts = {}
+    
+    for sim in range(num_simulations):
+        # 1. Initialize ELO and Group Standings
+        elo_map = {name: info["elo"] for name, info in team_dict.items()}
         
-    qf_matches = []
-    for i in range(4):
-        t1_name = r16_matches[i*2]["winner"]
-        t2_name = r16_matches[i*2+1]["winner"]
-        qf_matches.append(play_match(t1_name, t2_name, "Quarter-final"))
+        team_stats = {name: {
+            "name": name,
+            "group_name": team_group_map.get(info["id"]),
+            "played": 0,
+            "won": 0,
+            "drawn": 0,
+            "lost": 0,
+            "goals_for": 0,
+            "goals_against": 0,
+            "goal_difference": 0,
+            "points": 0,
+            "elo": info["elo"]
+        } for name, info in team_dict.items()}
         
-    sf_matches = []
-    for i in range(2):
-        t1_name = qf_matches[i*2]["winner"]
-        t2_name = qf_matches[i*2+1]["winner"]
-        sf_matches.append(play_match(t1_name, t2_name, "Semi-final"))
+        # 2. Add finished fixtures
+        for f in finished_fixtures:
+            h = team_stats.get(f["home"])
+            a = team_stats.get(f["away"])
+            if h and a:
+                h["played"] += 1
+                a["played"] += 1
+                h["goals_for"] += f["home_score"]
+                h["goals_against"] += f["away_score"]
+                a["goals_for"] += f["away_score"]
+                a["goals_against"] += f["home_score"]
+                h["goal_difference"] = h["goals_for"] - h["goals_against"]
+                a["goal_difference"] = a["goals_for"] - a["goals_against"]
+                if f["home_score"] > f["away_score"]:
+                    h["won"] += 1
+                    h["points"] += 3
+                    a["lost"] += 1
+                elif f["home_score"] < f["away_score"]:
+                    a["won"] += 1
+                    a["points"] += 3
+                    h["lost"] += 1
+                else:
+                    h["drawn"] += 1
+                    h["points"] += 1
+                    a["drawn"] += 1
+                    a["points"] += 1
+                    
+        # 3. Simulate scheduled fixtures
+        for f in scheduled_fixtures:
+            h_name = f["home"]
+            a_name = f["away"]
+            h = team_stats.get(h_name)
+            a = team_stats.get(a_name)
+            if not h or not a:
+                continue
+                
+            elo_h = elo_map.get(h_name, 1500)
+            elo_a = elo_map.get(a_name, 1500)
+            
+            diff = elo_h - elo_a
+            p_h = 1.0 / (1.0 + 10.0 ** (-diff / 400.0))
+            
+            lambda_h = 1.35 * (p_h / 0.46)
+            lambda_a = 1.35 * ((1.0 - p_h) / 0.46)
+            
+            g_h = poisson_random(lambda_h)
+            g_a = poisson_random(lambda_a)
+            
+            # ELO updates in memory
+            expected_h = p_h
+            actual_h = 1.0 if g_h > g_a else 0.5 if g_h == g_a else 0.0
+            change = 30.0 * (actual_h - expected_h)
+            elo_map[h_name] = elo_h + change
+            elo_map[a_name] = elo_a - change
+            
+            h["played"] += 1
+            a["played"] += 1
+            h["goals_for"] += g_h
+            h["goals_against"] += g_a
+            a["goals_for"] += g_a
+            a["goals_against"] += g_h
+            h["goal_difference"] = h["goals_for"] - h["goals_against"]
+            a["goal_difference"] = a["goals_for"] - a["goals_against"]
+            
+            if g_h > g_a:
+                h["won"] += 1
+                h["points"] += 3
+                a["lost"] += 1
+            elif g_h < g_a:
+                a["won"] += 1
+                a["points"] += 3
+                h["lost"] += 1
+            else:
+                h["drawn"] += 1
+                h["points"] += 1
+                a["drawn"] += 1
+                a["points"] += 1
+                
+        # 4. Process groups
+        groups_data = {}
+        for t_name, s in team_stats.items():
+            g = s["group_name"]
+            if g:
+                groups_data.setdefault(g, []).append(s)
+                
+        for g in groups_data:
+            groups_data[g].sort(key=lambda x: (x["points"], x["goal_difference"], x["goals_for"], x["elo"]), reverse=True)
+            
+        winners = {}
+        runners_up = {}
+        for g, teams_list in groups_data.items():
+            if len(teams_list) >= 1:
+                winners[g] = teams_list[0]
+            if len(teams_list) >= 2:
+                runners_up[g] = teams_list[1]
+                
+        best_thirds = get_best_third_placed_teams(groups_data)
+        thirds_assignment = assign_third_placed_bipartite(best_thirds)
         
-    sf1_loser = sf_matches[0]["team1"]["name"] if sf_matches[0]["winner"] == sf_matches[0]["team2"]["name"] else sf_matches[0]["team2"]["name"]
-    sf2_loser = sf_matches[1]["team1"]["name"] if sf_matches[1]["winner"] == sf_matches[1]["team2"]["name"] else sf_matches[1]["team2"]["name"]
-    third_match = play_match(sf1_loser, sf2_loser, "Third-place play-off")
+        # Mark all teams not in winners, runners_up, or thirds_assignment as group stage exit
+        advancing_names = set()
+        for g in winners:
+            advancing_names.add(winners[g]["name"])
+        for g in runners_up:
+            advancing_names.add(runners_up[g]["name"])
+        for g in thirds_assignment:
+            advancing_names.add(thirds_assignment[g]["name"])
+            
+        for name in team_stats:
+            if name not in advancing_names:
+                exit_counts[name]["group"] += 1
+                
+        # 5. Knockout Simulator play match helper
+        def play_knockout_match(t1_name, t2_name, stage):
+            elo1 = elo_map.get(t1_name, 1500)
+            elo2 = elo_map.get(t2_name, 1500)
+            diff = elo1 - elo2
+            p_t1 = 1.0 / (1.0 + 10.0 ** (-diff / 400.0))
+            
+            lambda_1 = 1.35 * (p_t1 / 0.46)
+            lambda_2 = 1.35 * ((1.0 - p_t1) / 0.46)
+            
+            goals1 = poisson_random(lambda_1)
+            goals2 = poisson_random(lambda_2)
+            
+            # Elo update
+            expected_1 = p_t1
+            actual_1 = 1.0 if goals1 > goals2 else 0.5 if goals1 == goals2 else 0.0
+            change = 30.0 * (actual_1 - expected_1)
+            elo_map[t1_name] = elo1 + change
+            elo_map[t2_name] = elo2 - change
+            
+            has_extra_time = False
+            has_penalties = False
+            p1_score = None
+            p2_score = None
+            
+            if goals1 == goals2:
+                has_extra_time = True
+                et1 = poisson_random(0.35)
+                et2 = poisson_random(0.35)
+                goals1 += et1
+                goals2 += et2
+                
+                if goals1 == goals2:
+                    has_penalties = True
+                    p1 = 0
+                    p2 = 0
+                    while p1 == p2:
+                        p1 = random.randint(3, 5)
+                        p2 = random.randint(3, 5)
+                        if p1 == p2:
+                            p1 += random.randint(0, 3)
+                            p2 += random.randint(0, 3)
+                    p1_score = p1
+                    p2_score = p2
+                    winner = t1_name if p1 > p2 else t2_name
+                else:
+                    winner = t1_name if goals1 > goals2 else t2_name
+            else:
+                winner = t1_name if goals1 > goals2 else t2_name
+                
+            return {
+                "team1": {"name": t1_name, "elo": int(elo1), "group_name": team_group_map.get(team_dict[t1_name]["id"])},
+                "team2": {"name": t2_name, "elo": int(elo2), "group_name": team_group_map.get(team_dict[t2_name]["id"])},
+                "winner": winner,
+                "home_score": goals1,
+                "away_score": goals2,
+                "has_extra_time": has_extra_time,
+                "has_penalties": has_penalties,
+                "home_penalty_score": p1_score,
+                "away_penalty_score": p2_score,
+                "stage": stage
+            }
+
+        # Play matches
+        m1 = play_knockout_match(runners_up["A"]["name"], runners_up["B"]["name"], "Round of 32")
+        m2 = play_knockout_match(winners["C"]["name"], runners_up["F"]["name"], "Round of 32")
+        m3 = play_knockout_match(winners["E"]["name"], thirds_assignment["E"]["name"], "Round of 32")
+        m4 = play_knockout_match(winners["F"]["name"], runners_up["C"]["name"], "Round of 32")
+        m5 = play_knockout_match(runners_up["E"]["name"], runners_up["I"]["name"], "Round of 32")
+        m6 = play_knockout_match(winners["I"]["name"], thirds_assignment["I"]["name"], "Round of 32")
+        m7 = play_knockout_match(winners["A"]["name"], thirds_assignment["A"]["name"], "Round of 32")
+        m8 = play_knockout_match(winners["L"]["name"], thirds_assignment["L"]["name"], "Round of 32")
+        m9 = play_knockout_match(winners["G"]["name"], thirds_assignment["G"]["name"], "Round of 32")
+        m10 = play_knockout_match(winners["D"]["name"], thirds_assignment["D"]["name"], "Round of 32")
+        m11 = play_knockout_match(winners["H"]["name"], runners_up["J"]["name"], "Round of 32")
+        m12 = play_knockout_match(runners_up["K"]["name"], runners_up["L"]["name"], "Round of 32")
+        m13 = play_knockout_match(winners["B"]["name"], thirds_assignment["B"]["name"], "Round of 32")
+        m14 = play_knockout_match(runners_up["D"]["name"], runners_up["G"]["name"], "Round of 32")
+        m15 = play_knockout_match(winners["J"]["name"], runners_up["H"]["name"], "Round of 32")
+        m16 = play_knockout_match(winners["K"]["name"], thirds_assignment["K"]["name"], "Round of 32")
+        
+        r32_matches = [m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16]
+        
+        # Exits in R32
+        for m in r32_matches:
+            loser = m["team1"]["name"] if m["winner"] == m["team2"]["name"] else m["team2"]["name"]
+            exit_counts[loser]["r32"] += 1
+            
+        r16_matches = []
+        for i in range(8):
+            r16_matches.append(play_knockout_match(r32_matches[i*2]["winner"], r32_matches[i*2+1]["winner"], "Round of 16"))
+            
+        # Exits in R16
+        for m in r16_matches:
+            loser = m["team1"]["name"] if m["winner"] == m["team2"]["name"] else m["team2"]["name"]
+            exit_counts[loser]["r16"] += 1
+            
+        qf_matches = []
+        for i in range(4):
+            qf_matches.append(play_knockout_match(r16_matches[i*2]["winner"], r16_matches[i*2+1]["winner"], "Quarter-final"))
+            
+        # Exits in QF
+        for m in qf_matches:
+            loser = m["team1"]["name"] if m["winner"] == m["team2"]["name"] else m["team2"]["name"]
+            exit_counts[loser]["qf"] += 1
+            
+        sf_matches = []
+        for i in range(2):
+            sf_matches.append(play_knockout_match(qf_matches[i*2]["winner"], qf_matches[i*2+1]["winner"], "Semi-final"))
+            
+        sf1_loser = sf_matches[0]["team1"]["name"] if sf_matches[0]["winner"] == sf_matches[0]["team2"]["name"] else sf_matches[0]["team2"]["name"]
+        sf2_loser = sf_matches[1]["team1"]["name"] if sf_matches[1]["winner"] == sf_matches[1]["team2"]["name"] else sf_matches[1]["team2"]["name"]
+        
+        third_match = play_knockout_match(sf1_loser, sf2_loser, "Third-place play-off")
+        
+        # Exits in SF
+        exit_counts[sf1_loser]["sf"] += 1
+        exit_counts[sf2_loser]["sf"] += 1
+        
+        final_match = play_knockout_match(sf_matches[0]["winner"], sf_matches[1]["winner"], "Final")
+        
+        exit_counts[final_match["team1"]["name"] if final_match["winner"] == final_match["team2"]["name"] else final_match["team2"]["name"]]["runner_up"] += 1
+        exit_counts[final_match["winner"]]["champion"] += 1
+        
+        champion = final_match["winner"]
+        champion_counts[champion] = champion_counts.get(champion, 0) + 1
+        
+        bracket = {
+            "r32": r32_matches,
+            "r16": r16_matches,
+            "qf": qf_matches,
+            "sf": sf_matches,
+            "third": third_match,
+            "final": final_match,
+            "champion": champion
+        }
+        all_brackets.append(bracket)
+        
+    # Aggregate probabilities
+    probabilities = []
+    for name, info in team_dict.items():
+        counts = exit_counts[name]
+        probabilities.append({
+            "team": name,
+            "elo": info["elo"],
+            "group_name": team_group_map.get(info["id"]),
+            "group_exit_pct": round(counts["group"] / num_simulations * 100, 2),
+            "r32_exit_pct": round(counts["r32"] / num_simulations * 100, 2),
+            "r16_exit_pct": round(counts["r16"] / num_simulations * 100, 2),
+            "qf_exit_pct": round(counts["qf"] / num_simulations * 100, 2),
+            "sf_exit_pct": round(counts["sf"] / num_simulations * 100, 2),
+            "runner_up_pct": round(counts["runner_up"] / num_simulations * 100, 2),
+            "champion_pct": round(counts["champion"] / num_simulations * 100, 2)
+        })
+        
+    # Sort probabilities by champion_pct, then runner_up_pct, then sf_exit_pct, etc.
+    probabilities.sort(key=lambda x: (x["champion_pct"], x["runner_up_pct"], x["sf_exit_pct"], x["qf_exit_pct"], x["elo"]), reverse=True)
     
-    final_match = play_match(sf_matches[0]["winner"], sf_matches[1]["winner"], "Final")
+    # Pick the representative bracket
+    most_common_champion = max(champion_counts, key=champion_counts.get) if champion_counts else "Unknown"
     
-    return {
-        "r32": r32_matches,
-        "r16": r16_matches,
-        "qf": qf_matches,
-        "sf": sf_matches,
-        "third": third_match,
-        "final": final_match,
-        "champion": final_match["winner"]
+    representative_bracket = None
+    for b in all_brackets:
+        if b["champion"] == most_common_champion:
+            representative_bracket = b
+            break
+            
+    if not representative_bracket and all_brackets:
+        representative_bracket = all_brackets[0]
+        
+    result = {
+        "bracket": representative_bracket,
+        "probabilities": probabilities,
+        "last_updated": datetime.now(timezone.utc).isoformat(),
+        "num_simulations": num_simulations
     }
+    
+    # Save to file
+    file_dir = os.path.join(os.path.dirname(__file__), "..", "data")
+    os.makedirs(file_dir, exist_ok=True)
+    file_path = os.path.join(file_dir, "simulation_results.json")
+    
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2)
+        
+    return result
+

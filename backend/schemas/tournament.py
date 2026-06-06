@@ -42,3 +42,21 @@ class BracketResponse(BaseModel):
     third: BracketMatch
     final: BracketMatch
     champion: str
+
+class TeamProbability(BaseModel):
+    team: str
+    elo: int
+    group_name: Optional[str] = None
+    group_exit_pct: float
+    r32_exit_pct: float
+    r16_exit_pct: float
+    qf_exit_pct: float
+    sf_exit_pct: float
+    runner_up_pct: float
+    champion_pct: float
+
+class CombinedBracketResponse(BaseModel):
+    bracket: BracketResponse
+    probabilities: List[TeamProbability]
+    last_updated: Optional[str] = None
+    num_simulations: Optional[int] = None

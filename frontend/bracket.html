@@ -69,41 +69,106 @@
             <p>Calculated dynamically based on ELO win projections. Adjust engine weights or mark group stage matches finished to watch the bracket adapt.</p>
         </section>
 
-        <!-- Dynamic Champion Banner -->
-        <div id="champion-banner-container"></div>
+        <!-- Tab Navigation Toggle -->
+        <div class="bracket-tabs-container">
+            <button id="tab-tree-btn" class="bracket-tab-btn active">
+                <i class="fa-solid fa-sitemap"></i> Bracket Tree
+            </button>
+            <button id="tab-prob-btn" class="bracket-tab-btn">
+                <i class="fa-solid fa-chart-line"></i> Win Probabilities
+            </button>
+        </div>
 
-        <!-- Scrollable Bracket Tree Wrapper -->
-        <div class="bracket-tree-wrapper">
-            <div id="bracket-tree" class="bracket-tree-container">
-                <!-- Column 1: Round of 32 -->
-                <div class="bracket-column round-32">
-                    <h4 class="round-title">Round of 32</h4>
-                    <div id="round-32-list" class="round-matches-container"></div>
-                </div>
+        <!-- Tab Panel 1: Bracket Tree -->
+        <div id="tree-tab-panel" class="bracket-tab-panel active">
+            <!-- Dynamic Champion Banner -->
+            <div id="champion-banner-container"></div>
 
-                <!-- Column 2: Round of 16 -->
-                <div class="bracket-column round-16">
-                    <h4 class="round-title">Round of 16</h4>
-                    <div id="round-16-list" class="round-matches-container"></div>
-                </div>
+            <!-- Scrollable Bracket Tree Wrapper -->
+            <div class="bracket-tree-wrapper">
+                <div id="bracket-tree" class="bracket-tree-container">
+                    <!-- Column 1: Round of 32 -->
+                    <div class="bracket-column round-32">
+                        <h4 class="round-title">Round of 32</h4>
+                        <div id="round-32-list" class="round-matches-container"></div>
+                    </div>
 
-                <!-- Column 3: Quarter-finals -->
-                <div class="bracket-column quarter-finals">
-                    <h4 class="round-title">Quarter-finals</h4>
-                    <div id="quarter-finals-list" class="round-matches-container"></div>
-                </div>
+                    <!-- Column 2: Round of 16 -->
+                    <div class="bracket-column round-16">
+                        <h4 class="round-title">Round of 16</h4>
+                        <div id="round-16-list" class="round-matches-container"></div>
+                    </div>
 
-                <!-- Column 4: Semi-finals -->
-                <div class="bracket-column semi-finals">
-                    <h4 class="round-title">Semi-finals</h4>
-                    <div id="semi-finals-list" class="round-matches-container"></div>
-                </div>
+                    <!-- Column 3: Quarter-finals -->
+                    <div class="bracket-column quarter-finals">
+                        <h4 class="round-title">Quarter-finals</h4>
+                        <div id="quarter-finals-list" class="round-matches-container"></div>
+                    </div>
 
-                <!-- Column 5: Finals -->
-                <div class="bracket-column finals">
-                    <h4 class="round-title">Finals</h4>
-                    <div id="finals-list" class="round-matches-container"></div>
+                    <!-- Column 4: Semi-finals -->
+                    <div class="bracket-column semi-finals">
+                        <h4 class="round-title">Semi-finals</h4>
+                        <div id="semi-finals-list" class="round-matches-container"></div>
+                    </div>
+
+                    <!-- Column 5: Finals -->
+                    <div class="bracket-column finals">
+                        <h4 class="round-title">Finals</h4>
+                        <div id="finals-list" class="round-matches-container"></div>
+                    </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Tab Panel 2: Win Probabilities Leaderboard -->
+        <div id="prob-tab-panel" class="bracket-tab-panel">
+            <div class="leaderboard-controls-row">
+                <div class="search-input-wrapper">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="team-search" placeholder="Search teams...">
+                </div>
+                
+                <div class="sort-select-wrapper">
+                    <i class="fa-solid fa-sort sort-icon"></i>
+                    <select id="leaderboard-sort" class="leaderboard-sort-select">
+                        <option value="champion_pct">Sort by: Champion %</option>
+                        <option value="elo">Sort by: ELO Rating</option>
+                        <option value="group_exit_pct">Sort by: Group Exit %</option>
+                    </select>
+                </div>
+                
+                <div class="simulation-info-badge">
+                    <i class="fa-solid fa-calculator"></i> <span id="simulation-meta">5,000 runs</span>
+                </div>
+            </div>
+            
+            <div class="leaderboard-container glass">
+                <div class="table-wrapper">
+                    <table class="leaderboard-table">
+                        <thead>
+                            <tr>
+                                <th class="col-rank">Rank</th>
+                                <th class="col-team-leader">Team</th>
+                                <th class="col-elo-leader">ELO</th>
+                                <th class="col-group-leader">Group</th>
+                                <th class="col-prob">Group Exit</th>
+                                <th class="col-prob">R32 Exit</th>
+                                <th class="col-prob">R16 Exit</th>
+                                <th class="col-prob">QF Exit</th>
+                                <th class="col-prob">SF Exit</th>
+                                <th class="col-prob">Runner-up</th>
+                                <th class="col-prob champion-col">Champion</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboard-body">
+                            <!-- Injected dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="simulation-timestamp-footer">
+                <i class="fa-solid fa-clock"></i> Simulation last updated: <span id="simulation-timestamp">-</span>
             </div>
         </div>
     </main>
@@ -114,6 +179,18 @@
             <button class="modal-close">&times;</button>
             <div id="modal-details-container">
                 <!-- Injected dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Full Screen Simulation Loading Overlay -->
+    <div id="simulation-loading-overlay" class="simulation-loading-overlay">
+        <div class="simulation-loading-content glass">
+            <i class="fa-solid fa-circle-notch fa-spin spinner-large"></i>
+            <h3>Simulating Tournament...</h3>
+            <p>Running 10,000 Monte Carlo iterations using ELO win projections.</p>
+            <div class="simulation-progress-track">
+                <div class="simulation-progress-fill"></div>
             </div>
         </div>
     </div>

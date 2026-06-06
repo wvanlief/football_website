@@ -2093,3 +2093,380 @@ body.theme-flag .country-hero-flag-bg {
     border-radius: 0 0 6px 0;
 }
 
+/* ==========================================
+   MONTE CARLO BRACKET & LEADERBOARD TABS
+   ========================================== */
+.bracket-tabs-container {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin: 1.5rem auto 2.5rem auto;
+    padding: 0.35rem;
+    background: var(--bg-control);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    max-width: 450px;
+    backdrop-filter: blur(10px);
+}
+
+.bracket-tab-btn {
+    flex: 1;
+    font-family: var(--font-family);
+    font-size: 0.95rem;
+    font-weight: 700;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.bracket-tab-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.bracket-tab-btn.active {
+    background: var(--gradient-logo);
+    color: #ffffff;
+    box-shadow: 0 4px 15px rgba(255, 0, 110, 0.25);
+}
+
+/* Tab Panel States */
+.bracket-tab-panel {
+    display: none;
+    animation: fadeInTab 0.4s ease;
+}
+
+.bracket-tab-panel.active {
+    display: block;
+}
+
+@keyframes fadeInTab {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================
+   WIN PROBABILITIES LEADERBOARD
+   ========================================== */
+.leaderboard-controls-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.search-input-wrapper, .sort-select-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.6rem 1rem;
+    transition: var(--transition-smooth);
+}
+
+.search-input-wrapper:focus-within, .sort-select-wrapper:focus-within,
+.search-input-wrapper:hover, .sort-select-wrapper:hover {
+    border-color: var(--border-hover);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.05);
+}
+
+.search-icon, .sort-icon {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-right: 0.6rem;
+}
+
+.search-input-wrapper input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: var(--font-family);
+    font-size: 0.9rem;
+    width: 220px;
+}
+
+.leaderboard-sort-select {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: var(--font-family);
+    font-size: 0.9rem;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.leaderboard-sort-select option {
+    background: #0f111a;
+    color: #f3f4f6;
+}
+
+.simulation-info-badge {
+    background: rgba(251, 191, 36, 0.08);
+    border: 1px solid rgba(251, 191, 36, 0.2);
+    color: var(--color-must-watch);
+    padding: 0.6rem 1.2rem;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.leaderboard-container {
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 1rem;
+    overflow: hidden;
+}
+
+.leaderboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+    text-align: left;
+}
+
+.leaderboard-table th {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 1.1rem 1rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.leaderboard-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+}
+
+.leaderboard-row {
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.leaderboard-row:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.leaderboard-row.champion-highlight {
+    background: rgba(251, 191, 36, 0.015);
+}
+
+.leaderboard-row.champion-highlight:hover {
+    background: rgba(251, 191, 36, 0.04);
+}
+
+.col-rank {
+    width: 60px;
+    text-align: center;
+    font-weight: 800;
+    color: var(--text-muted);
+}
+
+.leaderboard-row:nth-child(1) .col-rank { color: #fbbf24; } /* 1st place gold */
+.leaderboard-row:nth-child(2) .col-rank { color: #d1d5db; } /* 2nd place silver */
+.leaderboard-row:nth-child(3) .col-rank { color: #b45309; } /* 3rd place bronze */
+
+.col-team-leader {
+    min-width: 180px;
+}
+
+.team-identity-leader {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.leader-team-flag {
+    width: 24px;
+    height: 16px;
+    object-fit: cover;
+    border-radius: 3px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.leader-team-name {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.col-elo-leader {
+    width: 90px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.col-group-leader {
+    width: 100px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.col-prob {
+    width: 100px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.champion-col {
+    color: var(--color-must-watch) !important;
+    font-weight: 700 !important;
+}
+
+/* Dynamic Probability Progress Bars */
+.leaderboard-prob-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.prob-val-text {
+    font-weight: 700;
+}
+
+.prob-bar-track {
+    width: 60px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.prob-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--text-secondary);
+    width: 0%;
+    transition: width 0.8s ease-out;
+}
+
+.prob-bar-fill.high-prob {
+    background: var(--color-must-watch);
+    box-shadow: 0 0 5px rgba(251, 191, 36, 0.5);
+}
+
+.prob-bar-fill.medium-prob {
+    background: var(--color-recommended);
+}
+
+.prob-bar-fill.low-prob {
+    background: var(--color-average);
+}
+
+.simulation-timestamp-footer {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 1.5rem;
+    text-align: right;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.4rem;
+}
+
+.simulation-timestamp-footer i {
+    font-size: 0.8rem;
+}
+
+/* ==========================================
+   FULL SCREEN SIMULATION LOADING OVERLAY
+   ========================================== */
+.simulation-loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(7, 9, 19, 0.85);
+    backdrop-filter: blur(10px);
+    z-index: 2000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    animation: fadeInOverlay 0.3s ease;
+}
+
+.simulation-loading-overlay.show {
+    display: flex;
+}
+
+.simulation-loading-content {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    padding: 3rem;
+    border-radius: 20px;
+    text-align: center;
+    max-width: 450px;
+    width: 90%;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 30px rgba(251, 191, 36, 0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+.spinner-large {
+    font-size: 3rem;
+    color: var(--color-must-watch);
+    filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.4));
+}
+
+.simulation-loading-content h3 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.simulation-loading-content p {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.simulation-progress-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 0.5rem;
+}
+
+.simulation-progress-fill {
+    height: 100%;
+    width: 30%;
+    background: var(--gradient-logo);
+    border-radius: 3px;
+    animation: pulseProgressBar 2s infinite ease-in-out;
+}
+
+@keyframes pulseProgressBar {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(330%); }
+}
+
+@keyframes fadeInOverlay {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
