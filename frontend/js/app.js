@@ -31,6 +31,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const toast = document.getElementById('toast');
     const timezoneSelect = document.getElementById('timezone-select');
     
+    // Country Explorer elements
+    const countrySearchInput = document.getElementById('country-search');
+    const searchClearBtn = document.getElementById('search-clear');
+    const flagCarouselContainer = document.getElementById('flag-carousel-container');
+    
 
 
     // Columns
@@ -66,6 +71,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Resolve timezone and trigger fetch
     resolveAndTimezoneFetch();
+
+    // Initialize Country Selection Panel
+    initCountryExplorer();
 
 
     async function resolveAndTimezoneFetch() {
@@ -367,6 +375,73 @@ document.addEventListener('DOMContentLoaded', () => {
                 fill.style.width = fill.getAttribute('data-width');
             });
         }, 100);
+    }
+
+    // Country Explorer Functions
+    async function initCountryExplorer() {
+        if (!flagCarouselContainer) return;
+        
+        try {
+            const res = await fetch('/api/country');
+            if (!res.ok) throw new Error("Failed to fetch countries list");
+            
+            const countries = await res.json();
+            renderCountryCarousel(countries);
+            setupSearchFiltering();
+        } catch (err) {
+            console.error("Error initializing Country Explorer:", err);
+            flagCarouselContainer.innerHTML = '<p class="text-muted" style="padding: 0.5rem 1rem;">Failed to load countries.</p>';
+        }
+    }
+
+    function renderCountryCarousel(countries) {
+        flagCarouselContainer.innerHTML = '';
+        countries.forEach(country => {
+            const pill = document.createElement('div');
+            pill.className = 'flag-pill';
+            pill.setAttribute('data-name', country.name.toLowerCase());
+            pill.innerHTML = `
+                <img src="${getFlagUrl(country.name)}" class="flag-pill-img" alt="${country.name} flag">
+                <span class="flag-pill-name">${country.name}</span>
+                <span class="flag-pill-elo">ELO ${country.elo}</span>
+            `;
+            pill.addEventListener('click', () => {
+                window.location.href = `/country/${encodeURIComponent(country.name)}`;
+            });
+            flagCarouselContainer.appendChild(pill);
+        });
+    }
+
+    function setupSearchFiltering() {
+        if (!countrySearchInput) return;
+        
+        countrySearchInput.addEventListener('input', () => {
+            const query = countrySearchInput.value.trim().toLowerCase();
+            const pills = flagCarouselContainer.querySelectorAll('.flag-pill');
+            
+            if (searchClearBtn) {
+                searchClearBtn.style.display = query ? 'flex' : 'none';
+            }
+            
+            pills.forEach(pill => {
+                const name = pill.getAttribute('data-name');
+                if (name.includes(query)) {
+                    pill.classList.remove('hidden');
+                } else {
+                    pill.classList.add('hidden');
+                }
+            });
+        });
+
+        if (searchClearBtn) {
+            searchClearBtn.addEventListener('click', () => {
+                countrySearchInput.value = '';
+                searchClearBtn.style.display = 'none';
+                const pills = flagCarouselContainer.querySelectorAll('.flag-pill');
+                pills.forEach(pill => pill.classList.remove('hidden'));
+                countrySearchInput.focus();
+            });
+        }
     }
 
     // Helper functions for formatting rating categories

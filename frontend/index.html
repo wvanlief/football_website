@@ -50,6 +50,23 @@
     </header>
 
     <main class="app-main">
+        <!-- Country Selection & Search Panel -->
+        <section class="country-explorer glass">
+            <div class="explorer-header">
+                <div class="search-wrapper">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="country-search" placeholder="Search countries..." autocomplete="off">
+                    <button id="search-clear" class="search-clear-btn" style="display: none;">&times;</button>
+                </div>
+                <div class="explorer-hint">
+                    <span>Scroll or search to view team profiles</span>
+                </div>
+            </div>
+            <div class="flag-carousel" id="flag-carousel-container">
+                <!-- Dynamically injected country flag capsules -->
+            </div>
+        </section>
+
         <!-- Triptych Columns Layout -->
         <div class="triptych-container">
             

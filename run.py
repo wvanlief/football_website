@@ -20,14 +20,21 @@ def install_dependencies():
             sys.exit(1)
 
 def run_server():
+    import os
+    import uvicorn
+
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "8000"))
+    # Default to True locally, but can be disabled in prod
+    reload = os.getenv("RELOAD", "True").lower() in ("true", "1", "yes")
+
     print("\n" + "="*50)
     print(" STARTING MATCHWATCH WATCHABILITY ENGINE & WEBSITE")
-    print(" Access the application at: http://localhost:8000")
+    print(f" Access the application at: http://{host}:{port}")
     print("="*50 + "\n")
     
-    import uvicorn
     # Run uvicorn server
-    uvicorn.run("backend.main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("backend.main:app", host=host, port=port, reload=reload)
 
 if __name__ == "__main__":
     install_dependencies()

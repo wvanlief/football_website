@@ -16,6 +16,7 @@
  - team historical data
  - Odds movement
  - fade disqualified countries
+ - History in the Form box
  
 ## Prio 3
  - Match timeline
