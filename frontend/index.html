@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,12 +8,14 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/css/styles.css?v=1.0.2">
 </head>
+
 <body class="theme-flag">
     <div class="glow-bg"></div>
 
@@ -25,13 +28,13 @@
                     <p>World Cup Watchability Index</p>
                 </div>
             </div>
-            
+
             <nav class="header-nav">
                 <a href="/" class="nav-link active"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
                 <a href="/recommended" class="nav-link"><i class="fa-solid fa-fire"></i> Hot List</a>
                 <a href="/bracket" class="nav-link"><i class="fa-solid fa-sitemap"></i> Bracket</a>
             </nav>
-            
+
             <div class="controls-area">
                 <div class="timezone-select-wrapper">
                     <i class="fa-solid fa-globe timezone-icon"></i>
@@ -55,11 +58,8 @@
             <div class="explorer-header">
                 <div class="search-wrapper">
                     <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                    <input type="text" id="country-search" placeholder="Search countries..." autocomplete="off">
+                    <input type="text" id="country-search" placeholder="Search..." autocomplete="off">
                     <button id="search-clear" class="search-clear-btn" style="display: none;">&times;</button>
-                </div>
-                <div class="explorer-hint">
-                    <span>Scroll or search to view team profiles</span>
                 </div>
             </div>
             <div class="flag-carousel" id="flag-carousel-container">
@@ -69,7 +69,7 @@
 
         <!-- Triptych Columns Layout -->
         <div class="triptych-container">
-            
+
             <!-- Column 1: Today -->
             <section class="triptych-column" id="col-today">
                 <div class="column-header">
@@ -126,4 +126,5 @@
     <!-- Custom JS -->
     <script src="/js/app.js?v=1.0.2"></script>
 </body>
+
 </html>

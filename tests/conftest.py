@@ -4,6 +4,7 @@ import pytest
 # Set env variables BEFORE importing backend modules
 os.environ["DATABASE_URL"] = "sqlite:///./test_football_games.db"
 os.environ["TESTING"] = "True"
+os.environ["ADMIN_TOKEN"] = "test-admin-token"
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

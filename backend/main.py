@@ -11,6 +11,7 @@ from backend.routers.api_groups import router as groups_router
 from backend.routers.api_countries import router as countries_router
 from backend.routers.api_bracket import router as bracket_router
 from backend.routers.api_weights import router as weights_router
+from backend.routers.api_admin import router as admin_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,3 +44,4 @@ app.include_router(groups_router)
 app.include_router(countries_router)
 app.include_router(bracket_router)
 app.include_router(weights_router)
+app.include_router(admin_router)

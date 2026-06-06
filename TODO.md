@@ -3,9 +3,6 @@
  - High scoring teams 
  - Page for highly recommanded matches 
  - Databases for all the stuff
- - country pages 
- - Fix main.py 
- - Refacto 
 
 ## Prio 2
  - Export Good matches to social media (Insta/ Tik Tok)

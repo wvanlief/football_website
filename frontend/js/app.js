@@ -400,10 +400,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const pill = document.createElement('div');
             pill.className = 'flag-pill';
             pill.setAttribute('data-name', country.name.toLowerCase());
+            pill.title = `${country.name} (ELO ${country.elo})`;
             pill.innerHTML = `
                 <img src="${getFlagUrl(country.name)}" class="flag-pill-img" alt="${country.name} flag">
-                <span class="flag-pill-name">${country.name}</span>
-                <span class="flag-pill-elo">ELO ${country.elo}</span>
             `;
             pill.addEventListener('click', () => {
                 window.location.href = `/country/${encodeURIComponent(country.name)}`;
