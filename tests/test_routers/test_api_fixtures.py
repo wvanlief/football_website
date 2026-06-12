@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from backend.database import Fixture, Competition, Tournament, Team, TournamentTeam
 
 def test_get_fixtures_empty(client):
@@ -30,11 +30,14 @@ def test_get_fixtures_with_data(client, db_session):
     db_session.add_all([tt1, tt2])
     db_session.flush()
     
+    # Use the current UTC date dynamically
+    today_utc = datetime.now(timezone.utc)
+    
     fixture = Fixture(
         tournament_id=tourney.id,
         home_team_id=team1.id,
         away_team_id=team2.id,
-        date_utc=datetime.fromisoformat("2026-06-11T20:00:00"),
+        date_utc=today_utc.replace(hour=20, minute=0, second=0, microsecond=0, tzinfo=None),
         stage="Group Stage",
         status="Scheduled"
     )
@@ -47,3 +50,4 @@ def test_get_fixtures_with_data(client, db_session):
     assert len(data["today"]) == 1
     assert data["today"][0]["home_team"]["name"] == "Germany"
     assert data["today"][0]["away_team"]["name"] == "Scotland"
+

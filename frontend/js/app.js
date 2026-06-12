@@ -139,7 +139,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+    function getFormattedDateString(timezone, offsetDays = 0) {
+        const d = new Date();
+        if (offsetDays !== 0) {
+            d.setDate(d.getDate() + offsetDays);
+        }
+        return new Intl.DateTimeFormat('en-US', {
+            timeZone: timezone,
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+        }).format(d);
+    }
+
     // Fetch and Load Fixtures
+    const resultsBarContainer = document.getElementById('results-bar-container');
+    const resultsListHorizontal = document.getElementById('results-list-horizontal');
+
     async function fetchFixtures() {
         // Show spinner
         Object.keys(lists).forEach(col => {
@@ -151,9 +167,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             activeFixtures = data;
             
+            // Update column headers dynamically
+            const todayHeader = document.querySelector('#col-today h2');
+            const tomorrowHeader = document.querySelector('#col-tomorrow h2');
+            if (todayHeader) todayHeader.textContent = getFormattedDateString(resolvedTimezone, 0);
+            if (tomorrowHeader) tomorrowHeader.textContent = getFormattedDateString(resolvedTimezone, 1);
+            
             renderColumn(lists.today, data.today, false);
             renderColumn(lists.tomorrow, data.tomorrow, false);
             renderColumn(lists.this_week, data.this_week, true);
+            renderResultsBar(data.finished);
         } catch (err) {
             console.error("Failed to load fixtures", err);
             Object.keys(lists).forEach(col => {
@@ -161,6 +184,47 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
+
+    function renderResultsBar(fixtures) {
+        if (!resultsBarContainer || !resultsListHorizontal) return;
+        
+        if (!fixtures || fixtures.length === 0) {
+            resultsBarContainer.style.display = 'none';
+            return;
+        }
+        
+        resultsBarContainer.style.display = 'flex';
+        resultsListHorizontal.innerHTML = '';
+        
+        fixtures.forEach(match => {
+            const card = document.createElement('div');
+            card.className = 'result-ticker-card';
+            card.title = `${match.home_team.name} vs ${match.away_team.name}`;
+            card.innerHTML = `
+                <div class="ticker-team home">
+                    <img src="${getFlagUrl(match.home_team.name)}" class="ticker-flag" alt="${match.home_team.name}" title="${match.home_team.name}">
+                </div>
+                <div class="score-wrapper blurred" title="Click to reveal score">
+                    <span class="score-text">${match.score}</span>
+                    <div class="score-blur-overlay">Reveal</div>
+                </div>
+                <div class="ticker-team away">
+                    <img src="${getFlagUrl(match.away_team.name)}" class="ticker-flag" alt="${match.away_team.name}" title="${match.away_team.name}">
+                </div>
+            `;
+            
+            const scoreWrapper = card.querySelector('.score-wrapper');
+            scoreWrapper.addEventListener('click', (e) => {
+                e.stopPropagation();
+                scoreWrapper.classList.toggle('blurred');
+            });
+            
+            card.addEventListener('click', () => openMatchDetails(match));
+            resultsListHorizontal.appendChild(card);
+        });
+    }
+
+
 
     // Render a list of fixtures in a column
     function renderColumn(container, fixtures, showDate = false) {

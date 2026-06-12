@@ -1,5 +1,6 @@
+import os
 import json
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session, joinedload
 
@@ -112,10 +113,11 @@ def get_grouped_fixtures(db: Session, tz_str: str) -> dict:
     today_fixtures = []
     tomorrow_fixtures = []
     week_fixtures = []
+    finished_fixtures = []
     
-    today_date = date(2026, 6, 11)
-    tomorrow_date = date(2026, 6, 12)
-    max_date = date(2026, 6, 19)
+    today_date = datetime.now(target_tz).date()
+    tomorrow_date = today_date + timedelta(days=1)
+    max_date = today_date + timedelta(days=8)
     
     for f in fixtures:
         dt = f.date_utc
@@ -126,6 +128,10 @@ def get_grouped_fixtures(db: Session, tz_str: str) -> dict:
         
         fixture_data = enrich_fixture(f, db, target_tz, team_players_map, team_group_map)
         
+        if fixture_data["status"] == "Finished":
+            finished_fixtures.append(fixture_data)
+            continue
+            
         if match_date == today_date:
             today_fixtures.append(fixture_data)
         elif match_date == tomorrow_date:
@@ -136,11 +142,13 @@ def get_grouped_fixtures(db: Session, tz_str: str) -> dict:
     today_fixtures.sort(key=lambda x: x["watchability"]["overall"], reverse=True)
     tomorrow_fixtures.sort(key=lambda x: x["watchability"]["overall"], reverse=True)
     week_fixtures.sort(key=lambda x: x["watchability"]["overall"], reverse=True)
+    finished_fixtures.sort(key=lambda x: x["date"], reverse=True)
     
     return {
         "today": today_fixtures,
         "tomorrow": tomorrow_fixtures,
-        "this_week": week_fixtures[:5]
+        "this_week": week_fixtures[:5],
+        "finished": finished_fixtures
     }
 
 def get_recommended_fixtures(db: Session, tz_str: str, min_score: float = 75.0) -> list:

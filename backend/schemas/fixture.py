@@ -37,3 +37,5 @@ class GroupedFixturesResponse(BaseModel):
     today: List[FixtureOut]
     tomorrow: List[FixtureOut]
     this_week: List[FixtureOut]
+    finished: List[FixtureOut]
+

@@ -250,11 +250,12 @@ def seed_database(db: Session):
     # Try fetching real teams list from GitHub
     fetched_teams = []
     try:
-        print("Fetching team definitions from GitHub...")
-        teams_url = "https://raw.githubusercontent.com/rezarahiminia/worldcup2026/main/football.teams.json"
+        print("Fetching team definitions from API...")
+        teams_url = "https://worldcup26.ir/get/teams"
         req = urllib.request.Request(teams_url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=10) as response:
-            fetched_teams = json.loads(response.read().decode())
+            res_teams = json.loads(response.read().decode())
+            fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else res_teams
             print(f"Fetched {len(fetched_teams)} team definitions.")
     except Exception as e:
         print(f"Failed to fetch team definitions: {e}. Seeding using fallback groups.")
@@ -374,11 +375,12 @@ def seed_database(db: Session):
     # 4. Add Fixtures & Initial Odds
     fetched_matches = []
     try:
-        print("Fetching official schedule from GitHub...")
-        matches_url = "https://raw.githubusercontent.com/rezarahiminia/worldcup2026/main/football.matches.json"
+        print("Fetching official schedule from API...")
+        matches_url = "https://worldcup26.ir/get/games"
         req = urllib.request.Request(matches_url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=10) as response:
-            fetched_matches = json.loads(response.read().decode())
+            res_matches = json.loads(response.read().decode())
+            fetched_matches = res_matches.get("games") if isinstance(res_matches, dict) else res_matches
             print(f"Successfully fetched {len(fetched_matches)} matches.")
     except Exception as e:
         print(f"Failed to fetch matches: {e}. Seeding fallback schedule.")

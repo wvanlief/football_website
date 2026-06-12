@@ -2694,3 +2694,149 @@ body.theme-flag .country-hero-flag-bg {
     }
 }
 
+/* ==========================================
+   HORIZONTAL RESULTS TICKER / BAR
+   ========================================== */
+.results-bar {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 1rem 1.5rem;
+    border-radius: 16px;
+    margin-bottom: 2rem;
+    background: var(--bg-column);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+}
+
+.results-title {
+    font-size: 0.9rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    letter-spacing: 1.5px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-right: 1px solid var(--border-color);
+    padding-right: 1.5rem;
+    flex-shrink: 0;
+}
+
+.results-list-horizontal {
+    display: flex;
+    gap: 1.25rem;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+    padding: 0.25rem 0;
+}
+
+.results-list-horizontal::-webkit-scrollbar {
+    height: 6px;
+}
+
+.results-list-horizontal::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 3px;
+}
+
+.results-list-horizontal::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+}
+
+.results-list-horizontal::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+.result-ticker-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.6rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-shrink: 0;
+    transition: var(--transition-smooth);
+    position: relative;
+    cursor: pointer;
+}
+
+.result-ticker-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
+}
+
+.ticker-team {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.ticker-flag {
+    width: 20px;
+    height: 14px;
+    object-fit: cover;
+    border-radius: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Spoiling Blur Overlay */
+.score-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.2rem 0.6rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    min-width: 50px;
+}
+
+.score-text {
+    color: #ef4444; /* Standard alert color for final score */
+    transition: filter 0.2s ease;
+}
+
+.score-wrapper.blurred .score-text {
+    filter: blur(5px);
+    user-select: none;
+}
+
+.score-blur-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(18, 22, 41, 0.9);
+    backdrop-filter: blur(2px);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: opacity 0.2s ease;
+}
+
+.score-wrapper:not(.blurred) .score-blur-overlay {
+    opacity: 0;
+    pointer-events: none;
+}
+
+

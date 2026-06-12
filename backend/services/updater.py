@@ -112,13 +112,15 @@ def update_results_and_odds(db: Session) -> dict:
     """
     # 1. Fetch external configurations
     try:
-        print("Fetching official schedule/results from GitHub...")
-        matches_url = "https://raw.githubusercontent.com/rezarahiminia/worldcup2026/main/football.matches.json"
-        fetched_matches = fetch_json(matches_url)
+        print("Fetching official schedule/results from API...")
+        matches_url = "https://worldcup26.ir/get/games"
+        res_matches = fetch_json(matches_url)
+        fetched_matches = res_matches.get("games") if isinstance(res_matches, dict) else res_matches
         
-        print("Fetching team mapping definitions from GitHub...")
-        teams_url = "https://raw.githubusercontent.com/rezarahiminia/worldcup2026/main/football.teams.json"
-        fetched_teams = fetch_json(teams_url)
+        print("Fetching team mapping definitions from API...")
+        teams_url = "https://worldcup26.ir/get/teams"
+        res_teams = fetch_json(teams_url)
+        fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else res_teams
     except Exception as e:
         print(f"Error fetching external database files: {e}")
         return {"status": "error", "message": f"Failed to fetch schedule files: {str(e)}"}

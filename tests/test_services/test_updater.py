@@ -84,10 +84,10 @@ def test_update_results_and_odds(db_session):
          patch("backend.services.updater.run_monte_carlo_simulation") as mock_sim:
          
         def fetch_side_effect(url):
-            if "teams.json" in url:
-                return mock_teams
-            elif "matches.json" in url:
-                return mock_matches
+            if "teams" in url:
+                return {"teams": mock_teams}
+            elif "games" in url or "matches" in url:
+                return {"games": mock_matches}
             return []
             
         mock_fetch.side_effect = fetch_side_effect
