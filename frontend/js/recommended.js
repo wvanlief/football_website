@@ -47,10 +47,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeFixtures = null;
     let selectedTimezone = 'local';
     let resolvedTimezone = 'UTC';
-    let activeView = localStorage.getItem('matchwatch-rec-view') || 'schedule'; // 'schedule' or 'leaderboard'
+    let activeView = localStorage.getItem('findfootball-rec-view') || 'schedule'; // 'schedule' or 'leaderboard'
 
     // Initialize Page
-    selectedTimezone = localStorage.getItem('matchwatch-timezone') || 'local';
+    selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
     timezoneSelect.value = selectedTimezone;
 
     // Toggle Button States
@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Timezone Switcher Event Listener
     timezoneSelect.addEventListener('change', () => {
         selectedTimezone = timezoneSelect.value;
-        localStorage.setItem('matchwatch-timezone', selectedTimezone);
+        localStorage.setItem('findfootball-timezone', selectedTimezone);
         resolveAndTimezoneFetch();
         showToast(`Timezone set to ${timezoneSelect.options[timezoneSelect.selectedIndex].text}!`);
     });
@@ -69,14 +69,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // View Toggle Listeners
     toggleScheduleBtn.addEventListener('click', () => {
         activeView = 'schedule';
-        localStorage.setItem('matchwatch-rec-view', activeView);
+        localStorage.setItem('findfootball-rec-view', activeView);
         updateToggleButtonsUI();
         renderRecommended();
     });
 
     toggleLeaderboardBtn.addEventListener('click', () => {
         activeView = 'leaderboard';
-        localStorage.setItem('matchwatch-rec-view', activeView);
+        localStorage.setItem('findfootball-rec-view', activeView);
         updateToggleButtonsUI();
         renderRecommended();
     });

@@ -81,7 +81,13 @@ def test_update_results_and_odds(db_session):
     
     with patch("backend.services.updater.fetch_json") as mock_fetch, \
          patch("backend.services.updater.update_odds_from_api") as mock_odds_api, \
-         patch("backend.services.updater.run_monte_carlo_simulation") as mock_sim:
+         patch("backend.services.updater.run_monte_carlo_simulation") as mock_sim, \
+         patch("backend.ingestor.fetch_current_elo_ratings") as mock_fetch_elo:
+         
+        mock_fetch_elo.return_value = {
+            "Spain": 2018,
+            "Germany": 1882
+        }
          
         def fetch_side_effect(url):
             if "teams" in url:
@@ -106,11 +112,11 @@ def test_update_results_and_odds(db_session):
     assert f1.away_score == 1
     assert f1.winner_id == t1.id
     
-    # Assert ELO calculation updated Spain (Winner) up and Germany (Loser) down
+    # Assert ELO was synchronized with eloratings.net values (Spain 2018, Germany 1882)
     db_session.refresh(t1)
     db_session.refresh(t2)
-    assert t1.elo > 2000
-    assert t2.elo < 1900
+    assert t1.elo == 2018
+    assert t2.elo == 1882
     
     # Assert streaks updated correctly
     assert t1.win_streak == 2
@@ -124,12 +130,12 @@ def test_update_results_and_odds(db_session):
     assert new_fixture.status == "Scheduled"
     
     # Assert EloHistory logs were created
-    history_spain = db_session.query(EloHistory).filter(EloHistory.team_id == t1.id).first()
-    history_germany = db_session.query(EloHistory).filter(EloHistory.team_id == t2.id).first()
-    assert history_spain is not None
-    assert history_germany is not None
-    assert history_spain.elo_rating == t1.elo
-    assert history_germany.elo_rating == t2.elo
+    history_spain_all = db_session.query(EloHistory).filter(EloHistory.team_id == t1.id).all()
+    history_germany_all = db_session.query(EloHistory).filter(EloHistory.team_id == t2.id).all()
+    assert len(history_spain_all) >= 1
+    assert len(history_germany_all) >= 1
+    assert any(h.elo_rating == 2018 for h in history_spain_all)
+    assert any(h.elo_rating == 1882 for h in history_germany_all)
 
 @patch("backend.services.updater.fetch_json")
 @patch("backend.services.updater.run_monte_carlo_simulation")

@@ -260,6 +260,32 @@ def update_results_and_odds(db: Session) -> dict:
         update_fixture_score(fixture, db)
     db.commit()
     
+    # 6.5 Sync team Elo ratings with eloratings.net
+    try:
+        print("Syncing Elo ratings from eloratings.net...")
+        from backend.ingestor import fetch_current_elo_ratings
+        live_elo = fetch_current_elo_ratings()
+        
+        teams_updated = 0
+        for team in db_teams:
+            fetched_elo = live_elo.get(team.name)
+            if fetched_elo is not None and team.elo != fetched_elo:
+                team.elo = fetched_elo
+                team.form_score = round(min(95.0, max(45.0, 50.0 + (fetched_elo - 1500) * 0.05)), 1)
+                
+                # Save Elo history record
+                db_elo_hist = EloHistory(
+                    team_id=team.id,
+                    recorded_at=now_time,
+                    elo_rating=fetched_elo
+                )
+                db.add(db_elo_hist)
+                teams_updated += 1
+        db.commit()
+        print(f"Successfully synced Elo ratings from eloratings.net. Updated {teams_updated} teams.")
+    except Exception as e:
+        print(f"Warning: Failed to sync Elo ratings from eloratings.net: {e}. Keeping current ratings.")
+    
     # 7. Trigger the Monte Carlo bracket simulation using the new scores and ELO ratings
     print("Triggering tournament Monte Carlo simulation...")
     try:
@@ -450,7 +476,7 @@ if __name__ == "__main__":
     import argparse
     from backend.database import SessionLocal
     
-    parser = argparse.ArgumentParser(description="MatchWatch Database Ingestion and Update Task")
+    parser = argparse.ArgumentParser(description="findfootball.games Database Ingestion and Update Task")
     parser.add_argument("--live", action="store_true", help="Run lightweight live-score update only")
     parser.add_argument("--force", action="store_true", help="Force updates even outside active match windows")
     args = parser.parse_args()

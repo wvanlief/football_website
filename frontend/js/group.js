@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Parse Group letter from URL path
     const pathParts = window.location.pathname.split('/');
     const groupLetter = decodeURIComponent(pathParts[pathParts.length - 1]).toUpperCase();
-    document.title = `Group ${groupLetter} Standings | MatchWatch`;
+    document.title = `Group ${groupLetter} Standings | findfootball.games`;
     document.getElementById('group-title-header').innerText = `GROUP ${groupLetter}`;
 
     // DOM Elements
@@ -54,10 +54,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeGroupData = null;
     let selectedTimezone = 'local';
     let resolvedTimezone = 'UTC';
-    let activeView = localStorage.getItem('matchwatch-group-view') || 'schedule'; // 'schedule' or 'leaderboard'
+    let activeView = localStorage.getItem('findfootball-group-view') || 'schedule'; // 'schedule' or 'leaderboard'
 
     // Initialize Page
-    selectedTimezone = localStorage.getItem('matchwatch-timezone') || 'local';
+    selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
     timezoneSelect.value = selectedTimezone;
 
     // Toggle Button States
@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Timezone Switcher Event Listener
     timezoneSelect.addEventListener('change', () => {
         selectedTimezone = timezoneSelect.value;
-        localStorage.setItem('matchwatch-timezone', selectedTimezone);
+        localStorage.setItem('findfootball-timezone', selectedTimezone);
         resolveAndTimezoneFetch();
         showToast(`Timezone set to ${timezoneSelect.options[timezoneSelect.selectedIndex].text}!`);
     });
@@ -76,14 +76,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // View Toggle Listeners
     toggleScheduleBtn.addEventListener('click', () => {
         activeView = 'schedule';
-        localStorage.setItem('matchwatch-group-view', activeView);
+        localStorage.setItem('findfootball-group-view', activeView);
         updateToggleButtonsUI();
         renderMatches();
     });
 
     toggleLeaderboardBtn.addEventListener('click', () => {
         activeView = 'leaderboard';
-        localStorage.setItem('matchwatch-group-view', activeView);
+        localStorage.setItem('findfootball-group-view', activeView);
         updateToggleButtonsUI();
         renderMatches();
     });

@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let resolvedTimezone = 'UTC';
 
     // Initialize Page
-    selectedTimezone = localStorage.getItem('matchwatch-timezone') || 'local';
+    selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
     timezoneSelect.value = selectedTimezone;
 
 
@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Timezone Switcher Event Listener
     timezoneSelect.addEventListener('change', () => {
         selectedTimezone = timezoneSelect.value;
-        localStorage.setItem('matchwatch-timezone', selectedTimezone);
+        localStorage.setItem('findfootball-timezone', selectedTimezone);
         resolveAndTimezoneFetch();
         showToast(`Timezone set to ${timezoneSelect.options[timezoneSelect.selectedIndex].text}!`);
     });

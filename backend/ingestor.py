@@ -88,6 +88,53 @@ def normalize_team_name(name: str) -> str:
     }
     return mapping.get(name, name)
 
+def fetch_current_elo_ratings() -> dict[str, int]:
+    """
+    Fetches the current Elo ratings of international football teams from eloratings.net.
+    Returns:
+        dict: A dictionary mapping normalized team names to their current Elo ratings as integers.
+    """
+    teams_url = "https://www.eloratings.net/en.teams.tsv"
+    world_url = "https://www.eloratings.net/World.tsv"
+    
+    # 1. Fetch team mapping
+    req_teams = urllib.request.Request(teams_url, headers={'User-Agent': 'Mozilla/5.0'})
+    with urllib.request.urlopen(req_teams, timeout=10) as response:
+        teams_content = response.read().decode('utf-8')
+        
+    code_to_name = {}
+    for line in teams_content.split('\n'):
+        if not line.strip():
+            continue
+        parts = line.split('\t')
+        if len(parts) >= 2:
+            code = parts[0].strip()
+            name = parts[1].strip()
+            code_to_name[code] = normalize_team_name(name)
+            
+    # 2. Fetch World Elo ratings
+    req_world = urllib.request.Request(world_url, headers={'User-Agent': 'Mozilla/5.0'})
+    with urllib.request.urlopen(req_world, timeout=10) as response:
+        world_content = response.read().decode('utf-8')
+        
+    parsed_ratings = {}
+    for line in world_content.split('\n'):
+        if not line.strip():
+            continue
+        parts = line.split('\t')
+        if len(parts) >= 4:
+            code = parts[2].strip()
+            elo_str = parts[3].strip().replace('\u2212', '-')
+            try:
+                elo = int(elo_str)
+                name = code_to_name.get(code)
+                if name:
+                    parsed_ratings[name] = elo
+            except ValueError:
+                pass
+                
+    return parsed_ratings
+
 def get_fallback_matches():
     base_date = datetime(2026, 6, 11, 12, 0, 0, tzinfo=ZoneInfo("America/New_York")).astimezone(ZoneInfo("UTC"))
     return [
@@ -247,6 +294,15 @@ def seed_database(db: Session):
     # 2. Add Teams
     team_map = {}
     
+    # Fetch live Elo ratings from eloratings.net, fallback to hardcoded ELO_RATINGS
+    try:
+        print("Fetching live Elo ratings from eloratings.net...")
+        live_elo = fetch_current_elo_ratings()
+        print(f"Successfully fetched {len(live_elo)} Elo ratings from eloratings.net.")
+    except Exception as e:
+        print(f"Failed to fetch live Elo ratings: {e}. Falling back to hardcoded dictionary.")
+        live_elo = ELO_RATINGS
+
     # Try fetching real teams list from GitHub
     fetched_teams = []
     try:
@@ -265,7 +321,7 @@ def seed_database(db: Session):
             name = normalize_team_name(t.get("name_en", ""))
             group = t.get("groups", "")
             
-            elo = ELO_RATINGS.get(name, 1700)
+            elo = live_elo.get(name, 1700)
             form_score = min(95.0, max(45.0, 50.0 + (elo - 1500) * 0.05))
             
             win_streak = 0
@@ -309,7 +365,7 @@ def seed_database(db: Session):
         id_counter = 1
         for group, teams_list in GROUPS.items():
             for name in teams_list:
-                elo = ELO_RATINGS.get(name, 1700)
+                elo = live_elo.get(name, 1700)
                 form_score = min(95.0, max(45.0, 50.0 + (elo - 1500) * 0.05))
                 win_streak = 4 if elo > 2000 else (2 if elo > 1850 else 0)
                 
@@ -441,8 +497,8 @@ def seed_database(db: Session):
             stage = stage_mapping.get(m["type"], "Group Stage")
             status = "Finished" if m["finished"] == "TRUE" else "Scheduled"
             
-            h_elo = ELO_RATINGS.get(h_team, 1700)
-            a_elo = ELO_RATINGS.get(a_team, 1700)
+            h_elo = live_elo.get(h_team, 1700)
+            a_elo = live_elo.get(a_team, 1700)
             odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo)
             
             fixture = Fixture(
@@ -477,8 +533,8 @@ def seed_database(db: Session):
             a_team = f["away"]
             dt_utc = datetime.fromisoformat(f["date"])
             
-            h_elo = ELO_RATINGS.get(h_team, 1700)
-            a_elo = ELO_RATINGS.get(a_team, 1700)
+            h_elo = live_elo.get(h_team, 1700)
+            a_elo = live_elo.get(a_team, 1700)
             odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo)
             
             fixture = Fixture(
@@ -522,3 +578,11 @@ def seed_database(db: Session):
         print(f"Error running pre-computed Monte Carlo simulation: {e}")
         
     print("Database seeding and simulation completed.")
+
+if __name__ == "__main__":
+    from backend.database import SessionLocal
+    db = SessionLocal()
+    try:
+        seed_database(db)
+    finally:
+        db.close()

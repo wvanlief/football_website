@@ -29,7 +29,7 @@ def run_server():
     reload = os.getenv("RELOAD", "True").lower() in ("true", "1", "yes")
 
     print("\n" + "="*50)
-    print(" STARTING MATCHWATCH WATCHABILITY ENGINE & WEBSITE")
+    print(" STARTING FINDFOOTBALL.GAMES WATCHABILITY ENGINE & WEBSITE")
     print(f" Access the application at: http://{host}:{port}")
     print("="*50 + "\n")
     

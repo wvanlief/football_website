@@ -1,6 +1,6 @@
-# MatchWatch 🏆 - World Cup Watchability Index
+# findfootball.games 🏆 - World Cup Watchability Index
 
-MatchWatch is a dynamic web application that rates and ranks upcoming football matches to help fans prioritize which games to watch. Built for the expanded 48-team 2026 World Cup format, the app computes a **Watchability Score** for each fixture using a customizable mathematical formula. It also includes a **Knockout Bracket Predictor** that dynamically simulates the tournament path based on ELO and match results.
+findfootball.games is a dynamic web application that rates and ranks upcoming football matches to help fans prioritize which games to watch. Built for the expanded 48-team 2026 World Cup format, the app computes a **Watchability Score** for each fixture using a customizable mathematical formula. It also includes a **Knockout Bracket Predictor** that dynamically simulates the tournament path based on ELO and match results.
 
 ---
 
@@ -33,7 +33,7 @@ MatchWatch is a dynamic web application that rates and ranks upcoming football m
 ---
 
 ## 🎨 Design Themes
-MatchWatch features five rich, responsive themes synced globally across all pages:
+findfootball.games features five rich, responsive themes synced globally across all pages:
 - 🌌 **Midnight Neon** (Default dark/neon vibe)
 - 🏛️ **Roman Empire** (Imperial red and gold)
 - 🍃 **Clubhouse Sage** (Soft green and off-white pitch styling)

@@ -50,13 +50,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentMonth = 5; // June (0-indexed)
 
     // Initialize Page
-    selectedTimezone = localStorage.getItem('matchwatch-timezone') || 'local';
+    selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
     timezoneSelect.value = selectedTimezone;
 
     // Event Listeners
     timezoneSelect.addEventListener('change', () => {
         selectedTimezone = timezoneSelect.value;
-        localStorage.setItem('matchwatch-timezone', selectedTimezone);
+        localStorage.setItem('findfootball-timezone', selectedTimezone);
         resolveAndTimezoneFetch();
         showToast(`Timezone set to ${timezoneSelect.options[timezoneSelect.selectedIndex].text}!`);
     });

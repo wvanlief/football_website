@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Parse Country name from URL path
     const pathParts = window.location.pathname.split('/');
     const countryName = decodeURIComponent(pathParts[pathParts.length - 1]);
-    document.title = `${countryName} Profile | MatchWatch`;
+    document.title = `${countryName} Profile | findfootball.games`;
 
     // DOM Elements
     const refreshBtn = document.getElementById('refresh-btn');
@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let resolvedTimezone = 'UTC';
 
     // Initialize Page
-    selectedTimezone = localStorage.getItem('matchwatch-timezone') || 'local';
+    selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
     timezoneSelect.value = selectedTimezone;
 
 
@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Timezone Switcher Event Listener
     timezoneSelect.addEventListener('change', () => {
         selectedTimezone = timezoneSelect.value;
-        localStorage.setItem('matchwatch-timezone', selectedTimezone);
+        localStorage.setItem('findfootball-timezone', selectedTimezone);
         resolveAndTimezoneFetch();
         showToast(`Timezone set to ${timezoneSelect.options[timezoneSelect.selectedIndex].text}!`);
     });
