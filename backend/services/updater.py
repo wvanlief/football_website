@@ -274,3 +274,197 @@ def update_results_and_odds(db: Session) -> dict:
         "fixtures_updated_results": fixtures_updated_results,
         "simulation": simulation_status
     }
+
+def update_live_scores(db: Session, force: bool = False) -> dict:
+    """
+    Lightweight updater for live scores. Only queries the results feed when games are scheduled/live.
+    Exits early if no matches are active to avoid network/CPU usage.
+    """
+    now_time = datetime.now(timezone.utc)
+    
+    # Define match window: starting within 15 minutes or started in the last 3 hours
+    window_start = now_time - timedelta(hours=3)
+    window_end = now_time + timedelta(minutes=15)
+    
+    # Check if there are active match windows
+    active_fixtures = db.query(Fixture).filter(
+        Fixture.status != "Finished",
+        Fixture.date_utc >= window_start,
+        Fixture.date_utc <= window_end
+    ).all()
+    
+    live_fixtures = db.query(Fixture).filter(Fixture.status == "Live").all()
+    
+    is_active_window = len(active_fixtures) > 0 or len(live_fixtures) > 0
+    
+    if not is_active_window and not force:
+        print("No active match window. Skipping live update.")
+        return {"status": "skipped", "message": "No active match window."}
+        
+    print(f"Active match window detected ({len(active_fixtures)} scheduled soon/ongoing, {len(live_fixtures)} live). Fetching scores...")
+    
+    # Fetch games data
+    try:
+        matches_url = "https://worldcup26.ir/get/games"
+        res_matches = fetch_json(matches_url)
+        fetched_matches = res_matches.get("games") if isinstance(res_matches, dict) else res_matches
+        
+        # Try fetching teams to resolve external ID mapping. If it fails, fallback to name fields in games feed.
+        try:
+            teams_url = "https://worldcup26.ir/get/teams"
+            res_teams = fetch_json(teams_url)
+            fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else res_teams
+            external_team_map = {t["id"]: normalize_team_name(t.get("name_en", "")) for t in fetched_teams}
+        except Exception:
+            external_team_map = {}
+    except Exception as e:
+        print(f"Error fetching live scores feed: {e}")
+        return {"status": "error", "message": f"Failed to fetch scores: {str(e)}"}
+        
+    # Get active tournament
+    tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
+    if not tourney:
+        tourney = db.query(Tournament).first()
+    if not tourney:
+        return {"status": "error", "message": "No active tournament found."}
+        
+    db_teams = db.query(Team).all()
+    db_teams_by_name = {team.name: team for team in db_teams}
+    
+    fixtures_updated = 0
+    fixtures_finished = 0
+    run_simulation = False
+    
+    for m in fetched_matches:
+        # Resolve names
+        h_id = m.get("home_team_id")
+        a_id = m.get("away_team_id")
+        h_name = external_team_map.get(h_id) if external_team_map else normalize_team_name(m.get("home_team_name_en", ""))
+        a_name = external_team_map.get(a_id) if external_team_map else normalize_team_name(m.get("away_team_name_en", ""))
+        
+        if not h_name or not a_name:
+            continue
+            
+        home_team = db_teams_by_name.get(h_name)
+        away_team = db_teams_by_name.get(a_name)
+        
+        if not home_team or not away_team:
+            continue
+            
+        stage = STAGE_MAPPING.get(m.get("type"), "Group Stage")
+        
+        # Query the fixture
+        fixture = db.query(Fixture).filter(
+            Fixture.tournament_id == tourney.id,
+            Fixture.stage == stage,
+            or_(
+                (Fixture.home_team_id == home_team.id) & (Fixture.away_team_id == away_team.id),
+                (Fixture.home_team_id == away_team.id) & (Fixture.away_team_id == home_team.id)
+            )
+        ).first()
+        
+        if not fixture:
+            continue
+            
+        # If already finished, no need to update scores live
+        if fixture.status == "Finished":
+            continue
+            
+        is_finished_in_feed = m.get("finished") == "TRUE"
+        feed_home_score = int(m["home_score"]) if m.get("home_score") is not None else None
+        feed_away_score = int(m["away_score"]) if m.get("away_score") is not None else None
+        
+        if is_finished_in_feed:
+            # Match has finished!
+            fixture.status = "Finished"
+            fixture.home_score = feed_home_score
+            fixture.away_score = feed_away_score
+            
+            # Determine winner & ELO updates
+            if feed_home_score > feed_away_score:
+                outcome = 1.0
+                fixture.winner_id = home_team.id
+            elif feed_home_score < feed_away_score:
+                outcome = 0.0
+                fixture.winner_id = away_team.id
+            else:
+                outcome = 0.5
+                fixture.winner_id = None
+                
+            home_elo_old = home_team.elo
+            away_elo_old = away_team.elo
+            home_elo_new, away_elo_new = calculate_elo_updates(home_elo_old, away_elo_old, outcome)
+            
+            home_team.elo = home_elo_new
+            away_team.elo = away_elo_new
+            
+            update_team_streaks_and_form(home_team, away_team, outcome)
+            
+            # Save ELO history
+            db.add(EloHistory(team_id=home_team.id, recorded_at=now_time, elo_rating=home_elo_new))
+            db.add(EloHistory(team_id=away_team.id, recorded_at=now_time, elo_rating=away_elo_new))
+            
+            # Recalculate watchability score
+            update_fixture_score(fixture, db)
+            
+            fixtures_finished += 1
+            run_simulation = True # Since a game finished, run bracket simulations
+        else:
+            # Make fixture.date_utc timezone aware
+            f_date_aware = fixture.date_utc.replace(tzinfo=timezone.utc) if fixture.date_utc.tzinfo is None else fixture.date_utc
+            is_in_progress = (f_date_aware - timedelta(minutes=5)) <= now_time <= (f_date_aware + timedelta(hours=3))
+
+            
+            if is_in_progress and feed_home_score is not None and feed_away_score is not None:
+                fixture.status = "Live"
+                fixture.home_score = feed_home_score
+                fixture.away_score = feed_away_score
+                fixtures_updated += 1
+            else:
+                # Keep as Scheduled, do not save placeholder zero scores in the DB
+                fixture.status = "Scheduled"
+                fixture.home_score = None
+                fixture.away_score = None
+
+                
+    if fixtures_finished > 0 or fixtures_updated > 0:
+        db.commit()
+        
+    simulation_status = "Skipped"
+    if run_simulation:
+        print("A match has finished. Triggering tournament Monte Carlo simulation...")
+        try:
+            run_monte_carlo_simulation(db)
+            simulation_status = "Successfully updated and simulation completed."
+        except Exception as e:
+            simulation_status = f"Simulation failed with error: {str(e)}"
+            
+    return {
+        "status": "success",
+        "fixtures_updated_live": fixtures_updated,
+        "fixtures_finished": fixtures_finished,
+        "simulation": simulation_status
+    }
+
+if __name__ == "__main__":
+    import argparse
+    from backend.database import SessionLocal
+    
+    parser = argparse.ArgumentParser(description="MatchWatch Database Ingestion and Update Task")
+    parser.add_argument("--live", action="store_true", help="Run lightweight live-score update only")
+    parser.add_argument("--force", action="store_true", help="Force updates even outside active match windows")
+    args = parser.parse_args()
+    
+    db = SessionLocal()
+    try:
+        if args.live:
+            print("Running live-score updater...")
+            result = update_live_scores(db, force=args.force)
+            print(json.dumps(result, indent=2))
+        else:
+            print("Running full results and odds updater...")
+            result = update_results_and_odds(db)
+            print(json.dumps(result, indent=2))
+    finally:
+        db.close()
+

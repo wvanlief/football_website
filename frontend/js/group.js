@@ -297,7 +297,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="match-info-center">
                     ${match.status === 'Finished' 
                         ? `<span class="match-score">${match.score}</span>` 
-                        : `<span class="match-time">${match.formatted_time}</span>`
+                        : (match.status === 'Live'
+                            ? `<span class="match-score live">${match.score}</span><span class="live-indicator"><span class="live-dot"></span>Live</span>`
+                            : `<span class="match-time">${match.formatted_time}</span>`
+                          )
                     }
                     <span class="match-vs">vs</span>
                 </div>

@@ -130,3 +130,114 @@ def test_update_results_and_odds(db_session):
     assert history_germany is not None
     assert history_spain.elo_rating == t1.elo
     assert history_germany.elo_rating == t2.elo
+
+@patch("backend.services.updater.fetch_json")
+@patch("backend.services.updater.run_monte_carlo_simulation")
+def test_update_live_scores(mock_sim, mock_fetch, db_session):
+    from backend.services.updater import update_live_scores
+    from datetime import timedelta
+    
+    # 1. Setup base competition and tournament
+    comp = Competition(name="FIFA World Cup Live", type="International")
+    db_session.add(comp)
+    db_session.flush()
+    
+    tourney = Tournament(competition_id=comp.id, season_name="2026", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+    
+    # Setup teams
+    t1 = Team(name="Spain Live", elo=2000, form_score=75.0, win_streak=1, draw_streak=0, loss_streak=0)
+    t2 = Team(name="Germany Live", elo=1900, form_score=70.0, win_streak=0, draw_streak=0, loss_streak=0)
+    db_session.add_all([t1, t2])
+    db_session.flush()
+    
+    # Create scheduled group fixture in the future (outside live window)
+    f_future = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=t1.id,
+        away_team_id=t2.id,
+        stage="Group Stage",
+        status="Scheduled",
+        date_utc=datetime.now(timezone.utc) + timedelta(days=5),
+        winner_id=None
+    )
+    db_session.add(f_future)
+    db_session.flush()
+    
+    # Create scheduled group fixture currently in progress (within live window)
+    f_live = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=t1.id,
+        away_team_id=t2.id,
+        stage="Round of 16",
+        status="Scheduled",
+        date_utc=datetime.now(timezone.utc) - timedelta(minutes=30),
+        winner_id=None
+    )
+    db_session.add(f_live)
+    db_session.flush()
+    
+    db_session.commit()
+    
+    # Test 1: Outside active window check (without force)
+    db_session.delete(f_live)
+    db_session.commit()
+    
+    res = update_live_scores(db_session, force=False)
+    assert res["status"] == "skipped"
+    assert "No active match window" in res["message"]
+    
+    # Restore f_live
+    f_live = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=t1.id,
+        away_team_id=t2.id,
+        stage="Round of 16",
+        status="Scheduled",
+        date_utc=datetime.now(timezone.utc) - timedelta(minutes=30),
+        winner_id=None
+    )
+    db_session.add(f_live)
+    db_session.commit()
+    
+    mock_games = [
+        {
+            "id": "8",
+            "home_team_id": "1",
+            "away_team_id": "2",
+            "home_team_name_en": "Spain Live",
+            "away_team_name_en": "Germany Live",
+            "home_score": "2",
+            "away_score": "1",
+            "finished": "FALSE",
+            "local_date": "06/11/2026 13:00",
+            "stadium_id": "1",
+            "type": "round_of_16"
+        }
+    ]
+    mock_fetch.return_value = {"games": mock_games}
+    
+    # Test 2: Active match window updates to Live
+    res = update_live_scores(db_session, force=False)
+    assert res["status"] == "success"
+    assert res["fixtures_updated_live"] == 1
+    assert res["fixtures_finished"] == 0
+    
+    db_session.refresh(f_live)
+    assert f_live.status == "Live"
+    assert f_live.home_score == 2
+    assert f_live.away_score == 1
+    
+    # Test 3: Live match finishes
+    mock_games[0]["finished"] = "TRUE"
+    res = update_live_scores(db_session, force=False)
+    assert res["status"] == "success"
+    assert res["fixtures_updated_live"] == 0
+    assert res["fixtures_finished"] == 1
+    mock_sim.assert_called_once()
+    
+    db_session.refresh(f_live)
+    assert f_live.status == "Finished"
+    assert f_live.winner_id == t1.id
+

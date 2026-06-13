@@ -76,7 +76,7 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
         "stage": display_stage,
         "group_name": group_letter,
         "status": f.status,
-        "score": f"{f.home_score} - {f.away_score}" if f.status == "Finished" else None,
+        "score": f"{f.home_score} - {f.away_score}" if f.status in ("Finished", "Live") and f.home_score is not None and f.away_score is not None else None,
         "odds": {
             "home": latest_odds.odds_home,
             "draw": latest_odds.odds_draw,

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.services.updater import update_results_and_odds
+from backend.services.updater import update_results_and_odds, update_live_scores
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -29,3 +29,18 @@ def trigger_update(db: Session = Depends(get_db)):
             detail=result.get("message")
         )
     return result
+
+@router.post("/update-live", dependencies=[Depends(verify_admin_token)])
+def trigger_live_update(force: bool = False, db: Session = Depends(get_db)):
+    """
+    Secured endpoint to trigger database live-score updates dynamically.
+    Only updates when matches are in progress unless forced.
+    """
+    result = update_live_scores(db, force=force)
+    if result.get("status") == "error":
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result.get("message")
+        )
+    return result
+
