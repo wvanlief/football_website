@@ -39,3 +39,28 @@ class GroupedFixturesResponse(BaseModel):
     this_week: List[FixtureOut]
     finished: List[FixtureOut]
 
+
+class CalendarTeamOut(BaseModel):
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
+class CalendarFixtureOut(BaseModel):
+    id: int
+    home_team: CalendarTeamOut
+    away_team: CalendarTeamOut
+    date: str
+    formatted_time: str
+    formatted_date: str
+    formatted_date_short: str
+    stage: str
+    status: str
+    score: Optional[str] = None
+    watchability_score: float
+
+    class Config:
+        from_attributes = True
+
+

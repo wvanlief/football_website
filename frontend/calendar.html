@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Group Standings | MatchWatch</title>
+    <title>Tournament Calendar | MatchWatch</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,14 +11,14 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/css/styles.css?v=1.0.2">
+    <link rel="stylesheet" href="/css/styles.css?v=1.0.3">
 </head>
 <body class="theme-flag">
     <div class="glow-bg"></div>
 
     <header class="app-header">
         <div class="header-container">
-            <div class="logo-area">
+            <div class="logo-area animate-logo">
                 <i class="fa-solid fa-trophy trophy-logo"></i>
                 <div class="logo-text">
                     <h1>MATCH<span>WATCH</span></h1>
@@ -30,7 +30,7 @@
                 <a href="/" class="nav-link"><i class="fa-solid fa-chart-line"></i> Dashboard</a>
                 <a href="/recommended" class="nav-link"><i class="fa-solid fa-fire"></i> Hot List</a>
                 <a href="/bracket" class="nav-link"><i class="fa-solid fa-sitemap"></i> Bracket</a>
-                <a href="/calendar" class="nav-link"><i class="fa-regular fa-calendar-days"></i> Calendar</a>
+                <a href="/calendar" class="nav-link active"><i class="fa-regular fa-calendar-days"></i> Calendar</a>
             </nav>
             
             <div class="controls-area">
@@ -51,60 +51,51 @@
         </div>
     </header>
 
-
-
     <main class="app-main">
-        <!-- Group Hero Title -->
-        <section class="group-hero-section">
-            <h2 id="group-title-header">GROUP STANDINGS</h2>
-            <p>Standings and full group stage schedule ranked by watchability score.</p>
+        <!-- Calendar Hero Section -->
+        <section class="recommended-hero">
+            <h2>TOURNAMENT CALENDAR</h2>
+            <p>Displaying results for the last 7 days and fixtures for the upcoming 30 days. Space-optimized team-flag format.</p>
         </section>
 
-        <!-- Dynamic Standings Card -->
-        <section class="standings-container-card glass">
-            <h3><i class="fa-solid fa-table-list"></i> Group Table</h3>
-            <div class="table-wrapper">
-                <table class="standings-table">
-                    <thead>
-                        <tr>
-                            <th class="col-pos">Pos</th>
-                            <th class="col-team">Team</th>
-                            <th class="col-stat">P</th>
-                            <th class="col-stat">W</th>
-                            <th class="col-stat">D</th>
-                            <th class="col-stat">L</th>
-                            <th class="col-stat">GD</th>
-                            <th class="col-pts">PTS</th>
-                        </tr>
-                    </thead>
-                    <tbody id="standings-tbody">
-                        <!-- Dynamic Standings Injected here -->
-                    </tbody>
-                </table>
-            </div>
-            <p class="standings-footnote"><i class="fa-solid fa-info-circle"></i> Top two teams qualify for the Round of 32 knockout stage.</p>
-        </section>
-
-        <!-- Group Matches Header & View Toggle -->
-        <section class="group-fixtures-section">
-            <div class="group-fixtures-header">
-                <h2>Group Matches</h2>
-                <!-- View Toggle Buttons -->
-                <div class="recommended-toggle-bar">
-                    <button id="toggle-schedule-btn" class="toggle-btn active">
-                        <i class="fa-regular fa-calendar-days"></i> Chronological
+        <!-- Calendar Layout Container -->
+        <div class="calendar-layout-wrapper glass">
+            <!-- Calendar Navigation Header Controls -->
+            <div class="calendar-nav-header">
+                <div class="calendar-nav-left">
+                    <button id="prev-month-btn" class="btn btn-secondary btn-icon-nav" title="Previous Month">
+                        <i class="fa-solid fa-chevron-left"></i>
                     </button>
-                    <button id="toggle-leaderboard-btn" class="toggle-btn">
-                        <i class="fa-solid fa-list-ol"></i> Watchability
+                    <button id="today-btn" class="btn btn-secondary" title="Go to Today">Today</button>
+                    <button id="next-month-btn" class="btn btn-secondary btn-icon-nav" title="Next Month">
+                        <i class="fa-solid fa-chevron-right"></i>
                     </button>
+                </div>
+                <h3 id="current-month-year" class="current-month-year">June 2026</h3>
+                <div class="calendar-legend">
+                    <span class="legend-item"><span class="legend-dot must-watch"></span> Must Watch</span>
+                    <span class="legend-item"><span class="legend-dot recommended"></span> Recommended</span>
+                    <span class="legend-item"><span class="legend-dot average"></span> Average</span>
+                    <span class="legend-item"><span class="legend-dot skip"></span> Skip</span>
                 </div>
             </div>
 
-            <!-- Dynamic Matches Schedule -->
-            <div id="group-matches-container">
-                <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading schedule...</div>
+            <!-- Calendar Grid -->
+            <div class="calendar-grid-wrapper">
+                <div class="calendar-weekdays-header">
+                    <div>Sun</div>
+                    <div>Mon</div>
+                    <div>Tue</div>
+                    <div>Wed</div>
+                    <div>Thu</div>
+                    <div>Fri</div>
+                    <div>Sat</div>
+                </div>
+                <div id="calendar-container" class="calendar-days-grid">
+                    <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading scheduled matches...</div>
+                </div>
             </div>
-        </section>
+        </div>
     </main>
 
     <!-- Match Details Modal -->
@@ -125,6 +116,6 @@
     </footer>
 
     <!-- Custom JS -->
-    <script src="/js/group.js?v=1.0.2"></script>
+    <script src="/js/calendar.js?v=1.0.3"></script>
 </body>
 </html>

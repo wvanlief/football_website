@@ -237,6 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fixtures.forEach(match => {
             const ratingClass = getRatingClass(match.watchability.overall);
             const ratingText = getRatingText(match.watchability.overall);
+            const ratingIcon = getRatingIcon(match.watchability.overall);
             
             const card = document.createElement('div');
             card.className = `match-card ${ratingClass}`;
@@ -247,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="card-header">
                     <span class="stage-tag">${match.stage}</span>
                     <span class="score-badge ${ratingClass}">
-                        <i class="fa-solid fa-star"></i> ${match.watchability.overall}% ${ratingText}
+                        <i class="${ratingIcon}"></i> ${ratingText}
                     </span>
                 </div>
                 <div class="card-matchup">
@@ -319,6 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function openMatchDetails(match) {
         const ratingClass = getRatingClass(match.watchability.overall);
         const ratingText = getRatingText(match.watchability.overall);
+        const ratingIcon = getRatingIcon(match.watchability.overall);
         
         // Spotlight Players Render
         const homePlayers = match.home_team.players || [];
@@ -368,8 +370,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="team-nav-link" data-name="${match.away_team.name}" style="cursor: pointer;">${match.away_team.name}</span>
                     <img src="${getFlagUrl(match.away_team.name)}" class="modal-flag team-nav-link" data-name="${match.away_team.name}" alt="" style="cursor: pointer;">
                 </div>
-                <div class="modal-watchability-header">
-                    <span class="score-val">${match.watchability.overall}%</span>
+                <div class="modal-watchability-header ${ratingClass}">
+                    <span class="score-val"><i class="${ratingIcon}"></i> ${ratingText}</span>
                     <span class="score-label">${ratingText} WATCHABILITY</span>
                 </div>
             </div>
@@ -519,10 +521,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getRatingText(score) {
-        if (score >= 85) return 'MUST WATCH';
-        if (score >= 70) return 'RECOMMENDED';
-        if (score >= 50) return 'AVERAGE';
-        return 'SKIP GAME';
+        if (score >= 85) return 'Must Watch';
+        if (score >= 70) return 'Recommended';
+        if (score >= 50) return 'Average';
+        return 'Skip';
+    }
+
+    function getRatingIcon(score) {
+        if (score >= 85) return 'fa-solid fa-trophy';
+        if (score >= 70) return 'fa-solid fa-fire';
+        if (score >= 50) return 'fa-solid fa-chart-simple';
+        return 'fa-solid fa-face-meh';
     }
 
     function showToast(message) {

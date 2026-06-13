@@ -139,8 +139,8 @@ def get_grouped_fixtures(db: Session, tz_str: str) -> dict:
         elif tomorrow_date < match_date <= max_date:
             week_fixtures.append(fixture_data)
             
-    today_fixtures.sort(key=lambda x: x["watchability"]["overall"], reverse=True)
-    tomorrow_fixtures.sort(key=lambda x: x["watchability"]["overall"], reverse=True)
+    today_fixtures.sort(key=lambda x: x["date"])
+    tomorrow_fixtures.sort(key=lambda x: x["date"])
     week_fixtures.sort(key=lambda x: x["watchability"]["overall"], reverse=True)
     finished_fixtures.sort(key=lambda x: x["date"], reverse=True)
     
@@ -873,4 +873,71 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000) -> dict
         json.dump(result, f, indent=2)
         
     return result
+
+
+def get_calendar_fixtures(db: Session, tz_str: str) -> list:
+    target_tz = get_timezone(tz_str)
+    today_dt = datetime.now(target_tz)
+    
+    # 7 days ago at start of day
+    start_date = (today_dt - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+    # 30 days from now at end of day
+    end_date = (today_dt + timedelta(days=30)).replace(hour=23, minute=59, second=59, microsecond=999999)
+    
+    start_utc = start_date.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+    end_utc = end_date.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+    
+    fixtures = db.query(Fixture).options(
+        joinedload(Fixture.home_team),
+        joinedload(Fixture.away_team)
+    ).filter(
+        Fixture.date_utc >= start_utc,
+        Fixture.date_utc <= end_utc
+    ).all()
+    
+    fixtures.sort(key=lambda x: x.date_utc)
+    
+    tts = db.query(TournamentTeam).all()
+    team_group_map = {}
+    for tt in tts:
+        team_group_map[(tt.tournament_id, tt.team_id)] = tt.group_name
+        
+    calendar_data = []
+    for f in fixtures:
+        dt = f.date_utc
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+        dt_tz = dt.astimezone(target_tz)
+        
+        group_letter = team_group_map.get((f.tournament_id, f.home_team_id))
+        display_stage = f"Group {group_letter}" if f.stage == "Group Stage" and group_letter else f.stage
+        
+        calendar_data.append({
+            "id": f.id,
+            "home_team": {
+                "name": f.home_team.name if f.home_team else "Unknown"
+            },
+            "away_team": {
+                "name": f.away_team.name if f.away_team else "Unknown"
+            },
+            "date": f.date_utc.isoformat(),
+            "formatted_time": dt_tz.strftime("%H:%M"),
+            "formatted_date": dt_tz.strftime("%B %d, %Y"),
+            "formatted_date_short": dt_tz.strftime("%b %d"),
+            "stage": display_stage,
+            "status": f.status,
+            "score": f"{f.home_score} - {f.away_score}" if f.status in ("Finished", "Live") and f.home_score is not None and f.away_score is not None else None,
+            "watchability_score": f.watchability_score
+        })
+        
+    return calendar_data
+
+
+def get_fixture_details_by_id(db: Session, fixture_id: int, tz_str: str) -> dict:
+    target_tz = get_timezone(tz_str)
+    f = db.query(Fixture).filter(Fixture.id == fixture_id).first()
+    if not f:
+        return None
+    return enrich_fixture(f, db, target_tz)
+
 
