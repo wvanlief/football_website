@@ -2,6 +2,8 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.database import init_db, get_db, Fixture
 from backend.ingestor import seed_database
@@ -31,6 +33,29 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Football Match Watchability Index",
     lifespan=lifespan
+)
+
+# Allowed hosts — Railway domain and custom domain
+ALLOWED_HOSTS = [
+    "web-production-ae1eb.up.railway.app",
+    "findfootball.games",
+    "www.findfootball.games",
+    "localhost",
+    "127.0.0.1",
+]
+
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=ALLOWED_HOSTS,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[f"https://{host}" for host in ALLOWED_HOSTS if "." in host]
+    + ["http://localhost", "http://127.0.0.1"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Mount static assets
