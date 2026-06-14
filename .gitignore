@@ -13,6 +13,9 @@ __pycache__/
 
 # Database
 football_games.db
+test_football_games.db
+*.db
+
 
 # IDEs
 .idea/

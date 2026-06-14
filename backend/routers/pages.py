@@ -3,6 +3,14 @@ from fastapi.responses import FileResponse
 
 router = APIRouter()
 
+@router.get("/favicon.svg")
+def get_favicon_svg():
+    return FileResponse("frontend/favicon.svg", media_type="image/svg+xml")
+
+@router.get("/favicon.ico")
+def get_favicon_ico():
+    return FileResponse("frontend/favicon.svg", media_type="image/svg+xml")
+
 # Cache-busting headers for dev pages
 NO_CACHE_HEADERS = {
     "Cache-Control": "no-cache, no-store, must-revalidate",
