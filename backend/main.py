@@ -43,6 +43,8 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
 ]
+if os.getenv("TESTING") == "True":
+    ALLOWED_HOSTS.append("testserver")
 
 app.add_middleware(
     TrustedHostMiddleware,

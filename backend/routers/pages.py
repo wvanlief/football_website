@@ -3,13 +3,13 @@ from fastapi.responses import FileResponse
 
 router = APIRouter()
 
-@router.get("/favicon.svg")
-def get_favicon_svg():
-    return FileResponse("frontend/favicon.svg", media_type="image/svg+xml")
+@router.get("/icons8-soccer-ball-96.png")
+def get_favicon_png():
+    return FileResponse("frontend/icons8-soccer-ball-96.png", media_type="image/png")
 
 @router.get("/favicon.ico")
 def get_favicon_ico():
-    return FileResponse("frontend/favicon.svg", media_type="image/svg+xml")
+    return FileResponse("frontend/icons8-soccer-ball-96.png", media_type="image/png")
 
 # Cache-busting headers for dev pages
 NO_CACHE_HEADERS = {
