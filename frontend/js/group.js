@@ -57,35 +57,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize Page
     selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
-    timezoneSelect.value = selectedTimezone;
+    if (timezoneSelect) {
+        timezoneSelect.value = selectedTimezone;
+        // Timezone Switcher Event Listener
+        timezoneSelect.addEventListener('change', () => {
+            selectedTimezone = timezoneSelect.value;
+            localStorage.setItem('findfootball-timezone', selectedTimezone);
+            resolveAndTimezoneFetch();
+            showToast(`Timezone set to ${timezoneSelect.options[timezoneSelect.selectedIndex].text}!`);
+        });
+    }
 
     // Toggle Button States
     updateToggleButtonsUI();
 
-
-
-    // Timezone Switcher Event Listener
-    timezoneSelect.addEventListener('change', () => {
-        selectedTimezone = timezoneSelect.value;
-        localStorage.setItem('findfootball-timezone', selectedTimezone);
-        resolveAndTimezoneFetch();
-        showToast(`Timezone set to ${timezoneSelect.options[timezoneSelect.selectedIndex].text}!`);
-    });
-
     // View Toggle Listeners
-    toggleScheduleBtn.addEventListener('click', () => {
-        activeView = 'schedule';
-        localStorage.setItem('findfootball-group-view', activeView);
-        updateToggleButtonsUI();
-        renderMatches();
-    });
+    if (toggleScheduleBtn) {
+        toggleScheduleBtn.addEventListener('click', () => {
+            activeView = 'schedule';
+            localStorage.setItem('findfootball-group-view', activeView);
+            updateToggleButtonsUI();
+            renderMatches();
+        });
+    }
 
-    toggleLeaderboardBtn.addEventListener('click', () => {
-        activeView = 'leaderboard';
-        localStorage.setItem('findfootball-group-view', activeView);
-        updateToggleButtonsUI();
-        renderMatches();
-    });
+    if (toggleLeaderboardBtn) {
+        toggleLeaderboardBtn.addEventListener('click', () => {
+            activeView = 'leaderboard';
+            localStorage.setItem('findfootball-group-view', activeView);
+            updateToggleButtonsUI();
+            renderMatches();
+        });
+    }
 
     // Resolve timezone and trigger fetch
     resolveAndTimezoneFetch();
@@ -120,15 +123,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-    modalClose.addEventListener('click', () => {
-        matchModal.classList.remove('open');
-    });
+    if (modalClose) {
+        modalClose.addEventListener('click', () => {
+            if (matchModal) matchModal.classList.remove('open');
+        });
+    }
 
-    matchModal.addEventListener('click', (e) => {
-        if (e.target === matchModal) {
-            matchModal.classList.remove('open');
-        }
-    });
+    if (matchModal) {
+        matchModal.addEventListener('click', (e) => {
+            if (e.target === matchModal) {
+                matchModal.classList.remove('open');
+            }
+        });
+    }
 
 
 

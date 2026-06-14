@@ -50,51 +50,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize Page
     selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
-    timezoneSelect.value = selectedTimezone;
+    if (timezoneSelect) {
+        timezoneSelect.value = selectedTimezone;
+        timezoneSelect.addEventListener('change', () => {
+            selectedTimezone = timezoneSelect.value;
+            localStorage.setItem('findfootball-timezone', selectedTimezone);
+            resolveAndTimezoneFetch();
+            showToast(`Timezone set to ${timezoneSelect.options[timezoneSelect.selectedIndex].text}!`);
+        });
+    }
 
     // Event Listeners
-    timezoneSelect.addEventListener('change', () => {
-        selectedTimezone = timezoneSelect.value;
-        localStorage.setItem('findfootball-timezone', selectedTimezone);
-        resolveAndTimezoneFetch();
-        showToast(`Timezone set to ${timezoneSelect.options[timezoneSelect.selectedIndex].text}!`);
-    });
+    if (modalClose) {
+        modalClose.addEventListener('click', () => {
+            if (matchModal) matchModal.classList.remove('open');
+        });
+    }
 
-
-
-    modalClose.addEventListener('click', () => {
-        matchModal.classList.remove('open');
-    });
-
-    matchModal.addEventListener('click', (e) => {
-        if (e.target === matchModal) {
-            matchModal.classList.remove('open');
-        }
-    });
+    if (matchModal) {
+        matchModal.addEventListener('click', (e) => {
+            if (e.target === matchModal) {
+                matchModal.classList.remove('open');
+            }
+        });
+    }
 
     // Calendar Navigation Listeners
-    prevMonthBtn.addEventListener('click', () => {
-        currentMonth--;
-        if (currentMonth < 0) {
-            currentMonth = 11;
-            currentYear--;
-        }
-        renderCalendar();
-    });
+    if (prevMonthBtn) {
+        prevMonthBtn.addEventListener('click', () => {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            renderCalendar();
+        });
+    }
 
-    nextMonthBtn.addEventListener('click', () => {
-        currentMonth++;
-        if (currentMonth > 11) {
-            currentMonth = 0;
-            currentYear++;
-        }
-        renderCalendar();
-    });
+    if (nextMonthBtn) {
+        nextMonthBtn.addEventListener('click', () => {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            renderCalendar();
+        });
+    }
 
-    todayBtn.addEventListener('click', () => {
-        initCurrentMonthYear();
-        renderCalendar();
-    });
+    if (todayBtn) {
+        todayBtn.addEventListener('click', () => {
+            initCurrentMonthYear();
+            renderCalendar();
+        });
+    }
 
     // Resolve timezone and trigger fetch
     resolveAndTimezoneFetch();
