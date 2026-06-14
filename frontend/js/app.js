@@ -29,6 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const toast = document.getElementById('toast');
     const timezoneSelect = document.getElementById('timezone-select');
+    const resultsBarContainer = document.getElementById('results-bar-container');
+    const resultsListHorizontal = document.getElementById('results-list-horizontal');
     
     // Country Explorer elements
     const countrySearchInput = document.getElementById('country-search');
@@ -136,8 +138,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Fetch and Load Fixtures
-    const resultsBarContainer = document.getElementById('results-bar-container');
-    const resultsListHorizontal = document.getElementById('results-list-horizontal');
 
     async function fetchFixtures() {
         // Show spinner
