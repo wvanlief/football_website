@@ -27,7 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // DOM Elements
     const calendarContainer = document.getElementById('calendar-container');
-    const refreshBtn = document.getElementById('refresh-btn');
     const toast = document.getElementById('toast');
     const timezoneSelect = document.getElementById('timezone-select');
     
@@ -61,22 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`Timezone set to ${timezoneSelect.options[timezoneSelect.selectedIndex].text}!`);
     });
 
-    refreshBtn.addEventListener('click', async () => {
-        if (!confirm("Are you sure you want to refresh the schedule database? This will reset all mock games and scores.")) return;
-        
-        try {
-            refreshBtn.classList.add('fa-spin');
-            const res = await fetch('/api/refresh', { method: 'POST' });
-            if (res.ok) {
-                showToast("Database refreshed successfully!");
-                await fetchCalendarFixtures();
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            refreshBtn.classList.remove('fa-spin');
-        }
-    });
+
 
     modalClose.addEventListener('click', () => {
         matchModal.classList.remove('open');

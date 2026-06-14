@@ -10,6 +10,7 @@ from backend.database import (
     TournamentTeam, PlayerContract, FixtureOdds, PlayerMatchStat, EloHistory
 )
 from backend.scoring import update_fixture_score
+from backend.utils import fetch_url_with_retry, fetch_json_with_retry
 
 # Load environment variables
 load_dotenv()
@@ -98,9 +99,7 @@ def fetch_current_elo_ratings() -> dict[str, int]:
     world_url = "https://www.eloratings.net/World.tsv"
     
     # 1. Fetch team mapping
-    req_teams = urllib.request.Request(teams_url, headers={'User-Agent': 'Mozilla/5.0'})
-    with urllib.request.urlopen(req_teams, timeout=10) as response:
-        teams_content = response.read().decode('utf-8')
+    teams_content = fetch_url_with_retry(teams_url).decode('utf-8')
         
     code_to_name = {}
     for line in teams_content.split('\n'):
@@ -113,9 +112,7 @@ def fetch_current_elo_ratings() -> dict[str, int]:
             code_to_name[code] = normalize_team_name(name)
             
     # 2. Fetch World Elo ratings
-    req_world = urllib.request.Request(world_url, headers={'User-Agent': 'Mozilla/5.0'})
-    with urllib.request.urlopen(req_world, timeout=10) as response:
-        world_content = response.read().decode('utf-8')
+    world_content = fetch_url_with_retry(world_url).decode('utf-8')
         
     parsed_ratings = {}
     for line in world_content.split('\n'):
@@ -200,12 +197,7 @@ def update_odds_from_api(fixtures: list, db: Session):
     print("Fetching odds from The Odds API...")
     url = f"https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey={api_key}&regions=eu&markets=h2h"
     try:
-        req = urllib.request.Request(
-            url,
-            headers={'User-Agent': 'Mozilla/5.0'}
-        )
-        with urllib.request.urlopen(req, timeout=10) as response:
-            odds_data = json.loads(response.read().decode())
+        odds_data = fetch_json_with_retry(url)
             
         odds_lookup = {}
         for match in odds_data:
@@ -308,11 +300,9 @@ def seed_database(db: Session):
     try:
         print("Fetching team definitions from API...")
         teams_url = "https://worldcup26.ir/get/teams"
-        req = urllib.request.Request(teams_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=10) as response:
-            res_teams = json.loads(response.read().decode())
-            fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else res_teams
-            print(f"Fetched {len(fetched_teams)} team definitions.")
+        res_teams = fetch_json_with_retry(teams_url)
+        fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else res_teams
+        print(f"Fetched {len(fetched_teams)} team definitions.")
     except Exception as e:
         print(f"Failed to fetch team definitions: {e}. Seeding using fallback groups.")
 
@@ -433,11 +423,9 @@ def seed_database(db: Session):
     try:
         print("Fetching official schedule from API...")
         matches_url = "https://worldcup26.ir/get/games"
-        req = urllib.request.Request(matches_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=10) as response:
-            res_matches = json.loads(response.read().decode())
-            fetched_matches = res_matches.get("games") if isinstance(res_matches, dict) else res_matches
-            print(f"Successfully fetched {len(fetched_matches)} matches.")
+        res_matches = fetch_json_with_retry(matches_url)
+        fetched_matches = res_matches.get("games") if isinstance(res_matches, dict) else res_matches
+        print(f"Successfully fetched {len(fetched_matches)} matches.")
     except Exception as e:
         print(f"Failed to fetch matches: {e}. Seeding fallback schedule.")
 

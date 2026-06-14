@@ -22,3 +22,7 @@ football_games.db
 *.njsproj
 *.sln
 *.swp
+
+# Logs
+logs/
+

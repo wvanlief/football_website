@@ -26,7 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // DOM Elements
-    const refreshBtn = document.getElementById('refresh-btn');
     const toast = document.getElementById('toast');
     
     const championBannerContainer = document.getElementById('champion-banner-container');
@@ -85,22 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Resolve details and trigger fetch
     fetchBracketDetails();
 
-    refreshBtn.addEventListener('click', async () => {
-        if (!confirm("Are you sure you want to refresh the schedule database? This will reset all mock games and scores, and re-run the 5,000 Monte Carlo simulations.")) return;
-        try {
-            simulationLoadingOverlay.classList.add('show');
-            const res = await fetch('/api/refresh', { method: 'POST' });
-            if (res.ok) {
-                showToast("Database and simulations refreshed successfully!");
-                await fetchBracketDetails();
-            }
-        } catch (err) {
-            console.error(err);
-            showToast("Failed to refresh data.");
-        } finally {
-            simulationLoadingOverlay.classList.remove('show');
-        }
-    });
+
 
     // Fetch Bracket Data
     async function fetchBracketDetails() {

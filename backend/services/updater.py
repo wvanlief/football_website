@@ -99,11 +99,11 @@ def update_team_streaks_and_form(home_team: Team, away_team: Team, outcome: floa
     home_team.form_score = round(min(95.0, max(45.0, 50.0 + (home_team.elo - 1500) * 0.05)), 1)
     away_team.form_score = round(min(95.0, max(45.0, 50.0 + (away_team.elo - 1500) * 0.05)), 1)
 
+from backend.utils import fetch_json_with_retry
+
 def fetch_json(url: str) -> list:
     """Helper to fetch JSON content from a URL."""
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    with urllib.request.urlopen(req, timeout=10) as response:
-        return json.loads(response.read().decode())
+    return fetch_json_with_retry(url)
 
 def update_results_and_odds(db: Session) -> dict:
     """

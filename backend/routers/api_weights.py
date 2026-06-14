@@ -1,8 +1,4 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-
-from backend.database import get_db
-from backend.ingestor import seed_database
+from fastapi import APIRouter
 
 router = APIRouter(tags=["Weights & Config"])
 
@@ -17,8 +13,3 @@ scoring_weights = {
 @router.get("/api/weights")
 def get_weights():
     return scoring_weights
-
-@router.post("/api/refresh")
-def refresh_data(db: Session = Depends(get_db)):
-    seed_database(db)
-    return {"status": "success"}
