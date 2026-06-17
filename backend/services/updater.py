@@ -172,8 +172,8 @@ def update_results_and_odds(db: Session) -> dict:
         
         # Determine status and outcomes
         is_finished_in_feed = m.get("finished") == "TRUE"
-        feed_home_score = int(m["home_score"]) if is_finished_in_feed and m.get("home_score") is not None else None
-        feed_away_score = int(m["away_score"]) if is_finished_in_feed and m.get("away_score") is not None else None
+        feed_home_score = int(m["home_score"]) if is_finished_in_feed and m.get("home_score") not in (None, 'null') else None
+        feed_away_score = int(m["away_score"]) if is_finished_in_feed and m.get("away_score") not in (None, 'null') else None
         
         # Create a new fixture if it's missing (e.g. newly determined knockout matches)
         if not fixture:
@@ -397,8 +397,8 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
             continue
             
         is_finished_in_feed = m.get("finished") == "TRUE"
-        feed_home_score = int(m["home_score"]) if m.get("home_score") is not None else None
-        feed_away_score = int(m["away_score"]) if m.get("away_score") is not None else None
+        feed_home_score = int(m["home_score"]) if m.get("home_score") not in (None, 'null') else None
+        feed_away_score = int(m["away_score"]) if m.get("away_score") not in (None, 'null') else None
         
         if is_finished_in_feed:
             # Match has finished!
