@@ -376,12 +376,7 @@ def update_results_and_odds(db: Session) -> dict:
     update_odds_from_api(all_current_fixtures, db)
     db.commit()
     
-    # 6. Recalculate watchability scores for all matches
-    for fixture in all_current_fixtures:
-        update_fixture_score(fixture, db)
-    db.commit()
-    
-    # 6.5 Sync team Elo ratings with eloratings.net
+    # 5.5 Sync team Elo ratings with eloratings.net
     try:
         print("Syncing Elo ratings from eloratings.net...")
         from backend.ingestor import fetch_current_elo_ratings
@@ -407,7 +402,7 @@ def update_results_and_odds(db: Session) -> dict:
     except Exception as e:
         print(f"Warning: Failed to sync Elo ratings from eloratings.net: {e}. Keeping current ratings.")
     
-    # 7. Trigger the Monte Carlo bracket simulation using the new scores and ELO ratings
+    # 6. Trigger the Monte Carlo bracket simulation using the new scores and ELO ratings
     print("Triggering tournament Monte Carlo simulation...")
     try:
         run_monte_carlo_simulation(db)
@@ -415,6 +410,11 @@ def update_results_and_odds(db: Session) -> dict:
     except Exception as e:
         simulation_status = f"Simulation failed with error: {str(e)}"
         
+    # 7. Recalculate watchability scores for all matches using the latest simulation results
+    for fixture in all_current_fixtures:
+        update_fixture_score(fixture, db)
+    db.commit()
+    
     return {
         "status": "success",
         "fixtures_created": fixtures_created,

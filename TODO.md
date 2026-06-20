@@ -1,6 +1,5 @@
 
 ## Prio 1
- - Add Group info
  - Make sure the tournament stakes are taken into account and correct
  - High scoring teams 
 
@@ -9,7 +8,6 @@
  - Share match on Social media 
  - team historical data
  - Odds movement
- - fade disqualified countries
  - History in the Form box
  
 ## Prio 3
@@ -32,3 +30,5 @@
  - Fix Live Score API (Fallback implemented)
  - Fix Draw Odds 
  - Fix Default date display
+ - Add Group info
+ - fade disqualified countries
