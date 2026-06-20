@@ -1,6 +1,5 @@
 
 ## Prio 1
- - Make sure the tournament stakes are taken into account and correct
  - High scoring teams 
 
 ## Prio 2
@@ -32,3 +31,4 @@
  - Fix Default date display
  - Add Group info
  - fade disqualified countries
+ - Make sure the tournament stakes are taken into account and correct
