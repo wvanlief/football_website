@@ -332,3 +332,85 @@ def test_update_live_scores_fallback(mock_sim, mock_fetch_retry, mock_fetch, db_
     assert f_live.home_score == 3
     assert f_live.away_score == 2
 
+
+@patch("backend.services.updater.fetch_json")
+@patch("backend.services.updater.update_odds_from_api")
+@patch("backend.services.updater.run_monte_carlo_simulation")
+@patch("backend.ingestor.fetch_current_elo_ratings")
+def test_newly_created_finished_fixture_updates_team_stats(mock_fetch_elo, mock_sim, mock_odds_api, mock_fetch, db_session):
+    # Setup base competition and tournament
+    comp = Competition(name="FIFA World Cup Test", type="International")
+    db_session.add(comp)
+    db_session.flush()
+
+    tourney = Tournament(competition_id=comp.id, season_name="2026", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+
+    # Setup teams with 0 win_streak
+    t1 = Team(name="Spain Test", elo=2000, form_score=75.0, win_streak=0, draw_streak=0, loss_streak=0)
+    t2 = Team(name="Germany Test", elo=1900, form_score=70.0, win_streak=0, draw_streak=0, loss_streak=0)
+    db_session.add_all([t1, t2])
+    db_session.flush()
+
+    tt1 = TournamentTeam(tournament_id=tourney.id, team_id=t1.id, group_name="A")
+    tt2 = TournamentTeam(tournament_id=tourney.id, team_id=t2.id, group_name="B")
+    db_session.add_all([tt1, tt2])
+    db_session.flush()
+    db_session.commit()
+
+    # The fixture does NOT exist in the database, but is returned as Finished in the feed
+    mock_teams = [
+        {"id": "1", "name_en": "Spain Test", "groups": "A"},
+        {"id": "2", "name_en": "Germany Test", "groups": "B"}
+    ]
+    mock_matches = [
+        {
+            "id": "100",
+            "home_team_id": "1",
+            "away_team_id": "2",
+            "home_score": "2",
+            "away_score": "1",
+            "finished": "TRUE",
+            "local_date": "06/20/2026 18:00",
+            "stadium_id": "1",
+            "type": "round_of_16"
+        }
+    ]
+
+    mock_fetch_elo.return_value = {
+        "Spain Test": 2011,
+        "Germany Test": 1889
+    }
+
+    def fetch_side_effect(url):
+        if "teams" in url:
+            return {"teams": mock_teams}
+        elif "games" in url or "matches" in url:
+            return {"games": mock_matches}
+        return []
+
+    mock_fetch.side_effect = fetch_side_effect
+
+    result = update_results_and_odds(db_session)
+
+    assert result["status"] == "success"
+    assert result["fixtures_created"] == 1
+
+    # Verify fixture was created as Finished with score and winner
+    fixture = db_session.query(Fixture).filter(Fixture.stage == "Round of 16").first()
+    assert fixture is not None
+    assert fixture.status == "Finished"
+    assert fixture.home_score == 2
+    assert fixture.away_score == 1
+    assert fixture.winner_id == t1.id
+
+    # Verify streaks and Elo updated correctly
+    db_session.refresh(t1)
+    db_session.refresh(t2)
+    assert t1.win_streak == 1
+    assert t2.loss_streak == 1
+    assert t1.elo == 2011
+    assert t2.elo == 1889
+
+

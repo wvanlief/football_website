@@ -558,6 +558,11 @@ def seed_database(db: Session):
         update_fixture_score(fixture, db)
         
     db.commit()
+    
+    # Recalculate team streaks based on seeded finished fixtures
+    from backend.services.updater import recalculate_team_streaks
+    recalculate_team_streaks(db)
+
     print("Database seeding completed. Triggering tournament Monte Carlo simulation...")
     from backend.services.tournament import run_monte_carlo_simulation
     try:

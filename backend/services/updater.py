@@ -103,6 +103,49 @@ def update_team_streaks_and_form(home_team: Team, away_team: Team, outcome: floa
     home_team.form_score = round(min(95.0, max(45.0, 50.0 + (home_team.elo - 1500) * 0.05)), 1)
     away_team.form_score = round(min(95.0, max(45.0, 50.0 + (away_team.elo - 1500) * 0.05)), 1)
 
+def recalculate_team_streaks(db: Session):
+    """Recalculates win/draw/loss streaks for all teams based on finished fixtures in chronological order."""
+    teams = db.query(Team).all()
+    for team in teams:
+        team.win_streak = 0
+        team.draw_streak = 0
+        team.loss_streak = 0
+    db.flush()
+
+    finished_fixtures = db.query(Fixture).filter(Fixture.status == "Finished").order_by(Fixture.date_utc.asc()).all()
+    for f in finished_fixtures:
+        home_team = f.home_team
+        away_team = f.away_team
+        if not home_team or not away_team:
+            continue
+            
+        if f.home_score > f.away_score:
+            home_team.win_streak += 1
+            home_team.draw_streak = 0
+            home_team.loss_streak = 0
+            
+            away_team.loss_streak += 1
+            away_team.win_streak = 0
+            away_team.draw_streak = 0
+        elif f.home_score < f.away_score:
+            away_team.win_streak += 1
+            away_team.draw_streak = 0
+            away_team.loss_streak = 0
+            
+            home_team.loss_streak += 1
+            home_team.win_streak = 0
+            home_team.draw_streak = 0
+        else: # Draw
+            home_team.draw_streak += 1
+            home_team.win_streak = 0
+            home_team.loss_streak = 0
+            
+            away_team.draw_streak += 1
+            away_team.win_streak = 0
+            away_team.loss_streak = 0
+    db.flush()
+
+
 from backend.utils import fetch_json_with_retry
 
 def fetch_json(url: str) -> list:
@@ -305,9 +348,9 @@ def update_results_and_odds(db: Session) -> dict:
                 away_team_id=away_team.id,
                 date_utc=dt_utc,
                 stage=stage,
-                status="Finished" if is_finished_in_feed else "Scheduled",
-                home_score=feed_home_score,
-                away_score=feed_away_score,
+                status="Scheduled",
+                home_score=None,
+                away_score=None,
                 winner_id=None
             )
             db.add(fixture)
