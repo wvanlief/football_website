@@ -67,11 +67,11 @@ def test_calculate_watchability_dynamic_stakes(db_session):
     db_session.add(f)
     db_session.commit()
     
-    # 1. Test fallback when no simulation probabilities are available (should be 50.0 each)
+    # 1. Test fallback when no simulation probabilities are available (should be 60.0)
     with patch("backend.scoring.get_simulation_probabilities") as mock_get_probs:
         mock_get_probs.return_value = {}
         res = calculate_watchability(f, t1, t2, db_session)
-        assert res["narrative_score"] == 100.0
+        assert res["narrative_score"] == 60.0
         assert any("Crucial World Cup Group A clash" in r for r in res["reasons"])
 
     # 2. Test high stakes decider: both teams at 50%

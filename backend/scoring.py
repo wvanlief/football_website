@@ -135,22 +135,6 @@ def calculate_watchability(
     else:
         # Dynamic stakes calculation for Group Stage based on qualification probabilities
         probs = get_simulation_probabilities()
-        p_home = probs.get(home_team.name, 50.0)
-        p_away = probs.get(away_team.name, 50.0)
-        
-        # Calculate individual team qualification stakes (0 to 100)
-        # Closer to 50% means higher stakes (survival is on the line)
-        s_home = 100.0 - 2.0 * abs(p_home - 50.0)
-        s_away = 100.0 - 2.0 * abs(p_away - 50.0)
-        
-        # Combine home and away stakes: weighted towards the higher-stakes team
-        # but penalizing if the other team has zero stakes (already qualified/eliminated)
-        s_match = 0.7 * max(s_home, s_away) + 0.3 * min(s_home, s_away)
-        
-        # Scale to stage score (baseline is 10.0, max is 100.0)
-        baseline = 10.0
-        narrative_score = baseline + (100.0 - baseline) * (s_match / 100.0)
-        narrative_score = round(min(100.0, max(0.0, narrative_score)), 1)
         
         from backend.database import TournamentTeam
         tt = db.query(TournamentTeam).filter(
@@ -160,8 +144,25 @@ def calculate_watchability(
         group_letter = tt.group_name if tt else ""
         reasons.append(f"Crucial World Cup Group {group_letter} clash.")
         
-        # Add detailed, context-specific stakes analysis reasons
         if home_team.name in probs and away_team.name in probs:
+            p_home = probs[home_team.name]
+            p_away = probs[away_team.name]
+            
+            # Calculate individual team qualification stakes (0 to 100)
+            # Closer to 50% means higher stakes (survival is on the line)
+            s_home = 100.0 - 2.0 * abs(p_home - 50.0)
+            s_away = 100.0 - 2.0 * abs(p_away - 50.0)
+            
+            # Combine home and away stakes: weighted towards the higher-stakes team
+            # but penalizing if the other team has zero stakes (already qualified/eliminated)
+            s_match = 0.7 * max(s_home, s_away) + 0.3 * min(s_home, s_away)
+            
+            # Scale to stage score (baseline is 10.0, max is 100.0)
+            baseline = 10.0
+            narrative_score = baseline + (100.0 - baseline) * (s_match / 100.0)
+            narrative_score = round(min(100.0, max(0.0, narrative_score)), 1)
+            
+            # Add detailed, context-specific stakes analysis reasons
             is_home_safe = p_home >= 98.0
             is_away_safe = p_away >= 98.0
             is_home_out = p_home <= 2.0
@@ -189,6 +190,9 @@ def calculate_watchability(
                     reasons.append(f"High stakes decider: Both teams are actively fighting for qualification (chances: {home_team.name} {p_home:.0f}%, {away_team.name} {p_away:.0f}%).")
                 else:
                     reasons.append(f"Crucial battle: {home_team.name} ({p_home:.0f}% chance) and {away_team.name} ({p_away:.0f}% chance) fight for qualification spots.")
+        else:
+            # Fallback to standard baseline group stage stakes when simulation results are missing/stale
+            narrative_score = 60.0
 
     # Apply Weights
     overall_score = (
