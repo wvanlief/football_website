@@ -247,3 +247,88 @@ def test_update_live_scores(mock_sim, mock_fetch, db_session):
     assert f_live.status == "Finished"
     assert f_live.winner_id == t1.id
 
+
+@patch("backend.services.updater.fetch_json")
+@patch("backend.services.updater.fetch_json_with_retry")
+@patch("backend.services.updater.run_monte_carlo_simulation")
+def test_update_live_scores_fallback(mock_sim, mock_fetch_retry, mock_fetch, db_session):
+    from backend.services.updater import update_live_scores
+    from backend.database import Competition, Tournament, Team, Fixture
+    from datetime import timedelta
+    import os
+    
+    # Set FOOTBALL_API_KEY environment variable just in case
+    os.environ["FOOTBALL_API_KEY"] = "testkey"
+    
+    # 1. Setup base competition and tournament
+    comp = Competition(name="FIFA World Cup Fallback", type="International")
+    db_session.add(comp)
+    db_session.flush()
+    
+    tourney = Tournament(competition_id=comp.id, season_name="2026", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+    
+    # Setup teams matching the mock fallback response names
+    t1 = Team(name="Spain Live", elo=2000, form_score=75.0, win_streak=1, draw_streak=0, loss_streak=0)
+    t2 = Team(name="Germany Live", elo=1900, form_score=70.0, win_streak=0, draw_streak=0, loss_streak=0)
+    db_session.add_all([t1, t2])
+    db_session.flush()
+    
+    # Create scheduled group fixture in progress
+    f_live = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=t1.id,
+        away_team_id=t2.id,
+        stage="Round of 16",
+        status="Scheduled",
+        date_utc=datetime.now(timezone.utc) - timedelta(minutes=30),
+        winner_id=None
+    )
+    db_session.add(f_live)
+    db_session.commit()
+
+    # Make the primary API fetch fail
+    mock_fetch.side_effect = Exception("Primary API Crash")
+
+    # Mock the fallback API response
+    mock_fallback_response = {
+        "response": [
+            {
+                "fixture": {
+                    "id": 8888,
+                    "status": {
+                        "short": "1H",
+                    },
+                    "date": "2026-06-11T13:00:00+00:00"
+                },
+                "league": {
+                    "round": "Round of 16"
+                },
+                "teams": {
+                    "home": {"name": "Spain Live"},
+                    "away": {"name": "Germany Live"}
+                },
+                "goals": {
+                    "home": 3,
+                    "away": 2
+                }
+            }
+        ]
+    }
+    mock_fetch_retry.return_value = mock_fallback_response
+
+    # Run the live scores update with force=True
+    res = update_live_scores(db_session, force=True)
+    
+    # Assert successful update using fallback
+    assert res["status"] == "success"
+    assert res["fixtures_updated_live"] == 1
+    assert res["fixtures_finished"] == 0
+    
+    # Assert fixture values updated
+    db_session.refresh(f_live)
+    assert f_live.status == "Live"
+    assert f_live.home_score == 3
+    assert f_live.away_score == 2
+

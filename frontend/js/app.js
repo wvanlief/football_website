@@ -148,16 +148,16 @@ document.addEventListener('DOMContentLoaded', () => {
             lists[col].innerHTML = '<div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Recalculating...</div>';
         });
 
+        // Update column headers dynamically based on resolved timezone immediately
+        const todayHeader = document.querySelector('#col-today h2');
+        const tomorrowHeader = document.querySelector('#col-tomorrow h2');
+        if (todayHeader) todayHeader.textContent = getFormattedDateString(resolvedTimezone, 0);
+        if (tomorrowHeader) tomorrowHeader.textContent = getFormattedDateString(resolvedTimezone, 1);
+
         try {
             const res = await fetch(`/api/fixtures?tz=${encodeURIComponent(resolvedTimezone)}`);
             const data = await res.json();
             activeFixtures = data;
-            
-            // Update column headers dynamically
-            const todayHeader = document.querySelector('#col-today h2');
-            const tomorrowHeader = document.querySelector('#col-tomorrow h2');
-            if (todayHeader) todayHeader.textContent = getFormattedDateString(resolvedTimezone, 0);
-            if (tomorrowHeader) tomorrowHeader.textContent = getFormattedDateString(resolvedTimezone, 1);
             
             renderColumn(lists.today, data.today, false);
             renderColumn(lists.tomorrow, data.tomorrow, false);

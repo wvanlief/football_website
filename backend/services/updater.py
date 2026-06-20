@@ -3,8 +3,12 @@ import json
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
+from dotenv import load_dotenv
+from typing import Any
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
+
+load_dotenv()
 
 from backend.database import (
     Team, Fixture, Tournament, FixtureOdds, EloHistory, get_db
@@ -105,25 +109,137 @@ def fetch_json(url: str) -> list:
     """Helper to fetch JSON content from a URL."""
     return fetch_json_with_retry(url)
 
+def map_api_football_round_to_type_key(round_str: str) -> str:
+    if not round_str:
+        return "group"
+    r = round_str.lower()
+    if "group" in r:
+        return "group"
+    elif "32" in r:
+        return "round_of_32"
+    elif "16" in r:
+        return "round_of_16"
+    elif "quarter" in r:
+        return "quarter"
+    elif "semi" in r:
+        return "semi"
+    elif "third" in r or "3rd" in r:
+        return "third"
+    elif "final" in r:
+        return "final"
+    return "group"
+
+def fetch_games_with_fallback() -> tuple[list, bool]:
+    """
+    Fetches games list. Returns a tuple: (fetched_matches_list, is_fallback_used).
+    Attempts to fetch from primary URL first, and if it fails or returns no matches,
+    falls back to API-Sports.
+    """
+    primary_url = "https://worldcup26.ir/get/games"
+    try:
+        print("Attempting to fetch games from primary live scoring API...")
+        res = fetch_json(primary_url)
+        if res:
+            games = res.get("games") if isinstance(res, dict) else res
+            if games and len(games) > 0:
+                print(f"Successfully fetched {len(games)} games from primary API.")
+                return games, False
+    except Exception as e:
+        print(f"Primary live scoring API failed: {e}")
+
+    # Fallback to API-Sports / API-Football
+    api_key = os.getenv("FOOTBALL_API_KEY")
+    if not api_key:
+        print("No FOOTBALL_API_KEY configured in environment. Cannot use fallback API.")
+        return [], False
+
+    fallback_url = "https://v3.football.api-sports.io/fixtures?league=1&season=2026"
+    headers = {
+        "x-apisports-key": api_key,
+        "User-Agent": "Mozilla/5.0"
+    }
+    try:
+        print("Attempting to fetch games from fallback API (API-Sports)...")
+        res = fetch_json_with_retry(fallback_url, headers=headers)
+        if isinstance(res, dict) and "response" in res:
+            fixtures = res["response"]
+            if fixtures:
+                print(f"Successfully fetched {len(fixtures)} games from fallback API.")
+                # Convert API-Sports format to primary API format
+                converted_games = []
+                for f in fixtures:
+                    fixture_info = f.get("fixture", {})
+                    teams_info = f.get("teams", {})
+                    goals_info = f.get("goals", {})
+                    league_info = f.get("league", {})
+                    
+                    status_short = fixture_info.get("status", {}).get("short", "")
+                    finished = "TRUE" if status_short in ("FT", "AET", "PEN") else "FALSE"
+                    
+                    # Convert UTC date to local format for parse_match_date
+                    api_date = fixture_info.get("date")
+                    local_date_str = ""
+                    if api_date:
+                        try:
+                            # e.g., "2026-06-11T13:00:00+00:00"
+                            dt_utc = datetime.fromisoformat(api_date.replace('Z', '+00:00'))
+                            # Use stadium 7 (New York) as a default stadium time zone for conversion
+                            stadium_tz = ZoneInfo(STADIUM_TIMEZONES.get("7", "America/New_York"))
+                            dt_local = dt_utc.astimezone(stadium_tz)
+                            local_date_str = dt_local.strftime("%m/%d/%Y %H:%M")
+                        except Exception as date_err:
+                            print(f"Error parsing date {api_date}: {date_err}")
+                    
+                    round_str = league_info.get("round", "")
+                    type_key = map_api_football_round_to_type_key(round_str)
+                    
+                    m = {
+                        "id": str(fixture_info.get("id")),
+                        "home_team_name_en": teams_info.get("home", {}).get("name"),
+                        "away_team_name_en": teams_info.get("away", {}).get("name"),
+                        "home_team_id": None,
+                        "away_team_id": None,
+                        "type": type_key,
+                        "finished": finished,
+                        "home_score": str(goals_info.get("home")) if goals_info.get("home") is not None else "null",
+                        "away_score": str(goals_info.get("away")) if goals_info.get("away") is not None else "null",
+                        "local_date": local_date_str,
+                        "stadium_id": "7"
+                    }
+                    converted_games.append(m)
+                return converted_games, True
+    except Exception as e:
+        print(f"Fallback API failed: {e}")
+        
+    return [], False
+
 def update_results_and_odds(db: Session) -> dict:
     """
     Main update task. Fetches official schedules/results and odds, updates database schemas,
     re-evaluates watchability indices, and runs simulations.
     """
     # 1. Fetch external configurations
+    fetched_matches = []
+    fetched_teams = []
+    is_fallback = False
+    
     try:
-        print("Fetching official schedule/results from API...")
-        matches_url = "https://worldcup26.ir/get/games"
-        res_matches = fetch_json(matches_url)
-        fetched_matches = res_matches.get("games") if isinstance(res_matches, dict) else res_matches
-        
-        print("Fetching team mapping definitions from API...")
-        teams_url = "https://worldcup26.ir/get/teams"
-        res_teams = fetch_json(teams_url)
-        fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else res_teams
+        fetched_matches, is_fallback = fetch_games_with_fallback()
     except Exception as e:
-        print(f"Error fetching external database files: {e}")
-        return {"status": "error", "message": f"Failed to fetch schedule files: {str(e)}"}
+        print(f"Error during matches fetch: {e}")
+        
+    if not fetched_matches:
+        return {"status": "error", "message": "Failed to fetch schedule/results from primary and fallback APIs."}
+        
+    if not is_fallback:
+        try:
+            print("Fetching team mapping definitions from API...")
+            teams_url = "https://worldcup26.ir/get/teams"
+            res_teams = fetch_json(teams_url)
+            fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else res_teams
+        except Exception as e:
+            print(f"Warning: Failed to fetch team definitions: {e}. Name matching will be used.")
+            fetched_teams = []
 
     # 2. Get active tournament
     tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
@@ -133,7 +249,7 @@ def update_results_and_odds(db: Session) -> dict:
         return {"status": "error", "message": "No active tournament found in DB. Please run database seeding first."}
 
     # 3. Create dictionaries for fast resolution
-    external_team_map = {t["id"]: normalize_team_name(t.get("name_en", "")) for t in fetched_teams}
+    external_team_map = {t["id"]: normalize_team_name(t.get("name_en", "")) for t in fetched_teams} if fetched_teams else {}
     db_teams = db.query(Team).all()
     db_teams_by_name = {team.name: team for team in db_teams}
     
@@ -144,8 +260,13 @@ def update_results_and_odds(db: Session) -> dict:
     
     # 4. Iterate over matches JSON
     for m in fetched_matches:
-        h_name = external_team_map.get(m.get("home_team_id"))
-        a_name = external_team_map.get(m.get("away_team_id"))
+        h_name = external_team_map.get(m.get("home_team_id")) if external_team_map else None
+        if not h_name:
+            h_name = normalize_team_name(m.get("home_team_name_en", ""))
+            
+        a_name = external_team_map.get(m.get("away_team_id")) if external_team_map else None
+        if not a_name:
+            a_name = normalize_team_name(m.get("away_team_name_en", ""))
         
         # Skip placeholders
         if not h_name or not a_name:
@@ -330,22 +451,26 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
     print(f"Active match window detected ({len(active_fixtures)} scheduled soon/ongoing, {len(live_fixtures)} live). Fetching scores...")
     
     # Fetch games data
+    fetched_matches = []
+    is_fallback = False
     try:
-        matches_url = "https://worldcup26.ir/get/games"
-        res_matches = fetch_json(matches_url)
-        fetched_matches = res_matches.get("games") if isinstance(res_matches, dict) else res_matches
+        fetched_matches, is_fallback = fetch_games_with_fallback()
+    except Exception as e:
+        print(f"Error fetching live scores feed: {e}")
+        return {"status": "error", "message": f"Failed to fetch scores: {str(e)}"}
         
-        # Try fetching teams to resolve external ID mapping. If it fails, fallback to name fields in games feed.
+    if not fetched_matches:
+        return {"status": "error", "message": "Failed to fetch live scores from both primary and fallback APIs."}
+        
+    external_team_map = {}
+    if not is_fallback:
         try:
             teams_url = "https://worldcup26.ir/get/teams"
             res_teams = fetch_json(teams_url)
             fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else res_teams
             external_team_map = {t["id"]: normalize_team_name(t.get("name_en", "")) for t in fetched_teams}
-        except Exception:
-            external_team_map = {}
-    except Exception as e:
-        print(f"Error fetching live scores feed: {e}")
-        return {"status": "error", "message": f"Failed to fetch scores: {str(e)}"}
+        except Exception as e:
+            print(f"Warning: Failed to fetch team definitions: {e}. Name matching will be used.")
         
     # Get active tournament
     tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
