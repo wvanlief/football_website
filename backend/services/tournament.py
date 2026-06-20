@@ -310,6 +310,166 @@ def get_country_details(db: Session, country_name: str, tz_str: str) -> dict:
         "future_matches": future_matches_data
     }
 
+def calculate_points_needed_to_guarantee_top_2(db: Session, team_name: str, group_letter: str) -> int:
+    from typing import Optional
+    import itertools
+    from backend.database import Team, TournamentTeam, Fixture
+    
+    # Get all teams in this group
+    tts = db.query(TournamentTeam).filter(TournamentTeam.group_name == group_letter).all()
+    group_team_ids = [tt.team_id for tt in tts]
+    
+    if not group_team_ids:
+        return 0
+        
+    teams = db.query(Team).filter(Team.id.in_(group_team_ids)).all()
+    team_name_map = {t.id: t.name for t in teams}
+    team_names = list(team_name_map.values())
+    
+    if team_name not in team_names:
+        return 0
+        
+    # Get all Group Stage fixtures for these teams
+    from backend.crud.fixture import get_fixtures_for_group
+    fixtures = get_fixtures_for_group(db, team_names)
+    
+    # Classify fixtures
+    finished_fixtures = []
+    scheduled_fixtures = []
+    
+    for f in fixtures:
+        h_name = f.home_team.name
+        a_name = f.away_team.name
+        if h_name not in team_names or a_name not in team_names:
+            continue
+            
+        if f.status == "Finished":
+            finished_fixtures.append({
+                "home": h_name,
+                "away": a_name,
+                "home_score": f.home_score,
+                "away_score": f.away_score
+            })
+        else:
+            scheduled_fixtures.append({
+                "home": h_name,
+                "away": a_name
+            })
+            
+    # Calculate starting points for each team
+    current_points = {name: 0 for name in team_names}
+    for f in finished_fixtures:
+        h = f["home"]
+        a = f["away"]
+        h_score = f["home_score"]
+        a_score = f["away_score"]
+        if h_score > a_score:
+            current_points[h] += 3
+        elif h_score < a_score:
+            current_points[a] += 3
+        else:
+            current_points[h] += 1
+            current_points[a] += 1
+            
+    # If no scheduled fixtures left, points needed is 0
+    num_remaining = len(scheduled_fixtures)
+    if num_remaining == 0:
+        return 0
+        
+    # Check how many matches the target team has left
+    target_remaining = sum(1 for f in scheduled_fixtures if team_name in (f["home"], f["away"]))
+    if target_remaining == 0:
+        return 0
+        
+    # The max possible points target team can reach
+    max_possible_points = current_points[team_name] + 3 * target_remaining
+    
+    safe_points = None
+    
+    for P in range(current_points[team_name], max_possible_points + 1):
+        is_safe = True
+        has_valid_scenario = False
+        
+        # Enumerate all 3^num_remaining outcomes
+        # Outcomes: (3, 0) -> home win, (1, 1) -> draw, (0, 3) -> away win
+        for match_results in itertools.product([(3, 0), (1, 1), (0, 3)], repeat=num_remaining):
+            pts = current_points.copy()
+            for idx, (p_home, p_away) in enumerate(match_results):
+                f = scheduled_fixtures[idx]
+                pts[f["home"]] += p_home
+                pts[f["away"]] += p_away
+                
+            if pts[team_name] < P:
+                continue
+                
+            has_valid_scenario = True
+            
+            # Determine rank under worst-case tiebreaker
+            # Sort teams. In case of ties, put team_name below others
+            sorted_teams = sorted(
+                team_names,
+                key=lambda t: (pts[t], 0 if t == team_name else 1),
+                reverse=True
+            )
+            
+            rank = sorted_teams.index(team_name) + 1
+            if rank > 2:
+                is_safe = False
+                break
+                
+        if is_safe and has_valid_scenario:
+            safe_points = P
+            break
+            
+    if safe_points is not None:
+        return max(0, safe_points - current_points[team_name])
+    else:
+        return 3 * target_remaining
+
+
+def get_all_third_placed_teams(db: Session) -> list:
+    groups = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
+    third_placed = []
+    
+    sim_data = None
+    file_path = os.path.join(os.path.dirname(__file__), "..", "data", "simulation_results.json")
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                sim_data = json.load(f)
+        except Exception:
+            pass
+            
+    team_probs = {}
+    if sim_data and "probabilities" in sim_data:
+        for p in sim_data["probabilities"]:
+            team_probs[p["team"]] = p
+            
+    for g in groups:
+        standings = calculate_standings(db, g)
+        if len(standings) >= 3:
+            team_standing = dict(standings[2])
+            team_standing["group"] = g
+            
+            prob_data = team_probs.get(team_standing["name"])
+            if prob_data:
+                team_standing["qualification_probability"] = round(100.0 - prob_data["group_exit_pct"], 2)
+                if prob_data["group_exit_pct"] == 0.0:
+                    team_standing["status"] = "Qualified"
+                elif prob_data["group_exit_pct"] == 100.0:
+                    team_standing["status"] = "Eliminated"
+                else:
+                    team_standing["status"] = "Active"
+            else:
+                team_standing["qualification_probability"] = None
+                team_standing["status"] = "Active"
+                
+            third_placed.append(team_standing)
+            
+    third_placed.sort(key=lambda x: (x["points"], x["goal_difference"], x["goals_for"], x["elo"]), reverse=True)
+    return third_placed
+
+
 def get_group_details(db: Session, group_letter: str, tz_str: str) -> dict:
     target_tz = get_timezone(tz_str)
     teams = crud_team.get_teams_by_group(db, group_letter)
@@ -317,8 +477,38 @@ def get_group_details(db: Session, group_letter: str, tz_str: str) -> dict:
         return None
         
     standings = calculate_standings(db, group_letter)
-    team_names = [t.name for t in teams]
     
+    sim_data = None
+    file_path = os.path.join(os.path.dirname(__file__), "..", "data", "simulation_results.json")
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                sim_data = json.load(f)
+        except Exception:
+            pass
+            
+    team_probs = {}
+    if sim_data and "probabilities" in sim_data:
+        for p in sim_data["probabilities"]:
+            team_probs[p["team"]] = p
+            
+    for s in standings:
+        prob_data = team_probs.get(s["name"])
+        if prob_data:
+            s["qualification_probability"] = round(100.0 - prob_data["group_exit_pct"], 2)
+            if prob_data["group_exit_pct"] == 0.0:
+                s["status"] = "Qualified"
+            elif prob_data["group_exit_pct"] == 100.0:
+                s["status"] = "Eliminated"
+            else:
+                s["status"] = "Active"
+        else:
+            s["qualification_probability"] = None
+            s["status"] = "Active"
+            
+        s["points_needed_top_2"] = calculate_points_needed_to_guarantee_top_2(db, s["name"], group_letter)
+        
+    team_names = [t.name for t in teams]
     fixtures = crud_fixture.get_fixtures_for_group(db, team_names)
     
     # Preload maps to avoid N+1 queries

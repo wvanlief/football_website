@@ -27,12 +27,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Parse Group letter from URL path
     const pathParts = window.location.pathname.split('/');
-    const groupLetter = decodeURIComponent(pathParts[pathParts.length - 1]).toUpperCase();
-    document.title = `Group ${groupLetter} Standings | findfootball.games`;
-    document.getElementById('group-title-header').innerText = `GROUP ${groupLetter}`;
+    let activeGroup = decodeURIComponent(pathParts[pathParts.length - 1]).toUpperCase();
 
     // DOM Elements
-
     const toast = document.getElementById('toast');
     const timezoneSelect = document.getElementById('timezone-select');
     
@@ -41,8 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleLeaderboardBtn = document.getElementById('toggle-leaderboard-btn');
     const groupMatchesContainer = document.getElementById('group-matches-container');
     const standingsTbody = document.getElementById('standings-tbody');
-
-
 
     // Modal
     const matchModal = document.getElementById('match-modal');
@@ -59,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
     if (timezoneSelect) {
         timezoneSelect.value = selectedTimezone;
-        // Timezone Switcher Event Listener
         timezoneSelect.addEventListener('change', () => {
             selectedTimezone = timezoneSelect.value;
             localStorage.setItem('findfootball-timezone', selectedTimezone);
@@ -90,9 +84,76 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Tab Navigation Logic
+    const groupTabsNav = document.getElementById('group-tabs-nav');
+    if (groupTabsNav) {
+        groupTabsNav.querySelectorAll('.group-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = btn.getAttribute('data-group');
+                switchToGroup(target);
+            });
+        });
+    }
+
+    function updateTabsUI() {
+        if (!groupTabsNav) return;
+        groupTabsNav.querySelectorAll('.group-tab-btn').forEach(btn => {
+            if (btn.getAttribute('data-group') === activeGroup) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+
+    function switchToGroup(groupName, pushState = true) {
+        activeGroup = groupName.toUpperCase();
+        updateTabsUI();
+        
+        if (activeGroup === 'THIRDS') {
+            document.title = `Best 3rd Place Standings | findfootball.games`;
+            document.getElementById('group-title-header').innerText = `BEST 3RD PLACE TEAMS`;
+            document.getElementById('group-standings-section').style.display = 'none';
+            document.getElementById('thirds-standings-section').style.display = 'block';
+            document.getElementById('projected-knockout-card').style.display = 'none';
+            
+            // Hide matches container and toggle bar
+            document.querySelector('.group-fixtures-section').style.display = 'none';
+            
+            if (pushState) {
+                history.pushState({ group: 'thirds' }, '', `/group/thirds`);
+            }
+            fetchThirdsDetails();
+        } else {
+            document.title = `Group ${activeGroup} Standings | findfootball.games`;
+            document.getElementById('group-title-header').innerText = `GROUP ${activeGroup}`;
+            document.getElementById('group-standings-section').style.display = 'block';
+            document.getElementById('thirds-standings-section').style.display = 'none';
+            
+            // Show matches container and toggle bar
+            document.querySelector('.group-fixtures-section').style.display = 'block';
+            
+            if (pushState) {
+                history.pushState({ group: activeGroup }, '', `/group/${activeGroup}`);
+            }
+            resolveAndTimezoneFetch();
+        }
+    }
+
+    // Handle back/forward navigation
+    window.addEventListener('popstate', (e) => {
+        const pathParts = window.location.pathname.split('/');
+        const letter = decodeURIComponent(pathParts[pathParts.length - 1]).toUpperCase();
+        if (letter) {
+            switchToGroup(letter, false);
+        }
+    });
+
+    // Initialize tabs UI initial state
+    updateTabsUI();
+
     // Resolve timezone and trigger fetch
     resolveAndTimezoneFetch();
-
 
     async function resolveAndTimezoneFetch() {
         if (selectedTimezone === 'local') {
@@ -116,12 +177,13 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             resolvedTimezone = selectedTimezone;
         }
-        await fetchGroupDetails();
+        
+        if (activeGroup === 'THIRDS') {
+            await fetchThirdsDetails();
+        } else {
+            await fetchGroupDetails();
+        }
     }
-
-
-
-
 
     if (modalClose) {
         modalClose.addEventListener('click', () => {
@@ -137,12 +199,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-
-
     // Fetch Group details
     async function fetchGroupDetails() {
         try {
-            const res = await fetch(`/api/group/${encodeURIComponent(groupLetter)}?tz=${encodeURIComponent(resolvedTimezone)}`);
+            const res = await fetch(`/api/group/${encodeURIComponent(activeGroup)}?tz=${encodeURIComponent(resolvedTimezone)}`);
             if (!res.ok) {
                 groupMatchesContainer.innerHTML = '<div class="loading-spinner text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Group not found.</div>';
                 return;
@@ -151,9 +211,154 @@ document.addEventListener('DOMContentLoaded', () => {
             
             renderStandings(activeGroupData.standings);
             renderMatches();
+            await fetchAndRenderProjectedMatches();
         } catch (err) {
             console.error("Failed to load group details", err);
             groupMatchesContainer.innerHTML = '<div class="loading-spinner text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Error loading group.</div>';
+        }
+    }
+
+    async function fetchThirdsDetails() {
+        const thirdsTbody = document.getElementById('thirds-tbody');
+        thirdsTbody.innerHTML = '<tr><td colspan="10" class="text-center"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading best 3rd standings...</td></tr>';
+        
+        try {
+            const res = await fetch(`/api/group/thirds`);
+            if (!res.ok) {
+                thirdsTbody.innerHTML = '<tr><td colspan="10" class="text-danger text-center"><i class="fa-solid fa-triangle-exclamation"></i> Error loading standings.</td></tr>';
+                return;
+            }
+            const data = await res.json();
+            renderThirds(data);
+        } catch (err) {
+            console.error("Failed to load thirds standings", err);
+            thirdsTbody.innerHTML = '<tr><td colspan="10" class="text-danger text-center"><i class="fa-solid fa-triangle-exclamation"></i> Error loading standings.</td></tr>';
+        }
+    }
+
+    function renderThirds(thirds) {
+        const thirdsTbody = document.getElementById('thirds-tbody');
+        thirdsTbody.innerHTML = '';
+        
+        thirds.forEach((team, index) => {
+            const rank = index + 1;
+            const qualifyClass = rank <= 8 ? 'status-qualified-third' : 'status-eliminated-third';
+            
+            let statusHtml = '';
+            if (team.status === 'Qualified' || (rank <= 8 && team.played >= 3)) {
+                statusHtml = `<span class="qual-badge qualified"><i class="fa-solid fa-circle-check"></i> Qualified</span>`;
+            } else if (team.status === 'Eliminated' || (rank > 8 && team.played >= 3)) {
+                statusHtml = `<span class="qual-badge eliminated"><i class="fa-solid fa-circle-xmark"></i> Eliminated</span>`;
+            } else {
+                const prob = team.qualification_probability !== null ? team.qualification_probability : 50.0;
+                statusHtml = `
+                    <div class="chance-indicator-wrapper">
+                        <span class="chance-val">${prob.toFixed(0)}% chance</span>
+                    </div>
+                `;
+            }
+            
+            const tr = document.createElement('tr');
+            tr.className = `standing-row ${qualifyClass}`;
+            tr.innerHTML = `
+                <td class="col-pos font-weight-bold">${rank}</td>
+                <td class="col-team clickable-team-row" data-name="${team.name}">
+                    <img src="${getFlagUrl(team.name)}" class="table-team-flag" alt="">
+                    <span class="table-team-name">${team.name}</span>
+                </td>
+                <td class="col-stat font-weight-bold" style="color: var(--text-secondary);">Group ${team.group}</td>
+                <td class="col-stat">${team.played}</td>
+                <td class="col-stat">${team.won}</td>
+                <td class="col-stat">${team.drawn}</td>
+                <td class="col-stat">${team.lost}</td>
+                <td class="col-stat">${team.goal_difference > 0 ? '+' : ''}${team.goal_difference}</td>
+                <td class="col-pts font-weight-bold">${team.points}</td>
+                <td class="col-status">${statusHtml}</td>
+            `;
+            
+            tr.querySelector('.clickable-team-row').addEventListener('click', () => {
+                window.location.href = `/country/${encodeURIComponent(team.name)}`;
+            });
+            
+            thirdsTbody.appendChild(tr);
+        });
+    }
+
+    async function fetchAndRenderProjectedMatches() {
+        const projectedCard = document.getElementById('projected-knockout-card');
+        const projectedContainer = document.getElementById('projected-matches-container');
+        
+        if (!projectedCard || !projectedContainer) return;
+        
+        if (activeGroup === 'THIRDS') {
+            projectedCard.style.display = 'none';
+            return;
+        }
+        
+        projectedContainer.innerHTML = '<div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading projected matchups...</div>';
+        
+        try {
+            const res = await fetch(`/api/bracket`);
+            if (!res.ok) {
+                projectedCard.style.display = 'none';
+                return;
+            }
+            const data = await res.json();
+            const groupTeams = activeGroupData.standings.map(t => t.name);
+            
+            const r32Matches = data.bracket.r32.filter(m => 
+                (m.team1.name && groupTeams.includes(m.team1.name)) || 
+                (m.team2.name && groupTeams.includes(m.team2.name))
+            );
+            
+            if (r32Matches.length === 0) {
+                projectedCard.style.display = 'none';
+                return;
+            }
+            
+            projectedCard.style.display = 'block';
+            projectedContainer.innerHTML = '';
+            
+            r32Matches.forEach(match => {
+                const matchEl = document.createElement('div');
+                matchEl.className = 'projected-match-tile glass-dark';
+                
+                const t1 = match.team1;
+                const t2 = match.team2;
+                
+                matchEl.innerHTML = `
+                    <div class="projected-match-teams">
+                        <div class="projected-team-row clickable-team" data-name="${t1.name}">
+                            <img src="${getFlagUrl(t1.name)}" class="table-team-flag" alt="">
+                            <span class="projected-team-name">${t1.name || "TBD"}</span>
+                            <span class="projected-team-seed">(${t1.group_name || ""})</span>
+                        </div>
+                        <div class="projected-vs">vs</div>
+                        <div class="projected-team-row clickable-team" data-name="${t2.name}">
+                            <img src="${getFlagUrl(t2.name)}" class="table-team-flag" alt="">
+                            <span class="projected-team-name">${t2.name || "TBD"}</span>
+                            <span class="projected-team-seed">(${t2.group_name || ""})</span>
+                        </div>
+                    </div>
+                    <div class="projected-match-footer">
+                        <span class="projection-badge"><i class="fa-solid fa-robot"></i> Simulation Projection</span>
+                    </div>
+                `;
+                
+                matchEl.querySelectorAll('.clickable-team').forEach(el => {
+                    el.addEventListener('click', () => {
+                        const name = el.getAttribute('data-name');
+                        if (name && name !== "TBD") {
+                            window.location.href = `/country/${encodeURIComponent(name)}`;
+                        }
+                    });
+                });
+                
+                projectedContainer.appendChild(matchEl);
+            });
+        } catch (err) {
+            console.error("Failed to load projected matches", err);
+            projectedCard.style.display = 'none';
         }
     }
 
@@ -161,7 +366,40 @@ document.addEventListener('DOMContentLoaded', () => {
         standingsTbody.innerHTML = '';
         standings.forEach((team, index) => {
             const rank = index + 1;
-            const qualifyClass = rank <= 2 ? 'qualifying-team' : '';
+            
+            let statusHtml = '';
+            let qualifyClass = '';
+            
+            if (team.status === 'Qualified') {
+                statusHtml = `<span class="qual-badge qualified"><i class="fa-solid fa-circle-check"></i> Qualified</span>`;
+                qualifyClass = 'status-qualified';
+            } else if (team.status === 'Eliminated') {
+                statusHtml = `<span class="qual-badge eliminated"><i class="fa-solid fa-circle-xmark"></i> Eliminated</span>`;
+                qualifyClass = 'status-eliminated';
+            } else {
+                const prob = team.qualification_probability !== null ? team.qualification_probability : 50.0;
+                let neededText = '';
+                if (team.points_needed_top_2 !== null && team.points_needed_top_2 > 0) {
+                    neededText = `<span class="needed-pts">Needs ${team.points_needed_top_2} pts</span>`;
+                } else if (team.points_needed_top_2 === 0) {
+                    neededText = `<span class="needed-pts text-success">Safe</span>`;
+                }
+                
+                statusHtml = `
+                    <div class="chance-indicator-wrapper">
+                        <span class="chance-val">${prob.toFixed(0)}% chance</span>
+                        ${neededText}
+                    </div>
+                `;
+                
+                if (prob >= 80) {
+                    qualifyClass = 'status-highly-likely';
+                } else if (prob <= 20) {
+                    qualifyClass = 'status-unlikely';
+                } else {
+                    qualifyClass = 'status-contention';
+                }
+            }
             
             const tr = document.createElement('tr');
             tr.className = `standing-row ${qualifyClass}`;
@@ -177,6 +415,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="col-stat">${team.lost}</td>
                 <td class="col-stat">${team.goal_difference > 0 ? '+' : ''}${team.goal_difference}</td>
                 <td class="col-pts font-weight-bold">${team.points}</td>
+                <td class="col-status">${statusHtml}</td>
             `;
             
             // Add click to navigate to country page

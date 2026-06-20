@@ -105,3 +105,69 @@ def test_simulate_group_stage_finished_vs_unplayed(db_session):
     scotland_stats = next(s for s in groups_data["A"] if s["name"] == "Scotland")
     assert germany_stats["played"] == 2
     assert scotland_stats["played"] == 2
+
+def test_calculate_points_needed_to_guarantee_top_2(db_session):
+    from backend.services.tournament import calculate_points_needed_to_guarantee_top_2
+    
+    comp = Competition(name="World Cup 2", type="International")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026")
+    db_session.add(tourney)
+    db_session.flush()
+
+    # Setup 4 teams in Group B
+    t1 = Team(name="Argentina", elo=2000)
+    t2 = Team(name="Mexico", elo=1750)
+    t3 = Team(name="Poland", elo=1700)
+    t4 = Team(name="Saudi Arabia", elo=1550)
+    db_session.add_all([t1, t2, t3, t4])
+    db_session.flush()
+
+    db_session.add_all([
+        TournamentTeam(tournament_id=tourney.id, team_id=t1.id, group_name="B"),
+        TournamentTeam(tournament_id=tourney.id, team_id=t2.id, group_name="B"),
+        TournamentTeam(tournament_id=tourney.id, team_id=t3.id, group_name="B"),
+        TournamentTeam(tournament_id=tourney.id, team_id=t4.id, group_name="B"),
+    ])
+    db_session.flush()
+    
+    f_list = [
+        Fixture(tournament_id=tourney.id, home_team_id=t1.id, away_team_id=t2.id, stage="Group Stage", status="Scheduled", date_utc=datetime.now()),
+        Fixture(tournament_id=tourney.id, home_team_id=t3.id, away_team_id=t4.id, stage="Group Stage", status="Scheduled", date_utc=datetime.now()),
+        Fixture(tournament_id=tourney.id, home_team_id=t1.id, away_team_id=t3.id, stage="Group Stage", status="Scheduled", date_utc=datetime.now()),
+        Fixture(tournament_id=tourney.id, home_team_id=t2.id, away_team_id=t4.id, stage="Group Stage", status="Scheduled", date_utc=datetime.now()),
+        Fixture(tournament_id=tourney.id, home_team_id=t1.id, away_team_id=t4.id, stage="Group Stage", status="Scheduled", date_utc=datetime.now()),
+        Fixture(tournament_id=tourney.id, home_team_id=t2.id, away_team_id=t3.id, stage="Group Stage", status="Scheduled", date_utc=datetime.now()),
+    ]
+    db_session.add_all(f_list)
+    db_session.commit()
+    
+    pts_needed = calculate_points_needed_to_guarantee_top_2(db_session, "Argentina", "B")
+    assert pts_needed == 7
+
+def test_get_all_third_placed_teams(db_session):
+    from backend.services.tournament import get_all_third_placed_teams
+    comp = Competition(name="World Cup 3", type="International")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026")
+    db_session.add(tourney)
+    db_session.flush()
+    
+    groups = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
+    for idx, g in enumerate(groups):
+        for j in range(3):
+            t = Team(name=f"Team_{g}_{j}", elo=1500 + idx*10 + j)
+            db_session.add(t)
+            db_session.flush()
+            tt = TournamentTeam(tournament_id=tourney.id, team_id=t.id, group_name=g)
+            db_session.add(tt)
+            db_session.flush()
+            
+    db_session.commit()
+    
+    thirds = get_all_third_placed_teams(db_session)
+    assert len(thirds) == 12
+    assert thirds[0]["group"] == "L"
+

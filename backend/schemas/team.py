@@ -25,6 +25,10 @@ class TeamStanding(BaseModel):
     goal_difference: int
     points: int
     elo: int
+    qualification_probability: Optional[float] = None
+    status: Optional[str] = "Active"
+    points_needed_top_2: Optional[int] = None
 
     class Config:
         from_attributes = True
+

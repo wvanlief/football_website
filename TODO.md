@@ -1,8 +1,5 @@
 
 ## Prio 1
- - [x] Fix Live Score API (Fallback implemented)
- - Fix Draw Odds 
- - Fix Default date display
  - Add Group info
  - Make sure the tournament stakes are taken into account and correct
  - High scoring teams 
@@ -32,3 +29,6 @@
  - Scoring in real time 
  - Databases for all the stuff
  - Page for highly recommanded matches
+ - Fix Live Score API (Fallback implemented)
+ - Fix Draw Odds 
+ - Fix Default date display

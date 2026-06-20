@@ -59,8 +59,27 @@
             <p>Standings and full group stage schedule ranked by watchability score.</p>
         </section>
 
+        <!-- Group Selector Tabs -->
+        <div class="group-selector-tabs-wrapper">
+            <div class="group-tabs" id="group-tabs-nav">
+                <button class="group-tab-btn" data-group="A">Group A</button>
+                <button class="group-tab-btn" data-group="B">Group B</button>
+                <button class="group-tab-btn" data-group="C">Group C</button>
+                <button class="group-tab-btn" data-group="D">Group D</button>
+                <button class="group-tab-btn" data-group="E">Group E</button>
+                <button class="group-tab-btn" data-group="F">Group F</button>
+                <button class="group-tab-btn" data-group="G">Group G</button>
+                <button class="group-tab-btn" data-group="H">Group H</button>
+                <button class="group-tab-btn" data-group="I">Group I</button>
+                <button class="group-tab-btn" data-group="J">Group J</button>
+                <button class="group-tab-btn" data-group="K">Group K</button>
+                <button class="group-tab-btn" data-group="L">Group L</button>
+                <button class="group-tab-btn thirds-tab" data-group="thirds"><i class="fa-solid fa-award"></i> Best 3rd</button>
+            </div>
+        </div>
+
         <!-- Dynamic Standings Card -->
-        <section class="standings-container-card glass">
+        <section class="standings-container-card glass" id="group-standings-section">
             <h3><i class="fa-solid fa-table-list"></i> Group Table</h3>
             <div class="table-wrapper">
                 <table class="standings-table">
@@ -74,6 +93,7 @@
                             <th class="col-stat">L</th>
                             <th class="col-stat">GD</th>
                             <th class="col-pts">PTS</th>
+                            <th class="col-status">Qualification Status / Chance</th>
                         </tr>
                     </thead>
                     <tbody id="standings-tbody">
@@ -81,8 +101,44 @@
                     </tbody>
                 </table>
             </div>
-            <p class="standings-footnote"><i class="fa-solid fa-info-circle"></i> Top two teams qualify for the Round of 32 knockout stage.</p>
+            <p class="standings-footnote"><i class="fa-solid fa-info-circle"></i> Top two teams qualify for the Round of 32 knockout stage. Plus 8 best 3rd teams.</p>
         </section>
+
+        <!-- Dynamic Best 3rd Place Card (Hidden by default) -->
+        <section class="standings-container-card glass" id="thirds-standings-section" style="display: none;">
+            <h3><i class="fa-solid fa-award"></i> Best 3rd Place Standings</h3>
+            <div class="table-wrapper">
+                <table class="standings-table">
+                    <thead>
+                        <tr>
+                            <th class="col-pos">Pos</th>
+                            <th class="col-team">Team</th>
+                            <th class="col-group-header">Group</th>
+                            <th class="col-stat">P</th>
+                            <th class="col-stat">W</th>
+                            <th class="col-stat">D</th>
+                            <th class="col-stat">L</th>
+                            <th class="col-stat">GD</th>
+                            <th class="col-pts">PTS</th>
+                            <th class="col-status">Qualification Status / Chance</th>
+                        </tr>
+                    </thead>
+                    <tbody id="thirds-tbody">
+                        <!-- Dynamic Thirds Injected here -->
+                    </tbody>
+                </table>
+            </div>
+            <p class="standings-footnote"><i class="fa-solid fa-info-circle"></i> Top 8 third-placed teams qualify for the Round of 32 knockout stage.</p>
+        </section>
+
+        <!-- Projected Knockout Matchups Section -->
+        <section class="projected-knockout-section glass" id="projected-knockout-card" style="display: none; margin-bottom: 3rem;">
+            <h3><i class="fa-solid fa-sitemap"></i> Projected Round of 32 Matches</h3>
+            <div class="projected-matches-grid" id="projected-matches-container">
+                <!-- Injected dynamically -->
+            </div>
+        </section>
+
 
         <!-- Group Matches Header & View Toggle -->
         <section class="group-fixtures-section">

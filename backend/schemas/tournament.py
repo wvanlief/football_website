@@ -65,3 +65,8 @@ class CountrySimpleOut(BaseModel):
     name: str
     elo: int
     group_name: Optional[str] = None
+
+
+class ThirdPlacedTeamStanding(TeamStanding):
+    group: str
+
