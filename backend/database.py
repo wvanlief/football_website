@@ -93,14 +93,19 @@ class Fixture(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     tournament_id = Column(Integer, ForeignKey("tournaments.id", ondelete="CASCADE"), nullable=False, index=True)
-    home_team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True)
-    away_team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True)
+    home_team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), nullable=True, index=True)
+    away_team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), nullable=True, index=True)
     date_utc = Column(DateTime, nullable=False, index=True)
     stage = Column(String, nullable=False) # Group Stage, Round of 16, etc.
     status = Column(String, default="Scheduled") # Scheduled, Live, Finished
     home_score = Column(Integer, nullable=True)
     away_score = Column(Integer, nullable=True)
     
+    # Placeholders & External ID mapping
+    home_team_placeholder = Column(String, nullable=True)
+    away_team_placeholder = Column(String, nullable=True)
+    api_id = Column(String, nullable=True, unique=True, index=True)
+
     # Knockout extension fields
     home_penalty_score = Column(Integer, nullable=True)
     away_penalty_score = Column(Integer, nullable=True)

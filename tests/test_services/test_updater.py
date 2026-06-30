@@ -414,3 +414,114 @@ def test_newly_created_finished_fixture_updates_team_stats(mock_fetch_elo, mock_
     assert t2.elo == 1889
 
 
+@patch("backend.services.updater.fetch_json")
+@patch("backend.services.updater.update_odds_from_api")
+@patch("backend.services.updater.run_monte_carlo_simulation")
+@patch("backend.ingestor.fetch_current_elo_ratings")
+def test_update_placeholder_fixtures_resolution(mock_fetch_elo, mock_sim, mock_odds_api, mock_fetch, db_session):
+    # Setup base competition and tournament
+    comp = Competition(name="FIFA World Cup Placeholder Test", type="International")
+    db_session.add(comp)
+    db_session.flush()
+
+    tourney = Tournament(competition_id=comp.id, season_name="2026", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+
+    # Setup teams
+    t1 = Team(name="Spain Test Placeholder", elo=2000, form_score=75.0, win_streak=0, draw_streak=0, loss_streak=0)
+    t2 = Team(name="Germany Test Placeholder", elo=1900, form_score=70.0, win_streak=0, draw_streak=0, loss_streak=0)
+    db_session.add_all([t1, t2])
+    db_session.flush()
+
+    # First update: feed contains placeholder match (undecided teams)
+    mock_teams = [
+        {"id": "1", "name_en": "Spain Test Placeholder", "groups": "A"},
+        {"id": "2", "name_en": "Germany Test Placeholder", "groups": "B"}
+    ]
+    
+    # We simulate a knockout match where team IDs are '0' and we have labels
+    mock_matches_placeholder = [
+        {
+            "id": "105",
+            "home_team_id": "0",
+            "away_team_id": "0",
+            "home_score": "0",
+            "away_score": "0",
+            "finished": "FALSE",
+            "local_date": "06/20/2026 18:00",
+            "stadium_id": "1",
+            "type": "r16",
+            "home_team_label": "Winner Match 86",
+            "away_team_label": "Winner Match 88"
+        }
+    ]
+
+    mock_fetch_elo.return_value = {
+        "Spain Test Placeholder": 2000,
+        "Germany Test Placeholder": 1900
+    }
+
+    def fetch_side_effect_1(url):
+        if "teams" in url:
+            return {"teams": mock_teams}
+        elif "games" in url or "matches" in url:
+            return {"games": mock_matches_placeholder}
+        return []
+
+    mock_fetch.side_effect = fetch_side_effect_1
+
+    # Run update: this should create the placeholder fixture
+    res1 = update_results_and_odds(db_session)
+    assert res1["status"] == "success"
+    assert res1["fixtures_created"] == 1
+
+    # Verify fixture was created with null team IDs and correct placeholders
+    fixture = db_session.query(Fixture).filter(Fixture.api_id == "105").first()
+    assert fixture is not None
+    assert fixture.home_team_id is None
+    assert fixture.away_team_id is None
+    assert fixture.home_team_placeholder == "Winner Match 86"
+    assert fixture.away_team_placeholder == "Winner Match 88"
+    assert fixture.stage == "Round of 16"
+
+    # Second update: feed now resolves the teams to Spain and Germany
+    mock_matches_resolved = [
+        {
+            "id": "105",
+            "home_team_id": "1",
+            "away_team_id": "2",
+            "home_score": "0",
+            "away_score": "0",
+            "finished": "FALSE",
+            "local_date": "06/20/2026 18:00",
+            "stadium_id": "1",
+            "type": "r16",
+            "home_team_label": "Winner Match 86",
+            "away_team_label": "Winner Match 88"
+        }
+    ]
+
+    def fetch_side_effect_2(url):
+        if "teams" in url:
+            return {"teams": mock_teams}
+        elif "games" in url or "matches" in url:
+            return {"games": mock_matches_resolved}
+        return []
+
+    mock_fetch.side_effect = fetch_side_effect_2
+
+    # Run update again: this should resolve the placeholders to real teams
+    res2 = update_results_and_odds(db_session)
+    assert res2["status"] == "success"
+    assert res2["fixtures_created"] == 0 # None created, just updated
+
+    # Verify placeholders are resolved
+    db_session.refresh(fixture)
+    assert fixture.home_team_id == t1.id
+    assert fixture.away_team_id == t2.id
+    assert fixture.home_team_placeholder is None
+    assert fixture.away_team_placeholder is None
+
+
+

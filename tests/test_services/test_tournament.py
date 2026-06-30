@@ -171,3 +171,64 @@ def test_get_all_third_placed_teams(db_session):
     assert len(thirds) == 12
     assert thirds[0]["group"] == "L"
 
+
+def test_resolve_placeholder_name(db_session):
+    from backend.services.tournament import resolve_placeholder_name
+    
+    comp = Competition(name="World Cup Placeholder Test", type="International")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026")
+    db_session.add(tourney)
+    db_session.flush()
+    
+    # 1. Setup teams
+    t1 = Team(name="Spain", elo=2000)
+    t2 = Team(name="Germany", elo=1900)
+    db_session.add_all([t1, t2])
+    db_session.flush()
+    
+    # 2. Add referenced fixture with resolved teams
+    f_ref = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=t1.id,
+        away_team_id=t2.id,
+        stage="Round of 32",
+        status="Scheduled",
+        api_id="78",
+        date_utc=datetime.now()
+    )
+    db_session.add(f_ref)
+    
+    # 3. Add referenced fixture with placeholder/unresolved teams
+    f_ref_unresolved = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=None,
+        away_team_id=None,
+        home_team_placeholder="Winner Group A",
+        away_team_placeholder="Runner-up Group B",
+        stage="Round of 32",
+        status="Scheduled",
+        api_id="80",
+        date_utc=datetime.now()
+    )
+    db_session.add(f_ref_unresolved)
+    db_session.commit()
+    
+    # Test case 1: Referenced match has resolved teams
+    res1 = resolve_placeholder_name(db_session, "Winner Match 78", tourney.id)
+    assert res1 == "Winner Match 78 (Spain or Germany)"
+    
+    # Test case 2: Referenced match has unresolved placeholder teams (simplified)
+    res2 = resolve_placeholder_name(db_session, "Winner Match 80", tourney.id)
+    assert res2 == "Winner Match 80 (Winner A or Runner-up B)"
+    
+    # Test case 3: Referenced match does not exist
+    res3 = resolve_placeholder_name(db_session, "Winner Match 999", tourney.id)
+    assert res3 == "Winner Match 999"
+    
+    # Test case 4: Normal group placeholder (does not reference a match)
+    res4 = resolve_placeholder_name(db_session, "Winner Group A", tourney.id)
+    assert res4 == "Winner Group A"
+
+

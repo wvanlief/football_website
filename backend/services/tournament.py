@@ -15,6 +15,28 @@ def get_timezone(tz_str: str) -> ZoneInfo:
     except Exception:
         return ZoneInfo("UTC")
 
+def resolve_placeholder_name(db: Session, placeholder: str, tournament_id: int) -> str:
+    if not placeholder:
+        return "TBD"
+    import re
+    match_ref = re.search(r"Match (\d+)", placeholder)
+    if match_ref:
+        ref_api_id = match_ref.group(1)
+        # Look up referenced fixture
+        ref_fixture = db.query(Fixture).filter(
+            Fixture.tournament_id == tournament_id,
+            Fixture.api_id == ref_api_id
+        ).first()
+        if ref_fixture:
+            h_name = ref_fixture.home_team.name if ref_fixture.home_team else ref_fixture.home_team_placeholder
+            a_name = ref_fixture.away_team.name if ref_fixture.away_team else ref_fixture.away_team_placeholder
+            if h_name and a_name:
+                # Simplify common labels to make them shorter
+                def simplify(name):
+                    return name.replace("Runner-up Group ", "Runner-up ").replace("Winner Group ", "Winner ")
+                return f"{placeholder} ({simplify(h_name)} or {simplify(a_name)})"
+    return placeholder
+
 def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_map: dict = None, team_group_map: dict = None) -> dict:
     dt = f.date_utc
     if dt.tzinfo is None:
@@ -56,14 +78,14 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
     return {
         "id": f.id,
         "home_team": {
-            "name": home_team.name if home_team else "Unknown",
+            "name": home_team.name if home_team else resolve_placeholder_name(db, f.home_team_placeholder, f.tournament_id),
             "elo": home_team.elo if home_team else 1500,
             "form_score": home_team.form_score if home_team else 50.0,
             "win_streak": home_team.win_streak if home_team else 0,
             "players": [{"name": p.name, "position": p.position, "form": p.form_score} for p in home_players]
         },
         "away_team": {
-            "name": away_team.name if away_team else "Unknown",
+            "name": away_team.name if away_team else resolve_placeholder_name(db, f.away_team_placeholder, f.tournament_id),
             "elo": away_team.elo if away_team else 1500,
             "form_score": away_team.form_score if away_team else 50.0,
             "win_streak": away_team.win_streak if away_team else 0,
@@ -725,6 +747,8 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000) -> dict
     finished_fixtures = []
     scheduled_fixtures = []
     for f in group_fixtures:
+        if not f.home_team or not f.away_team:
+            continue
         if f.status == "Finished":
             finished_fixtures.append({
                 "home": f.home_team.name,
@@ -1105,10 +1129,10 @@ def get_calendar_fixtures(db: Session, tz_str: str) -> list:
         calendar_data.append({
             "id": f.id,
             "home_team": {
-                "name": f.home_team.name if f.home_team else "Unknown"
+                "name": f.home_team.name if f.home_team else resolve_placeholder_name(db, f.home_team_placeholder, f.tournament_id)
             },
             "away_team": {
-                "name": f.away_team.name if f.away_team else "Unknown"
+                "name": f.away_team.name if f.away_team else resolve_placeholder_name(db, f.away_team_placeholder, f.tournament_id)
             },
             "date": f.date_utc.isoformat(),
             "formatted_time": dt_tz.strftime("%H:%M"),

@@ -21,10 +21,14 @@ from backend.services.tournament import run_monte_carlo_simulation
 
 STAGE_MAPPING = {
     "group": "Group Stage",
+    "r32": "Round of 32",
     "round_of_32": "Round of 32",
+    "r16": "Round of 16",
     "round_of_16": "Round of 16",
+    "qf": "Quarter-final",
     "quarter": "Quarter-final",
     "semi": "Semi-final",
+    "sf": "Semi-final",
     "third": "Third-place play-off",
     "final": "Final"
 }
@@ -305,35 +309,36 @@ def update_results_and_odds(db: Session) -> dict:
     for m in fetched_matches:
         h_name = external_team_map.get(m.get("home_team_id")) if external_team_map else None
         if not h_name:
-            h_name = normalize_team_name(m.get("home_team_name_en", ""))
+            h_name = normalize_team_name(m.get("home_team_name_en") or m.get("home_team_label") or "")
             
         a_name = external_team_map.get(m.get("away_team_id")) if external_team_map else None
         if not a_name:
-            a_name = normalize_team_name(m.get("away_team_name_en", ""))
+            a_name = normalize_team_name(m.get("away_team_name_en") or m.get("away_team_label") or "")
         
-        # Skip placeholders
-        if not h_name or not a_name:
-            continue
-            
         home_team = db_teams_by_name.get(h_name)
         away_team = db_teams_by_name.get(a_name)
         
-        if not home_team or not away_team:
-            continue
-            
         stage = STAGE_MAPPING.get(m.get("type"), "Group Stage")
         dt_utc = parse_match_date(m.get("local_date"), m.get("stadium_id"))
+        api_match_id = str(m.get("id"))
         
-        # Search for fixture in DB
-        fixture = db.query(Fixture).filter(
-            Fixture.tournament_id == tourney.id,
-            Fixture.stage == stage,
-            or_(
-                (Fixture.home_team_id == home_team.id) & (Fixture.away_team_id == away_team.id),
-                (Fixture.home_team_id == away_team.id) & (Fixture.away_team_id == home_team.id)
-            )
-        ).first()
-        
+        fixture = None
+        if api_match_id:
+            fixture = db.query(Fixture).filter(
+                Fixture.tournament_id == tourney.id,
+                Fixture.api_id == api_match_id
+            ).first()
+            
+        if not fixture and home_team and away_team:
+            fixture = db.query(Fixture).filter(
+                Fixture.tournament_id == tourney.id,
+                Fixture.stage == stage,
+                or_(
+                    (Fixture.home_team_id == home_team.id) & (Fixture.away_team_id == away_team.id),
+                    (Fixture.home_team_id == away_team.id) & (Fixture.away_team_id == home_team.id)
+                )
+            ).first()
+            
         # Determine status and outcomes
         is_finished_in_feed = m.get("finished") == "TRUE"
         feed_home_score = int(m["home_score"]) if is_finished_in_feed and m.get("home_score") not in (None, 'null') else None
@@ -341,11 +346,16 @@ def update_results_and_odds(db: Session) -> dict:
         
         # Create a new fixture if it's missing (e.g. newly determined knockout matches)
         if not fixture:
-            odds_h, odds_d, odds_a = calculate_default_odds(home_team.elo, away_team.elo)
+            h_elo = home_team.elo if home_team else 1700
+            a_elo = away_team.elo if away_team else 1700
+            odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo)
             fixture = Fixture(
                 tournament_id=tourney.id,
-                home_team_id=home_team.id,
-                away_team_id=away_team.id,
+                home_team_id=home_team.id if home_team else None,
+                away_team_id=away_team.id if away_team else None,
+                home_team_placeholder=h_name if not home_team else None,
+                away_team_placeholder=a_name if not away_team else None,
+                api_id=api_match_id,
                 date_utc=dt_utc,
                 stage=stage,
                 status="Scheduled",
@@ -367,49 +377,53 @@ def update_results_and_odds(db: Session) -> dict:
             db.add(init_odds)
             fixtures_created += 1
             
+        # Update team ids if they were placeholders and now we resolved them
+        if home_team and fixture.home_team_id is None:
+            fixture.home_team_id = home_team.id
+            fixture.home_team_placeholder = None
+        if away_team and fixture.away_team_id is None:
+            fixture.away_team_id = away_team.id
+            fixture.away_team_placeholder = None
+            
         # Update existing scheduled fixture if it's now finished in feed
         if fixture.status != "Finished" and is_finished_in_feed:
             fixture.status = "Finished"
             fixture.home_score = feed_home_score
             fixture.away_score = feed_away_score
             
-            # Determine outcome relative to home team
-            if feed_home_score > feed_away_score:
-                outcome = 1.0
-                fixture.winner_id = home_team.id
-            elif feed_home_score < feed_away_score:
-                outcome = 0.0
-                fixture.winner_id = away_team.id
-            else:
-                outcome = 0.5
-                fixture.winner_id = None
+            if home_team and away_team:
+                fixture.home_team_id = home_team.id
+                fixture.away_team_id = away_team.id
+                fixture.home_team_placeholder = None
+                fixture.away_team_placeholder = None
                 
-            # Perform ELO update
-            home_elo_old = home_team.elo
-            away_elo_old = away_team.elo
-            
-            home_elo_new, away_elo_new = calculate_elo_updates(home_elo_old, away_elo_old, outcome)
-            
-            home_team.elo = home_elo_new
-            away_team.elo = away_elo_new
-            
-            # Update streaks and form
-            update_team_streaks_and_form(home_team, away_team, outcome)
-            
-            # Save historical records
-            db_home_elo_hist = EloHistory(
-                team_id=home_team.id,
-                recorded_at=now_time,
-                elo_rating=home_elo_new
-            )
-            db_away_elo_hist = EloHistory(
-                team_id=away_team.id,
-                recorded_at=now_time,
-                elo_rating=away_elo_new
-            )
-            db.add(db_home_elo_hist)
-            db.add(db_away_elo_hist)
-            
+                # Determine outcome relative to home team
+                if feed_home_score > feed_away_score:
+                    outcome = 1.0
+                    fixture.winner_id = home_team.id
+                elif feed_home_score < feed_away_score:
+                    outcome = 0.0
+                    fixture.winner_id = away_team.id
+                else:
+                    outcome = 0.5
+                    fixture.winner_id = None
+                    
+                # Perform ELO update
+                home_elo_old = home_team.elo
+                away_elo_old = away_team.elo
+                
+                home_elo_new, away_elo_new = calculate_elo_updates(home_elo_old, away_elo_old, outcome)
+                
+                home_team.elo = home_elo_new
+                away_team.elo = away_elo_new
+                
+                # Update streaks and form
+                update_team_streaks_and_form(home_team, away_team, outcome)
+                
+                # Save historical records
+                db.add(EloHistory(team_id=home_team.id, recorded_at=now_time, elo_rating=home_elo_new))
+                db.add(EloHistory(team_id=away_team.id, recorded_at=now_time, elo_rating=away_elo_new))
+                
             fixtures_updated_results += 1
             
     db.commit()
@@ -533,32 +547,43 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
         # Resolve names
         h_id = m.get("home_team_id")
         a_id = m.get("away_team_id")
-        h_name = external_team_map.get(h_id) if external_team_map else normalize_team_name(m.get("home_team_name_en", ""))
-        a_name = external_team_map.get(a_id) if external_team_map else normalize_team_name(m.get("away_team_name_en", ""))
+        h_name = external_team_map.get(h_id) if external_team_map else normalize_team_name(m.get("home_team_name_en") or m.get("home_team_label") or "")
+        a_name = external_team_map.get(a_id) if external_team_map else normalize_team_name(m.get("away_team_name_en") or m.get("away_team_label") or "")
         
-        if not h_name or not a_name:
-            continue
-            
         home_team = db_teams_by_name.get(h_name)
         away_team = db_teams_by_name.get(a_name)
         
-        if not home_team or not away_team:
-            continue
-            
         stage = STAGE_MAPPING.get(m.get("type"), "Group Stage")
+        api_match_id = str(m.get("id"))
         
-        # Query the fixture
-        fixture = db.query(Fixture).filter(
-            Fixture.tournament_id == tourney.id,
-            Fixture.stage == stage,
-            or_(
-                (Fixture.home_team_id == home_team.id) & (Fixture.away_team_id == away_team.id),
-                (Fixture.home_team_id == away_team.id) & (Fixture.away_team_id == home_team.id)
-            )
-        ).first()
-        
+        fixture = None
+        if api_match_id:
+            fixture = db.query(Fixture).filter(
+                Fixture.tournament_id == tourney.id,
+                Fixture.api_id == api_match_id
+            ).first()
+            
+        if not fixture and home_team and away_team:
+            # Query the fixture by teams (retro-compatibility)
+            fixture = db.query(Fixture).filter(
+                Fixture.tournament_id == tourney.id,
+                Fixture.stage == stage,
+                or_(
+                    (Fixture.home_team_id == home_team.id) & (Fixture.away_team_id == away_team.id),
+                    (Fixture.home_team_id == away_team.id) & (Fixture.away_team_id == home_team.id)
+                )
+            ).first()
+            
         if not fixture:
             continue
+            
+        # Update team ids if they were placeholders and now we resolved them
+        if home_team and fixture.home_team_id is None:
+            fixture.home_team_id = home_team.id
+            fixture.home_team_placeholder = None
+        if away_team and fixture.away_team_id is None:
+            fixture.away_team_id = away_team.id
+            fixture.away_team_placeholder = None
             
         # If already finished, no need to update scores live
         if fixture.status == "Finished":

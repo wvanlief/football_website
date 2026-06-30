@@ -31,9 +31,9 @@ def get_all_countries(db: Session = Depends(get_db)):
     # Map team_id to next match: (date_utc, fixture_id, home_or_away_flag)
     next_match_info = {}
     for f in upcoming_fixtures:
-        if f.home_team_id not in next_match_info:
+        if f.home_team_id is not None and f.home_team_id not in next_match_info:
             next_match_info[f.home_team_id] = (f.date_utc, f.id, 0)
-        if f.away_team_id not in next_match_info:
+        if f.away_team_id is not None and f.away_team_id not in next_match_info:
             next_match_info[f.away_team_id] = (f.date_utc, f.id, 1)
             
     # Sort:

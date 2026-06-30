@@ -229,6 +229,9 @@ def update_odds_from_api(fixtures: list, db: Session):
         count = 0
         now_time = datetime.now(timezone.utc)
         for f in fixtures:
+            # Skip placeholders
+            if not f.home_team or not f.away_team:
+                continue
             # Load relationships eagerly in case they are not loaded
             home_name = f.home_team.name
             away_name = f.away_team.name
@@ -434,10 +437,14 @@ def seed_database(db: Session):
     if fetched_matches:
         stage_mapping = {
             "group": "Group Stage",
+            "r32": "Round of 32",
             "round_of_32": "Round of 32",
+            "r16": "Round of 16",
             "round_of_16": "Round of 16",
+            "qf": "Quarter-final",
             "quarter": "Quarter-final",
             "semi": "Semi-final",
+            "sf": "Semi-final",
             "third": "Third-place play-off",
             "final": "Final"
         }
@@ -446,9 +453,12 @@ def seed_database(db: Session):
             h_team = team_map.get(m["home_team_id"])
             a_team = team_map.get(m["away_team_id"])
             
-            if not h_team or not a_team:
-                continue
-                
+            home_id = db_teams_by_name.get(h_team) if h_team else None
+            away_id = db_teams_by_name.get(a_team) if a_team else None
+            
+            home_placeholder = m.get("home_team_label") if not home_id else None
+            away_placeholder = m.get("away_team_label") if not away_id else None
+            
             # Parse Date: "06/11/2026 13:00"
             date_str = m["local_date"]
             try:
@@ -485,20 +495,23 @@ def seed_database(db: Session):
             stage = stage_mapping.get(m["type"], "Group Stage")
             status = "Finished" if m["finished"] == "TRUE" else "Scheduled"
             
-            h_elo = live_elo.get(h_team, 1700)
-            a_elo = live_elo.get(a_team, 1700)
+            h_elo = live_elo.get(h_team, 1700) if h_team else 1700
+            a_elo = live_elo.get(a_team, 1700) if a_team else 1700
             odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo)
             
             fixture = Fixture(
                 tournament_id=tourney.id,
-                home_team_id=db_teams_by_name[h_team],
-                away_team_id=db_teams_by_name[a_team],
+                home_team_id=home_id,
+                away_team_id=away_id,
+                home_team_placeholder=home_placeholder,
+                away_team_placeholder=away_placeholder,
+                api_id=str(m["id"]),
                 date_utc=dt_utc,
                 stage=stage,
                 status=status,
                 home_score=int(m["home_score"]) if status == "Finished" else None,
                 away_score=int(m["away_score"]) if status == "Finished" else None,
-                winner_id=db_teams_by_name[h_team] if status == "Finished" and int(m["home_score"]) > int(m["away_score"]) else (db_teams_by_name[a_team] if status == "Finished" and int(m["home_score"]) < int(m["away_score"]) else None)
+                winner_id=home_id if status == "Finished" and home_id and away_id and int(m["home_score"]) > int(m["away_score"]) else (away_id if status == "Finished" and home_id and away_id and int(m["home_score"]) < int(m["away_score"]) else None)
             )
             db.add(fixture)
             db.flush()
@@ -529,6 +542,7 @@ def seed_database(db: Session):
                 tournament_id=tourney.id,
                 home_team_id=db_teams_by_name[h_team],
                 away_team_id=db_teams_by_name[a_team],
+                api_id=str(f["id"]),
                 date_utc=dt_utc,
                 stage=f["stage"],
                 status=f["status"],
