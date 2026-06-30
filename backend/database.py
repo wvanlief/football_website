@@ -188,6 +188,22 @@ class EloHistory(Base):
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    
+    # Run automatic migrations for fixtures table columns if they are missing
+    from sqlalchemy import inspect, text
+    inspector = inspect(engine)
+    
+    try:
+        columns = [c["name"] for c in inspector.get_columns("fixtures")]
+        with engine.begin() as conn:
+            if "home_team_placeholder" not in columns:
+                conn.execute(text("ALTER TABLE fixtures ADD COLUMN home_team_placeholder VARCHAR"))
+            if "away_team_placeholder" not in columns:
+                conn.execute(text("ALTER TABLE fixtures ADD COLUMN away_team_placeholder VARCHAR"))
+            if "api_id" not in columns:
+                conn.execute(text("ALTER TABLE fixtures ADD COLUMN api_id VARCHAR"))
+    except Exception as e:
+        print(f"Database migration check encountered an error (this may be normal if schema is already up to date): {e}")
 
 def get_db():
     db = SessionLocal()
