@@ -39,7 +39,7 @@ def main():
         print(f"Error running database migrations: {e}")
         sys.exit(1)
         
-    # Seed database if it is empty
+    # Seed database if it is empty or has incomplete data
     print("Checking if database seeding is required...")
     try:
         from backend.database import get_db, Fixture
@@ -47,12 +47,28 @@ def main():
         
         db = next(get_db())
         try:
-            if db.query(Fixture).count() == 0:
-                print("Database is empty. Seeding initial fixtures and data...")
+            fixture_count = db.query(Fixture).count()
+            if fixture_count < 104:
+                print(f"Database has {fixture_count} fixtures (expected 104). Cleaning up database and re-seeding...")
+                from sqlalchemy import text
+                
+                # Delete existing data in dependency order
+                try:
+                    db.execute(text("TRUNCATE TABLE player_match_stats, fixture_odds, fixtures, tournament_teams, elo_history, teams CASCADE"))
+                except Exception:
+                    db.execute(text("DELETE FROM player_match_stats"))
+                    db.execute(text("DELETE FROM fixture_odds"))
+                    db.execute(text("DELETE FROM fixtures"))
+                    db.execute(text("DELETE FROM tournament_teams"))
+                    db.execute(text("DELETE FROM elo_history"))
+                    db.execute(text("DELETE FROM teams"))
+                db.commit()
+                
+                print("Database cleared. Seeding initial fixtures and data...")
                 seed_database(db)
                 print("Seeding completed successfully.")
             else:
-                print("Database is already seeded.")
+                print(f"Database is already seeded with {fixture_count} fixtures.")
         finally:
             db.close()
     except Exception as e:
