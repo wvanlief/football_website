@@ -22,6 +22,7 @@ class BracketTeam(BaseModel):
     name: str
     elo: int
     group_name: Optional[str] = None
+    is_predicted: Optional[bool] = False
 
 class BracketMatch(BaseModel):
     team1: BracketTeam
@@ -33,6 +34,8 @@ class BracketMatch(BaseModel):
     has_penalties: Optional[bool] = False
     home_penalty_score: Optional[int] = None
     away_penalty_score: Optional[int] = None
+    date: Optional[str] = None
+    matchup_status: Optional[str] = "predicted"
 
 class BracketResponse(BaseModel):
     r32: List[BracketMatch]

@@ -186,6 +186,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const thirdCard = createMatchupCard(thirdMatch);
         finalsList.appendChild(thirdCard);
     }
+    function formatMatchDate(dateStr) {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+    }
 
     function createMatchupCard(match, isFinal = false) {
         const card = document.createElement('div');
@@ -194,15 +205,42 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.add('final-match-highlight');
         }
         
+        const status = match.matchup_status || 'predicted';
+        card.classList.add(status);
+        
         const isWinner1 = match.winner === match.team1.name;
         const isWinner2 = match.winner === match.team2.name;
         
+        let badgeHtml = '';
+        if (status === 'official') {
+            badgeHtml = '<i class="fa-solid fa-circle-check"></i> Played';
+        } else if (status === 'scheduled') {
+            badgeHtml = '<i class="fa-solid fa-calendar-check"></i> Matchup Set';
+        } else {
+            badgeHtml = '<i class="fa-solid fa-wand-magic-sparkles"></i> Predicted';
+        }
+        
+        const dateHtml = match.date ? `
+            <div class="bracket-match-header-row">
+                <span class="bracket-match-date">
+                    <i class="fa-regular fa-calendar-days"></i> ${formatMatchDate(match.date)}
+                </span>
+                <span class="bracket-match-status-badge ${status}">
+                    ${badgeHtml}
+                </span>
+            </div>
+        ` : '';
+
         card.innerHTML = `
+            ${dateHtml}
             <!-- Team 1 -->
-            <div class="bracket-team-row clickable-team-bracket ${isWinner1 ? 'winner' : 'loser'}" data-name="${match.team1.name}">
+            <div class="bracket-team-row clickable-team-bracket ${isWinner1 ? 'winner' : 'loser'} ${match.team1.is_predicted ? 'predicted-team' : ''}" data-name="${match.team1.name}">
                 <div class="team-identity-bracket">
                     <img src="${getFlagUrl(match.team1.name)}" class="bracket-team-flag" alt="">
-                    <span class="bracket-team-name">${match.team1.name}</span>
+                    <span class="bracket-team-name">
+                        ${match.team1.name}
+                        ${match.team1.is_predicted ? ' <i class="fa-solid fa-wand-magic-sparkles" style="color: #ff006e; font-size: 0.65rem; opacity: 0.8;" title="Predicted team"></i>' : ''}
+                    </span>
                     ${match.team1.group_name ? `<span class="bracket-team-group">(Gr. ${match.team1.group_name})</span>` : ''}
                 </div>
                 <div class="team-stat-bracket">
@@ -214,10 +252,13 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="bracket-vs-line">vs</div>
             
             <!-- Team 2 -->
-            <div class="bracket-team-row clickable-team-bracket ${isWinner2 ? 'winner' : 'loser'}" data-name="${match.team2.name}">
+            <div class="bracket-team-row clickable-team-bracket ${isWinner2 ? 'winner' : 'loser'} ${match.team2.is_predicted ? 'predicted-team' : ''}" data-name="${match.team2.name}">
                 <div class="team-identity-bracket">
                     <img src="${getFlagUrl(match.team2.name)}" class="bracket-team-flag" alt="">
-                    <span class="bracket-team-name">${match.team2.name}</span>
+                    <span class="bracket-team-name">
+                        ${match.team2.name}
+                        ${match.team2.is_predicted ? ' <i class="fa-solid fa-wand-magic-sparkles" style="color: #ff006e; font-size: 0.65rem; opacity: 0.8;" title="Predicted team"></i>' : ''}
+                    </span>
                     ${match.team2.group_name ? `<span class="bracket-team-group">(Gr. ${match.team2.group_name})</span>` : ''}
                 </div>
                 <div class="team-stat-bracket">

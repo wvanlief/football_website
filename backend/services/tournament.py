@@ -1071,6 +1071,63 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000) -> dict
     if not representative_bracket and all_brackets:
         representative_bracket = all_brackets[0]
         
+    if representative_bracket:
+        from backend.database import Fixture
+        db_fixtures = db.query(Fixture).filter(Fixture.stage != "Group Stage").all()
+        stage_map = {}
+        for f in db_fixtures:
+            stage_map.setdefault(f.stage, []).append(f)
+        for s in stage_map:
+            stage_map[s].sort(key=lambda x: x.date_utc)
+            
+        def enrich_match_details(m, f):
+            m["date"] = f.date_utc.isoformat()
+            if f.status == "Finished":
+                m["matchup_status"] = "official"
+                m["home_score"] = f.home_score
+                m["away_score"] = f.away_score
+                m["winner"] = f.home_team.name if f.winner_id == f.home_team_id else (f.away_team.name if f.winner_id == f.away_team_id else m["winner"])
+                m["team1"]["is_predicted"] = False
+                m["team2"]["is_predicted"] = False
+            elif f.home_team_id is not None and f.away_team_id is not None:
+                m["matchup_status"] = "scheduled"
+                m["team1"]["is_predicted"] = False
+                m["team2"]["is_predicted"] = False
+            else:
+                m["matchup_status"] = "predicted"
+                m["team1"]["is_predicted"] = (f.home_team_id is None)
+                m["team2"]["is_predicted"] = (f.away_team_id is None)
+
+        # Round of 32
+        for i, m in enumerate(representative_bracket.get("r32", [])):
+            if i < len(stage_map.get("Round of 32", [])):
+                enrich_match_details(m, stage_map["Round of 32"][i])
+                
+        # Round of 16
+        for i, m in enumerate(representative_bracket.get("r16", [])):
+            if i < len(stage_map.get("Round of 16", [])):
+                enrich_match_details(m, stage_map["Round of 16"][i])
+                
+        # Quarter-final
+        for i, m in enumerate(representative_bracket.get("qf", [])):
+            if i < len(stage_map.get("Quarter-final", [])):
+                enrich_match_details(m, stage_map["Quarter-final"][i])
+                
+        # Semi-final
+        for i, m in enumerate(representative_bracket.get("sf", [])):
+            if i < len(stage_map.get("Semi-final", [])):
+                enrich_match_details(m, stage_map["Semi-final"][i])
+                
+        # Third-place play-off
+        m_third = representative_bracket.get("third")
+        if m_third and stage_map.get("Third-place play-off"):
+            enrich_match_details(m_third, stage_map["Third-place play-off"][0])
+            
+        # Final
+        m_final = representative_bracket.get("final")
+        if m_final and stage_map.get("Final"):
+            enrich_match_details(m_final, stage_map["Final"][0])
+            
     result = {
         "bracket": representative_bracket,
         "probabilities": probabilities,
