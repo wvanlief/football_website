@@ -36,6 +36,7 @@ class BracketMatch(BaseModel):
     away_penalty_score: Optional[int] = None
     date: Optional[str] = None
     matchup_status: Optional[str] = "predicted"
+    match_num: Optional[int] = None
 
 class BracketResponse(BaseModel):
     r32: List[BracketMatch]

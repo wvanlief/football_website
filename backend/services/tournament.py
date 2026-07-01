@@ -734,13 +734,27 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000) -> dict
                 p *= random.random()
             return k - 1
 
-    # Load all teams
+    # Load all teams and fixtures
     from backend.database import Team, TournamentTeam, Fixture
     teams = db.query(Team).all()
     team_dict = {t.name: {"id": t.id, "elo": t.elo, "form_score": t.form_score} for t in teams}
     
     tts = db.query(TournamentTeam).all()
     team_group_map = {tt.team_id: tt.group_name for tt in tts}
+    
+    db_fixtures = db.query(Fixture).filter(Fixture.stage != "Group Stage").all()
+    db_fixture_map = {f.api_id: f for f in db_fixtures if f.api_id}
+    
+    NEXT_ROUND_LOOKUP = {
+        73: (90, "home"), 74: (89, "home"), 75: (90, "away"), 76: (91, "home"),
+        77: (89, "away"), 78: (91, "away"), 79: (92, "home"), 80: (92, "away"),
+        81: (94, "home"), 82: (94, "away"), 83: (93, "home"), 84: (93, "away"),
+        85: (96, "home"), 86: (95, "home"), 87: (96, "away"), 88: (95, "away"),
+        89: (97, "home"), 90: (97, "away"), 91: (99, "home"), 92: (99, "away"),
+        93: (98, "home"), 94: (98, "away"), 95: (100, "home"), 96: (100, "away"),
+        97: (101, "home"), 98: (101, "away"), 99: (102, "home"), 100: (102, "away"),
+        101: (104, "home"), 102: (104, "away")
+    }
     
     group_fixtures = db.query(Fixture).filter(Fixture.stage == "Group Stage").all()
     
@@ -860,6 +874,8 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000) -> dict
             elif g_h < g_a:
                 a["won"] += 1
                 a["points"] += 3
+                a["goals_for"] += 2
+                h["goals_against"] += 2
                 h["lost"] += 1
             else:
                 h["drawn"] += 1
@@ -902,7 +918,48 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000) -> dict
                 exit_counts[name]["group"] += 1
                 
         # 5. Knockout Simulator play match helper
-        def play_knockout_match(t1_name, t2_name, stage):
+        def get_teams_for_match(match_num, simulated_t1, simulated_t2):
+            f = db_fixture_map.get(str(match_num))
+            t1 = f.home_team.name if (f and f.home_team_id) else simulated_t1
+            t2 = f.away_team.name if (f and f.away_team_id) else simulated_t2
+            return t1, t2
+
+        def play_knockout_match(simulated_t1, simulated_t2, stage, match_num):
+            t1_name, t2_name = get_teams_for_match(match_num, simulated_t1, simulated_t2)
+            f = db_fixture_map.get(str(match_num))
+            
+            if f and f.status == "Finished":
+                winner = None
+                if f.winner_id == f.home_team_id and f.home_team:
+                    winner = f.home_team.name
+                elif f.winner_id == f.away_team_id and f.away_team:
+                    winner = f.away_team.name
+                else:
+                    # Look up next round match to see if the team is placed
+                    next_lookup = NEXT_ROUND_LOOKUP.get(match_num)
+                    if next_lookup:
+                        next_match_num, slot = next_lookup
+                        next_f = db_fixture_map.get(str(next_match_num))
+                        if next_f:
+                            next_team = next_f.home_team if slot == "home" else next_f.away_team
+                            if next_team:
+                                winner = next_team.name
+                if not winner:
+                    winner = t1_name
+                return {
+                    "team1": {"name": t1_name, "elo": int(elo_map.get(t1_name, 1500)), "group_name": team_group_map.get(team_dict[t1_name]["id"])},
+                    "team2": {"name": t2_name, "elo": int(elo_map.get(t2_name, 1500)), "group_name": team_group_map.get(team_dict[t2_name]["id"])},
+                    "winner": winner,
+                    "home_score": f.home_score,
+                    "away_score": f.away_score,
+                    "has_extra_time": f.has_extra_time or False,
+                    "has_penalties": f.has_penalties or False,
+                    "home_penalty_score": f.home_penalty_score,
+                    "away_penalty_score": f.away_penalty_score,
+                    "stage": stage,
+                    "match_num": match_num
+                }
+
             elo1 = elo_map.get(t1_name, 1500)
             elo2 = elo_map.get(t2_name, 1500)
             diff = elo1 - elo2
@@ -961,28 +1018,35 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000) -> dict
                 "has_penalties": has_penalties,
                 "home_penalty_score": p1_score,
                 "away_penalty_score": p2_score,
-                "stage": stage
+                "stage": stage,
+                "match_num": match_num
             }
 
         # Play matches
-        m1 = play_knockout_match(runners_up["A"]["name"], runners_up["B"]["name"], "Round of 32")
-        m2 = play_knockout_match(winners["C"]["name"], runners_up["F"]["name"], "Round of 32")
-        m3 = play_knockout_match(winners["E"]["name"], thirds_assignment["E"]["name"], "Round of 32")
-        m4 = play_knockout_match(winners["F"]["name"], runners_up["C"]["name"], "Round of 32")
-        m5 = play_knockout_match(runners_up["E"]["name"], runners_up["I"]["name"], "Round of 32")
-        m6 = play_knockout_match(winners["I"]["name"], thirds_assignment["I"]["name"], "Round of 32")
-        m7 = play_knockout_match(winners["A"]["name"], thirds_assignment["A"]["name"], "Round of 32")
-        m8 = play_knockout_match(winners["L"]["name"], thirds_assignment["L"]["name"], "Round of 32")
-        m9 = play_knockout_match(winners["G"]["name"], thirds_assignment["G"]["name"], "Round of 32")
-        m10 = play_knockout_match(winners["D"]["name"], thirds_assignment["D"]["name"], "Round of 32")
-        m11 = play_knockout_match(winners["H"]["name"], runners_up["J"]["name"], "Round of 32")
-        m12 = play_knockout_match(runners_up["K"]["name"], runners_up["L"]["name"], "Round of 32")
-        m13 = play_knockout_match(winners["B"]["name"], thirds_assignment["B"]["name"], "Round of 32")
-        m14 = play_knockout_match(runners_up["D"]["name"], runners_up["G"]["name"], "Round of 32")
-        m15 = play_knockout_match(winners["J"]["name"], runners_up["H"]["name"], "Round of 32")
-        m16 = play_knockout_match(winners["K"]["name"], thirds_assignment["K"]["name"], "Round of 32")
+        m_73 = play_knockout_match(runners_up["A"]["name"], runners_up["B"]["name"], "Round of 32", 73)
+        m_74 = play_knockout_match(winners["E"]["name"], thirds_assignment["E"]["name"], "Round of 32", 74)
+        m_75 = play_knockout_match(winners["F"]["name"], runners_up["C"]["name"], "Round of 32", 75)
+        m_76 = play_knockout_match(winners["C"]["name"], runners_up["F"]["name"], "Round of 32", 76)
+        m_77 = play_knockout_match(winners["I"]["name"], thirds_assignment["I"]["name"], "Round of 32", 77)
+        m_78 = play_knockout_match(runners_up["E"]["name"], runners_up["I"]["name"], "Round of 32", 78)
+        m_79 = play_knockout_match(winners["A"]["name"], thirds_assignment["A"]["name"], "Round of 32", 79)
+        m_80 = play_knockout_match(winners["L"]["name"], thirds_assignment["L"]["name"], "Round of 32", 80)
+        m_81 = play_knockout_match(winners["D"]["name"], thirds_assignment["D"]["name"], "Round of 32", 81)
+        m_82 = play_knockout_match(winners["G"]["name"], thirds_assignment["G"]["name"], "Round of 32", 82)
+        m_83 = play_knockout_match(runners_up["K"]["name"], runners_up["L"]["name"], "Round of 32", 83)
+        m_84 = play_knockout_match(winners["H"]["name"], runners_up["J"]["name"], "Round of 32", 84)
+        m_85 = play_knockout_match(winners["B"]["name"], thirds_assignment["B"]["name"], "Round of 32", 85)
+        m_86 = play_knockout_match(winners["J"]["name"], runners_up["H"]["name"], "Round of 32", 86)
+        m_87 = play_knockout_match(winners["K"]["name"], thirds_assignment["K"]["name"], "Round of 32", 87)
+        m_88 = play_knockout_match(runners_up["D"]["name"], runners_up["G"]["name"], "Round of 32", 88)
         
-        r32_matches = [m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16]
+        # Round of 32 in layout order
+        r32_matches = [
+            m_74, m_77, m_73, m_75,
+            m_83, m_84, m_81, m_82,
+            m_76, m_78, m_79, m_80,
+            m_86, m_88, m_85, m_87
+        ]
         
         # Exits in R32
         for m in r32_matches:
@@ -990,37 +1054,45 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000) -> dict
             exit_counts[loser]["r32"] += 1
             
         r16_matches = []
-        for i in range(8):
-            r16_matches.append(play_knockout_match(r32_matches[i*2]["winner"], r32_matches[i*2+1]["winner"], "Round of 16"))
-            
+        r16_matches.append(play_knockout_match(m_74["winner"], m_77["winner"], "Round of 16", 89))
+        r16_matches.append(play_knockout_match(m_73["winner"], m_75["winner"], "Round of 16", 90))
+        r16_matches.append(play_knockout_match(m_83["winner"], m_84["winner"], "Round of 16", 93))
+        r16_matches.append(play_knockout_match(m_81["winner"], m_82["winner"], "Round of 16", 94))
+        r16_matches.append(play_knockout_match(m_76["winner"], m_78["winner"], "Round of 16", 91))
+        r16_matches.append(play_knockout_match(m_79["winner"], m_80["winner"], "Round of 16", 92))
+        r16_matches.append(play_knockout_match(m_86["winner"], m_88["winner"], "Round of 16", 95))
+        r16_matches.append(play_knockout_match(m_85["winner"], m_87["winner"], "Round of 16", 96))
+        
         # Exits in R16
         for m in r16_matches:
             loser = m["team1"]["name"] if m["winner"] == m["team2"]["name"] else m["team2"]["name"]
             exit_counts[loser]["r16"] += 1
             
         qf_matches = []
-        for i in range(4):
-            qf_matches.append(play_knockout_match(r16_matches[i*2]["winner"], r16_matches[i*2+1]["winner"], "Quarter-final"))
-            
+        qf_matches.append(play_knockout_match(r16_matches[0]["winner"], r16_matches[1]["winner"], "Quarter-final", 97))
+        qf_matches.append(play_knockout_match(r16_matches[2]["winner"], r16_matches[3]["winner"], "Quarter-final", 98))
+        qf_matches.append(play_knockout_match(r16_matches[4]["winner"], r16_matches[5]["winner"], "Quarter-final", 99))
+        qf_matches.append(play_knockout_match(r16_matches[6]["winner"], r16_matches[7]["winner"], "Quarter-final", 100))
+        
         # Exits in QF
         for m in qf_matches:
             loser = m["team1"]["name"] if m["winner"] == m["team2"]["name"] else m["team2"]["name"]
             exit_counts[loser]["qf"] += 1
             
         sf_matches = []
-        for i in range(2):
-            sf_matches.append(play_knockout_match(qf_matches[i*2]["winner"], qf_matches[i*2+1]["winner"], "Semi-final"))
-            
+        sf_matches.append(play_knockout_match(qf_matches[0]["winner"], qf_matches[1]["winner"], "Semi-final", 101))
+        sf_matches.append(play_knockout_match(qf_matches[2]["winner"], qf_matches[3]["winner"], "Semi-final", 102))
+        
         sf1_loser = sf_matches[0]["team1"]["name"] if sf_matches[0]["winner"] == sf_matches[0]["team2"]["name"] else sf_matches[0]["team2"]["name"]
         sf2_loser = sf_matches[1]["team1"]["name"] if sf_matches[1]["winner"] == sf_matches[1]["team2"]["name"] else sf_matches[1]["team2"]["name"]
         
-        third_match = play_knockout_match(sf1_loser, sf2_loser, "Third-place play-off")
+        third_match = play_knockout_match(sf1_loser, sf2_loser, "Third-place play-off", 103)
         
         # Exits in SF
         exit_counts[sf1_loser]["sf"] += 1
         exit_counts[sf2_loser]["sf"] += 1
         
-        final_match = play_knockout_match(sf_matches[0]["winner"], sf_matches[1]["winner"], "Final")
+        final_match = play_knockout_match(sf_matches[0]["winner"], sf_matches[1]["winner"], "Final", 104)
         
         exit_counts[final_match["team1"]["name"] if final_match["winner"] == final_match["team2"]["name"] else final_match["team2"]["name"]]["runner_up"] += 1
         exit_counts[final_match["winner"]]["champion"] += 1
@@ -1072,16 +1144,19 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000) -> dict
         representative_bracket = all_brackets[0]
         
     if representative_bracket:
-        from backend.database import Fixture
-        db_fixtures = db.query(Fixture).filter(Fixture.stage != "Group Stage").all()
-        stage_map = {}
-        for f in db_fixtures:
-            stage_map.setdefault(f.stage, []).append(f)
-        for s in stage_map:
-            stage_map[s].sort(key=lambda x: x.date_utc)
-            
         def enrich_match_details(m, f):
             m["date"] = f.date_utc.isoformat()
+            
+            # Resolve actual team details if set in the database
+            if f.home_team:
+                m["team1"]["name"] = f.home_team.name
+                m["team1"]["elo"] = f.home_team.elo
+                m["team1"]["group_name"] = team_group_map.get(f.home_team.id)
+            if f.away_team:
+                m["team2"]["name"] = f.away_team.name
+                m["team2"]["elo"] = f.away_team.elo
+                m["team2"]["group_name"] = team_group_map.get(f.away_team.id)
+                
             if f.status == "Finished":
                 m["matchup_status"] = "official"
                 m["home_score"] = f.home_score
@@ -1089,6 +1164,10 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000) -> dict
                 m["winner"] = f.home_team.name if f.winner_id == f.home_team_id else (f.away_team.name if f.winner_id == f.away_team_id else m["winner"])
                 m["team1"]["is_predicted"] = False
                 m["team2"]["is_predicted"] = False
+                m["has_extra_time"] = f.has_extra_time or False
+                m["has_penalties"] = f.has_penalties or False
+                m["home_penalty_score"] = f.home_penalty_score
+                m["away_penalty_score"] = f.away_penalty_score
             elif f.home_team_id is not None and f.away_team_id is not None:
                 m["matchup_status"] = "scheduled"
                 m["team1"]["is_predicted"] = False
@@ -1098,35 +1177,30 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000) -> dict
                 m["team1"]["is_predicted"] = (f.home_team_id is None)
                 m["team2"]["is_predicted"] = (f.away_team_id is None)
 
-        # Round of 32
-        for i, m in enumerate(representative_bracket.get("r32", [])):
-            if i < len(stage_map.get("Round of 32", [])):
-                enrich_match_details(m, stage_map["Round of 32"][i])
-                
-        # Round of 16
-        for i, m in enumerate(representative_bracket.get("r16", [])):
-            if i < len(stage_map.get("Round of 16", [])):
-                enrich_match_details(m, stage_map["Round of 16"][i])
-                
-        # Quarter-final
-        for i, m in enumerate(representative_bracket.get("qf", [])):
-            if i < len(stage_map.get("Quarter-final", [])):
-                enrich_match_details(m, stage_map["Quarter-final"][i])
-                
-        # Semi-final
-        for i, m in enumerate(representative_bracket.get("sf", [])):
-            if i < len(stage_map.get("Semi-final", [])):
-                enrich_match_details(m, stage_map["Semi-final"][i])
-                
-        # Third-place play-off
+        # Build map for fast lookup of db fixtures by api_id
+        fixture_lookup = {f.api_id: f for f in db_fixtures if f.api_id}
+
+        # Enrich R32, R16, QF, SF matches
+        for round_name in ["r32", "r16", "qf", "sf"]:
+            for m in representative_bracket.get(round_name, []):
+                match_num = m.get("match_num")
+                f = fixture_lookup.get(str(match_num))
+                if f:
+                    enrich_match_details(m, f)
+                    
+        # Enrich Third-place match
         m_third = representative_bracket.get("third")
-        if m_third and stage_map.get("Third-place play-off"):
-            enrich_match_details(m_third, stage_map["Third-place play-off"][0])
-            
-        # Final
+        if m_third:
+            f = fixture_lookup.get("103")
+            if f:
+                enrich_match_details(m_third, f)
+                
+        # Enrich Final match
         m_final = representative_bracket.get("final")
-        if m_final and stage_map.get("Final"):
-            enrich_match_details(m_final, stage_map["Final"][0])
+        if m_final:
+            f = fixture_lookup.get("104")
+            if f:
+                enrich_match_details(m_final, f)
             
     result = {
         "bracket": representative_bracket,
