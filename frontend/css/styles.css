@@ -3282,6 +3282,34 @@ body.theme-flag .country-hero-flag-bg {
 }
 
 @media (max-width: 768px) {
+    .calendar-grid-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .calendar-grid-wrapper::-webkit-scrollbar {
+        height: 6px;
+    }
+    
+    .calendar-grid-wrapper::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 0 0 12px 12px;
+    }
+    
+    .calendar-grid-wrapper::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+    }
+    
+    .calendar-grid-wrapper::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.25);
+    }
+
+    .calendar-weekdays-header,
+    .calendar-days-grid {
+        min-width: 700px;
+    }
+
     .calendar-weekdays-header div {
         font-size: 0.75rem;
         letter-spacing: 0.5px;
