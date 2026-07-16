@@ -304,6 +304,7 @@ def update_results_and_odds(db: Session) -> dict:
     fixtures_created = 0
     fixtures_updated_results = 0
     now_time = datetime.now(timezone.utc)
+    resolved_fixtures = set()
     
     # 4. Iterate over matches JSON
     for m in fetched_matches:
@@ -381,9 +382,11 @@ def update_results_and_odds(db: Session) -> dict:
         if home_team and fixture.home_team_id is None:
             fixture.home_team_id = home_team.id
             fixture.home_team_placeholder = None
+            resolved_fixtures.add(fixture)
         if away_team and fixture.away_team_id is None:
             fixture.away_team_id = away_team.id
             fixture.away_team_placeholder = None
+            resolved_fixtures.add(fixture)
             
         # Update existing scheduled fixture if it's now finished in feed
         if fixture.status != "Finished" and is_finished_in_feed:
@@ -425,6 +428,21 @@ def update_results_and_odds(db: Session) -> dict:
                 db.add(EloHistory(team_id=away_team.id, recorded_at=now_time, elo_rating=away_elo_new))
                 
             fixtures_updated_results += 1
+            
+    if resolved_fixtures:
+        for fixture in resolved_fixtures:
+            h_elo = fixture.home_team.elo if fixture.home_team else 1700
+            a_elo = fixture.away_team.elo if fixture.away_team else 1700
+            odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo)
+            
+            db_odds = FixtureOdds(
+                fixture_id=fixture.id,
+                recorded_at=now_time,
+                odds_home=odds_h,
+                odds_draw=odds_d,
+                odds_away=odds_a
+            )
+            db.add(db_odds)
             
     # Propagate knockout fixtures
     propagate_knockout_fixtures(db)
@@ -544,6 +562,7 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
     fixtures_updated = 0
     fixtures_finished = 0
     run_simulation = False
+    resolved_fixtures = set()
     
     for m in fetched_matches:
         # Resolve names
@@ -583,9 +602,11 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
         if home_team and fixture.home_team_id is None:
             fixture.home_team_id = home_team.id
             fixture.home_team_placeholder = None
+            resolved_fixtures.add(fixture)
         if away_team and fixture.away_team_id is None:
             fixture.away_team_id = away_team.id
             fixture.away_team_placeholder = None
+            resolved_fixtures.add(fixture)
             
         # If already finished, no need to update scores live
         if fixture.status == "Finished":
@@ -648,7 +669,22 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
                 fixture.away_score = None
 
                 
-    if fixtures_finished > 0 or fixtures_updated > 0:
+    if resolved_fixtures:
+        for fixture in resolved_fixtures:
+            h_elo = fixture.home_team.elo if fixture.home_team else 1700
+            a_elo = fixture.away_team.elo if fixture.away_team else 1700
+            odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo)
+            
+            db_odds = FixtureOdds(
+                fixture_id=fixture.id,
+                recorded_at=now_time,
+                odds_home=odds_h,
+                odds_draw=odds_d,
+                odds_away=odds_a
+            )
+            db.add(db_odds)
+            
+    if fixtures_finished > 0 or fixtures_updated > 0 or resolved_fixtures:
         # Propagate knockout fixtures
         propagate_knockout_fixtures(db)
         db.commit()

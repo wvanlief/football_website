@@ -28,6 +28,8 @@ def propagate_knockout_fixtures(db: Session):
     fixtures = db.query(Fixture).all()
     fixtures_by_api_id = {f.api_id: f for f in fixtures if f.api_id}
     
+    modified_fixtures = set()
+    
     updated = True
     iterations = 0
     while updated and iterations < 10:
@@ -72,11 +74,13 @@ def propagate_knockout_fixtures(db: Session):
                             next_fixture.home_team_id = winner_id
                             next_fixture.home_team_placeholder = None
                             updated = True
+                            modified_fixtures.add(next_fixture)
                     elif slot == "away":
                         if next_fixture.away_team_id != winner_id:
                             next_fixture.away_team_id = winner_id
                             next_fixture.away_team_placeholder = None
                             updated = True
+                            modified_fixtures.add(next_fixture)
                             
             # 2. Third-place play-off (api_id 103) is populated by the losers of match 101 and 102
             if match_num == 101:
@@ -85,12 +89,34 @@ def propagate_knockout_fixtures(db: Session):
                     third_fixture.home_team_id = loser_id
                     third_fixture.home_team_placeholder = None
                     updated = True
+                    modified_fixtures.add(third_fixture)
             elif match_num == 102:
                 third_fixture = fixtures_by_api_id.get("103")
                 if third_fixture and third_fixture.away_team_id != loser_id:
                     third_fixture.away_team_id = loser_id
                     third_fixture.away_team_placeholder = None
                     updated = True
+                    modified_fixtures.add(third_fixture)
+
+    if modified_fixtures:
+        from backend.ingestor import calculate_default_odds
+        from backend.database import FixtureOdds
+        from datetime import timezone
+        
+        now_time = datetime.now(timezone.utc)
+        for fixture in modified_fixtures:
+            h_elo = fixture.home_team.elo if fixture.home_team else 1700
+            a_elo = fixture.away_team.elo if fixture.away_team else 1700
+            odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo)
+            
+            db_odds = FixtureOdds(
+                fixture_id=fixture.id,
+                recorded_at=now_time,
+                odds_home=odds_h,
+                odds_draw=odds_d,
+                odds_away=odds_a
+            )
+            db.add(db_odds)
 
 def get_timezone(tz_str: str) -> ZoneInfo:
     try:

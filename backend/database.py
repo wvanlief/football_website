@@ -133,7 +133,7 @@ class Fixture(Base):
     @property
     def latest_odds(self):
         if self.odds_history:
-            return sorted(self.odds_history, key=lambda o: o.recorded_at, reverse=True)[0]
+            return sorted(self.odds_history, key=lambda o: o.id, reverse=True)[0]
         # Return a fallback object with default odds so code doesn't crash if no odds are seeded
         class FallbackOdds:
             odds_home = 2.0
