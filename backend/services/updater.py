@@ -338,6 +338,26 @@ def update_results_and_odds(db: Session) -> dict:
                     (Fixture.home_team_id == away_team.id) & (Fixture.away_team_id == home_team.id)
                 )
             ).first()
+
+        # Fallback for knockout matches (e.g. Final, Third-place play-off) that were seeded
+        # with placeholder team names and no/mismatched api_id. These stages only ever have
+        # a single fixture per tournament, so match on stage + tournament with an
+        # unresolved (NULL) team id, then backfill the resolved teams from the API.
+        if not fixture and stage in ("Final", "Third-place play-off"):
+            fixture = db.query(Fixture).filter(
+                Fixture.tournament_id == tourney.id,
+                Fixture.stage == stage,
+                or_(Fixture.home_team_id.is_(None), Fixture.away_team_id.is_(None))
+            ).first()
+            if fixture:
+                if home_team:
+                    fixture.home_team_id = home_team.id
+                    fixture.home_team_placeholder = None
+                if away_team:
+                    fixture.away_team_id = away_team.id
+                    fixture.away_team_placeholder = None
+                if not fixture.api_id and api_match_id:
+                    fixture.api_id = api_match_id
             
         # Determine status and outcomes
         is_finished_in_feed = m.get("finished") == "TRUE"
@@ -573,6 +593,26 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
                     (Fixture.home_team_id == away_team.id) & (Fixture.away_team_id == home_team.id)
                 )
             ).first()
+
+        # Fallback for knockout matches (e.g. Final, Third-place play-off) that were seeded
+        # with placeholder team names and no/mismatched api_id. These stages only ever have
+        # a single fixture per tournament, so match on stage + tournament with an
+        # unresolved (NULL) team id, then backfill the resolved teams from the API.
+        if not fixture and stage in ("Final", "Third-place play-off"):
+            fixture = db.query(Fixture).filter(
+                Fixture.tournament_id == tourney.id,
+                Fixture.stage == stage,
+                or_(Fixture.home_team_id.is_(None), Fixture.away_team_id.is_(None))
+            ).first()
+            if fixture:
+                if home_team:
+                    fixture.home_team_id = home_team.id
+                    fixture.home_team_placeholder = None
+                if away_team:
+                    fixture.away_team_id = away_team.id
+                    fixture.away_team_placeholder = None
+                if not fixture.api_id and api_match_id:
+                    fixture.api_id = api_match_id
             
         if not fixture:
             continue
