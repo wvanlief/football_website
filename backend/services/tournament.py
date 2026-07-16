@@ -9,6 +9,89 @@ import backend.crud.fixture as crud_fixture
 import backend.crud.team as crud_team
 import backend.crud.player as crud_player
 
+NEXT_ROUND_LOOKUP = {
+    73: (90, "home"), 74: (89, "home"), 75: (90, "away"), 76: (91, "home"),
+    77: (89, "away"), 78: (91, "away"), 79: (92, "home"), 80: (92, "away"),
+    81: (94, "home"), 82: (94, "away"), 83: (93, "home"), 84: (93, "away"),
+    85: (96, "home"), 86: (95, "home"), 87: (96, "away"), 88: (95, "away"),
+    89: (97, "home"), 90: (97, "away"), 91: (99, "home"), 92: (99, "away"),
+    93: (98, "home"), 94: (98, "away"), 95: (100, "home"), 96: (100, "away"),
+    97: (101, "home"), 98: (101, "away"), 99: (102, "home"), 100: (102, "away"),
+    101: (104, "home"), 102: (104, "away")
+}
+
+def propagate_knockout_fixtures(db: Session):
+    """
+    Scans finished knockout fixtures in the database and propagates winners/losers
+    to subsequent rounds.
+    """
+    fixtures = db.query(Fixture).all()
+    fixtures_by_api_id = {f.api_id: f for f in fixtures if f.api_id}
+    
+    updated = True
+    iterations = 0
+    while updated and iterations < 10:
+        updated = False
+        iterations += 1
+        
+        for api_id_str, f in fixtures_by_api_id.items():
+            if f.status != "Finished" or f.stage == "Group Stage":
+                continue
+                
+            winner_id = f.winner_id
+            if not winner_id:
+                if f.home_score is not None and f.away_score is not None:
+                    if f.home_score > f.away_score:
+                        winner_id = f.home_team_id
+                    elif f.home_score < f.away_score:
+                        winner_id = f.away_team_id
+                    else:
+                        if f.home_penalty_score is not None and f.away_penalty_score is not None:
+                            winner_id = f.home_team_id if f.home_penalty_score > f.away_penalty_score else f.away_team_id
+                            
+            if not winner_id:
+                continue
+                
+            loser_id = f.away_team_id if winner_id == f.home_team_id else f.home_team_id
+            if not loser_id:
+                continue
+                
+            try:
+                match_num = int(api_id_str)
+            except ValueError:
+                continue
+                
+            # 1. Standard next-round propagation
+            next_info = NEXT_ROUND_LOOKUP.get(match_num)
+            if next_info:
+                next_match_num, slot = next_info
+                next_fixture = fixtures_by_api_id.get(str(next_match_num))
+                if next_fixture:
+                    if slot == "home":
+                        if next_fixture.home_team_id != winner_id:
+                            next_fixture.home_team_id = winner_id
+                            next_fixture.home_team_placeholder = None
+                            updated = True
+                    elif slot == "away":
+                        if next_fixture.away_team_id != winner_id:
+                            next_fixture.away_team_id = winner_id
+                            next_fixture.away_team_placeholder = None
+                            updated = True
+                            
+            # 2. Third-place play-off (api_id 103) is populated by the losers of match 101 and 102
+            if match_num == 101:
+                third_fixture = fixtures_by_api_id.get("103")
+                if third_fixture and third_fixture.home_team_id != loser_id:
+                    third_fixture.home_team_id = loser_id
+                    third_fixture.home_team_placeholder = None
+                    updated = True
+            elif match_num == 102:
+                third_fixture = fixtures_by_api_id.get("103")
+                if third_fixture and third_fixture.away_team_id != loser_id:
+                    third_fixture.away_team_id = loser_id
+                    third_fixture.away_team_placeholder = None
+                    updated = True
+
 def get_timezone(tz_str: str) -> ZoneInfo:
     try:
         return ZoneInfo(tz_str)

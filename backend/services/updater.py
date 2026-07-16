@@ -17,7 +17,7 @@ from backend.scoring import update_fixture_score
 from backend.ingestor import (
     normalize_team_name, calculate_default_odds, update_odds_from_api
 )
-from backend.services.tournament import run_monte_carlo_simulation
+from backend.services.tournament import run_monte_carlo_simulation, propagate_knockout_fixtures
 
 STAGE_MAPPING = {
     "group": "Group Stage",
@@ -426,6 +426,8 @@ def update_results_and_odds(db: Session) -> dict:
                 
             fixtures_updated_results += 1
             
+    # Propagate knockout fixtures
+    propagate_knockout_fixtures(db)
     db.commit()
     
     # 5. Fetch and update odds history from API if key is present
@@ -647,6 +649,8 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
 
                 
     if fixtures_finished > 0 or fixtures_updated > 0:
+        # Propagate knockout fixtures
+        propagate_knockout_fixtures(db)
         db.commit()
         
     simulation_status = "Skipped"

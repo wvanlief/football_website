@@ -232,3 +232,103 @@ def test_resolve_placeholder_name(db_session):
     assert res4 == "Winner Group A"
 
 
+def test_propagate_knockout_fixtures(db_session):
+    from backend.services.tournament import propagate_knockout_fixtures
+    
+    comp = Competition(name="World Cup Knockout Propagation Test", type="International")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026")
+    db_session.add(tourney)
+    db_session.flush()
+    
+    # 1. Setup teams
+    t1 = Team(name="France", elo=1950)
+    t2 = Team(name="Belgium", elo=1850)
+    db_session.add_all([t1, t2])
+    db_session.flush()
+    
+    # 2. Add finished knockout fixture (api_id="73", stage="Round of 32")
+    # Winner: France (t1.id)
+    f_finished = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=t1.id,
+        away_team_id=t2.id,
+        stage="Round of 32",
+        status="Finished",
+        api_id="73",
+        home_score=2,
+        away_score=1,
+        winner_id=t1.id,
+        date_utc=datetime.now()
+    )
+    db_session.add(f_finished)
+    
+    # 3. Add next knockout fixture (api_id="90", stage="Round of 16")
+    # This should be populated by winner of match 73 (France) as "home" team according to NEXT_ROUND_LOOKUP
+    f_next = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=None,
+        away_team_id=None,
+        home_team_placeholder="Winner Match 73",
+        away_team_placeholder="Winner Match 75",
+        stage="Round of 16",
+        status="Scheduled",
+        api_id="90",
+        date_utc=datetime.now()
+    )
+    db_session.add(f_next)
+    
+    # 4. Add third-place play-off (api_id="103")
+    t3 = Team(name="Italy", elo=1880)
+    t4 = Team(name="Portugal", elo=1900)
+    db_session.add_all([t3, t4])
+    db_session.flush()
+    
+    f_semi = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=t3.id,
+        away_team_id=t4.id,
+        stage="Semi-final",
+        status="Finished",
+        api_id="101",
+        home_score=0,
+        away_score=1,
+        winner_id=t4.id, # Portugal wins, Italy loses
+        date_utc=datetime.now()
+    )
+    db_session.add(f_semi)
+    
+    f_third = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=None,
+        away_team_id=None,
+        home_team_placeholder="Loser Match 101",
+        away_team_placeholder="Loser Match 102",
+        stage="Third-place play-off",
+        status="Scheduled",
+        api_id="103",
+        date_utc=datetime.now()
+    )
+    db_session.add(f_third)
+    
+    db_session.commit()
+    
+    # Run propagation
+    propagate_knockout_fixtures(db_session)
+    db_session.commit()
+    
+    # Asserts
+    db_session.refresh(f_next)
+    db_session.refresh(f_third)
+    
+    # Match 73 winner (France) propagated to Match 90 home
+    assert f_next.home_team_id == t1.id
+    assert f_next.home_team_placeholder is None
+    
+    # Match 101 loser (Italy) propagated to Match 103 home
+    assert f_third.home_team_id == t3.id
+    assert f_third.home_team_placeholder is None
+
+
+
