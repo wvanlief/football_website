@@ -260,6 +260,55 @@ def fetch_games_with_fallback() -> tuple[list, bool]:
         
     return [], False
 
+def apply_known_fixture_fallbacks(db: Session, tourney: Tournament, db_teams_by_name: dict) -> bool:
+    """
+    Temporary fallback for known Final and 3rd-place fixtures.
+
+    worldcup26.ir has not yet been updated with the determined Final and 3rd-place
+    matchups (it is still returning placeholder/stale data). We know the outcomes
+    with certainty, so hardcode them here until the external API catches up:
+      - Final: Spain (home) vs Argentina (away)
+      - 3rd-place: France (home) vs England (away)
+
+    This only applies when the fixture's teams are unresolved (NULL team_ids). Once
+    worldcup26.ir provides proper data, the fixtures will already be resolved by the
+    main fetch loop and this fallback will be bypassed.
+
+    Returns True if any fixture was updated.
+    """
+    updated = False
+
+    spain = db_teams_by_name.get("Spain")
+    argentina = db_teams_by_name.get("Argentina")
+    france = db_teams_by_name.get("France")
+    england = db_teams_by_name.get("England")
+
+    final_fixture = db.query(Fixture).filter(
+        Fixture.tournament_id == tourney.id,
+        Fixture.stage == "Final"
+    ).first()
+    if final_fixture and (final_fixture.home_team_id is None or final_fixture.away_team_id is None):
+        if spain and argentina:
+            final_fixture.home_team_id = spain.id
+            final_fixture.away_team_id = argentina.id
+            final_fixture.home_team_placeholder = None
+            final_fixture.away_team_placeholder = None
+            updated = True
+
+    third_place_fixture = db.query(Fixture).filter(
+        Fixture.tournament_id == tourney.id,
+        Fixture.stage == "Third-place play-off"
+    ).first()
+    if third_place_fixture and (third_place_fixture.home_team_id is None or third_place_fixture.away_team_id is None):
+        if france and england:
+            third_place_fixture.home_team_id = france.id
+            third_place_fixture.away_team_id = england.id
+            third_place_fixture.home_team_placeholder = None
+            third_place_fixture.away_team_placeholder = None
+            updated = True
+
+    return updated
+
 def update_results_and_odds(db: Session) -> dict:
     """
     Main update task. Fetches official schedules/results and odds, updates database schemas,
@@ -425,7 +474,12 @@ def update_results_and_odds(db: Session) -> dict:
                 db.add(EloHistory(team_id=away_team.id, recorded_at=now_time, elo_rating=away_elo_new))
                 
             fixtures_updated_results += 1
-            
+
+    # 4.5 Temporary fallback: ensure the known Final (Spain vs Argentina) and
+    # 3rd-place (France vs England) fixtures are resolved even if worldcup26.ir
+    # has not yet updated with the determined matchups.
+    apply_known_fixture_fallbacks(db, tourney, db_teams_by_name)
+
     db.commit()
     
     # 5. Fetch and update odds history from API if key is present
@@ -645,8 +699,12 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
                 fixture.home_score = None
                 fixture.away_score = None
 
-                
-    if fixtures_finished > 0 or fixtures_updated > 0:
+    # Temporary fallback: ensure the known Final (Spain vs Argentina) and
+    # 3rd-place (France vs England) fixtures are resolved even if worldcup26.ir
+    # has not yet updated with the determined matchups.
+    fallback_applied = apply_known_fixture_fallbacks(db, tourney, db_teams_by_name)
+
+    if fixtures_finished > 0 or fixtures_updated > 0 or fallback_applied:
         db.commit()
         
     simulation_status = "Skipped"
