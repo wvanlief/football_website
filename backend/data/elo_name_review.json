@@ -1,47 +1,5 @@
 [
   {
-    "api_football_name": "Manchester United",
-    "clubelo_name": "Man United",
-    "confidence": 0.74,
-    "elo": 1915,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Newcastle",
-    "clubelo_name": "Newcastle",
-    "confidence": 1.0,
-    "elo": 1837,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Bournemouth",
-    "clubelo_name": "Bournemouth",
-    "confidence": 1.0,
-    "elo": 1871,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Fulham",
-    "clubelo_name": "Fulham",
-    "confidence": 1.0,
-    "elo": 1813,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Liverpool",
-    "clubelo_name": "Liverpool",
-    "confidence": 1.0,
-    "elo": 1910,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Arsenal",
-    "clubelo_name": "Arsenal",
-    "confidence": 1.0,
-    "elo": 2063,
-    "status": "approved"
-  },
-  {
     "api_football_name": "Everton",
     "clubelo_name": "Everton",
     "confidence": 1.0,
@@ -112,6 +70,48 @@
     "status": "approved"
   },
   {
+    "api_football_name": "Manchester United",
+    "clubelo_name": "Man United",
+    "confidence": 0.74,
+    "elo": 1915,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Newcastle",
+    "clubelo_name": "Newcastle",
+    "confidence": 1.0,
+    "elo": 1837,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Bournemouth",
+    "clubelo_name": "Bournemouth",
+    "confidence": 1.0,
+    "elo": 1871,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Fulham",
+    "clubelo_name": "Fulham",
+    "confidence": 1.0,
+    "elo": 1813,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Liverpool",
+    "clubelo_name": "Liverpool",
+    "confidence": 1.0,
+    "elo": 1910,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Arsenal",
+    "clubelo_name": "Arsenal",
+    "confidence": 1.0,
+    "elo": 2063,
+    "status": "approved"
+  },
+  {
     "api_football_name": "Nottingham Forest",
     "clubelo_name": "Forest",
     "confidence": 0.8,
@@ -137,6 +137,27 @@
     "clubelo_name": "Coventry",
     "confidence": 1.0,
     "elo": 1661,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Wolves",
+    "clubelo_name": "Wolves",
+    "confidence": 1.0,
+    "elo": 1679,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Burnley",
+    "clubelo_name": "Burnley",
+    "confidence": 1.0,
+    "elo": 1666,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "West Ham",
+    "clubelo_name": "West Ham",
+    "confidence": 1.0,
+    "elo": 1768,
     "status": "approved"
   }
 ]

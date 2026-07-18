@@ -107,12 +107,51 @@ python -m backend.ingestor seed-competition --league=39 --season=2026 --comp-nam
 This creates the tournament edition, loads game weeks, and calculates default ELO-weighted odds (incorporating ELO home advantages if `neutral_venue=False`). Running this multiple times updates existing fixture results and statuses without duplicate inserts.
 
 ### 3.4 Target Remote Database Execution
-To target a remote database (such as the production Postgres instances on Railway) instead of local SQLite:
-1. Open the local [`.env`](file:///c:/Users/user/PycharmProjects/football_website/.env) file.
-2. Define the remote connection string using `DATABASE_URL` (Alembic and SQLAlchemy automatically override defaults when this env var is present):
-   ```env
-   DATABASE_URL=postgresql://your-username:your-password@your-railway-host:port/railway
-   ```
-3. Run the migrations and seeding commands locally as documented above. The scripts will direct all actions and queries to the remote database.
+By default, the local environment uses a local SQLite database (`sqlite:///./football_games.db`) to ensure maximum speed and latency-free local development. 
+
+To run seeding, migrations, or database updates against the remote database (such as the production Postgres instance on Railway), the user should execute the commands themselves by providing the `DATABASE_URL` connection string prefix or setting it in the shell environment. For example:
+
+```bash
+# Run database migrations on remote database
+DATABASE_URL=postgresql://your-username:your-password@your-railway-host:port/railway python -m alembic upgrade head
+
+# Run seeding on remote database
+DATABASE_URL=postgresql://your-username:your-password@your-railway-host:port/railway python -m backend.ingestor seed-competition --league=39 --season=2026 --comp-name="Premier League" --comp-type="League" --format-engine="league" --odds-key="soccer_epl" --home-advantage=70
+```
+
+> [!WARNING]
+> Do not persist the remote `DATABASE_URL` inside the local `.env` file during development as it causes remote queries to run very slowly. Always execute remote commands on demand.
 
 
+---
+
+## 4. Smart Background Updater & Live Scoring Engine
+
+The background updates are managed by [updater.py](file:///c:/Users/user/PycharmProjects/football_website/backend/services/updater.py), which is designed to run periodically (e.g. via cron jobs calling the `/api/admin/update` and `/api/admin/update-live` API endpoints).
+
+### 4.1 Update Tasks Overview
+1. **Full Update** (`python -m backend.services.updater`):
+   * Runs less frequently (e.g., hourly or twice daily).
+   * Loops through all active tournaments and fetches full fixture schedules and results.
+   * Domestic leagues sync using API-Football (`/fixtures`).
+   * Fetches latest betting odds using The Odds API.
+   * Synchronizes team ELO ratings.
+2. **Live Score Update** (`python -m backend.services.updater --live`):
+   * Runs frequently (e.g., every 2 minutes) during active match windows.
+   * **Active Match-Window Gating**: Scans the database for fixtures scheduled to start in the next 15 minutes or that started within the last 3 hours. If none are found, it exits immediately without making external API requests.
+   * Updates scores and match statuses in real-time.
+   * Domestic leagues pull live scores from **Football-Data.org** (`/v4/matches`).
+   * If a match concludes, it calculates the ELO change, logs ELO history, and updates team streaks and forms.
+
+### 4.2 Credentials Configuration
+Make sure the following variables are defined in the environment or local `.env` file:
+```env
+THE_ODDS_API_KEY=your_odds_api_key
+API_FOOTBALL_KEY=your_api_football_key
+FOOTBALL_DATA_API_KEY=your_football_data_api_key
+```
+
+### 4.3 ELO Gating Optimization
+To prevent unnecessary external HTTP requests:
+* **Club ELO Sync (ClubElo)**: Automatically gated to execute at most once per UTC day by checking the latest `EloHistory` records.
+* **National ELO Sync (eloratings.net)**: Only synced during active international matches.

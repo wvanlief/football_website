@@ -524,4 +524,230 @@ def test_update_placeholder_fixtures_resolution(mock_fetch_elo, mock_sim, mock_o
     assert fixture.away_team_placeholder is None
 
 
+@patch("backend.services.updater.fetch_json_with_retry")
+@patch("backend.services.updater.update_odds_from_api")
+def test_update_live_scores_league(mock_odds_api, mock_fetch_retry, db_session):
+    from backend.services.updater import update_live_scores
+    from datetime import timedelta
+    import os
+    
+    os.environ["FOOTBALL_DATA_API_KEY"] = "fake_football_data_key"
+    
+    # 1. Setup league competition and tournament
+    comp = Competition(name="Premier League", type="League", format_engine="league")
+    db_session.add(comp)
+    db_session.flush()
+    
+    tourney = Tournament(competition_id=comp.id, season_name="2026", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+    
+    # Setup teams matching Football-Data.org names
+    t1 = Team(name="Arsenal", elo=1900, form_score=70.0, win_streak=0, draw_streak=0, loss_streak=0, elo_source="clubelo")
+    t2 = Team(name="Chelsea", elo=1800, form_score=65.0, win_streak=0, draw_streak=0, loss_streak=0, elo_source="clubelo")
+    db_session.add_all([t1, t2])
+    db_session.flush()
+    
+    # Create scheduled group fixture in progress
+    f_live = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=t1.id,
+        away_team_id=t2.id,
+        stage="Regular Season",
+        status="Scheduled",
+        date_utc=datetime.now(timezone.utc) - timedelta(minutes=30),
+        winner_id=None
+    )
+    db_session.add(f_live)
+    db_session.commit()
+    
+    # Mock response from Football-Data.org
+    mock_football_data_response = {
+        "matches": [
+            {
+                "id": 9999,
+                "homeTeam": {"name": "Arsenal FC"},
+                "awayTeam": {"name": "Chelsea FC"},
+                "score": {
+                    "fullTime": {"home": 2, "away": 0}
+                },
+                "status": "FINISHED"
+            }
+        ]
+    }
+    mock_fetch_retry.return_value = mock_football_data_response
+    
+    # Run the live scores update
+    res = update_live_scores(db_session, force=False)
+    
+    assert res["status"] == "success"
+    assert res["fixtures_updated_live"] == 0
+    assert res["fixtures_finished"] == 1
+    
+    # Check that fixture updated to Finished with scores
+    db_session.refresh(f_live)
+    assert f_live.status == "Finished"
+    assert f_live.home_score == 2
+    assert f_live.away_score == 0
+    assert f_live.winner_id == t1.id
+
+
+@patch("backend.services.updater.call_football_api")
+@patch("backend.services.updater.fetch_clubelo_ratings")
+@patch("backend.services.updater.update_odds_from_api")
+def test_update_results_and_odds_league(mock_odds_api, mock_fetch_clubelo, mock_call_api, db_session):
+    from backend.services.updater import update_results_and_odds
+    
+    # 1. Setup league competition and tournament
+    comp = Competition(name="Premier League", type="League", format_engine="league")
+    db_session.add(comp)
+    db_session.flush()
+    
+    tourney = Tournament(competition_id=comp.id, season_name="2026", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+    
+    # Setup teams
+    t1 = Team(name="Arsenal", elo=1900, form_score=70.0, win_streak=0, draw_streak=0, loss_streak=0, elo_source="clubelo", api_id=42)
+    t2 = Team(name="Chelsea", elo=1800, form_score=65.0, win_streak=0, draw_streak=0, loss_streak=0, elo_source="clubelo", api_id=49)
+    db_session.add_all([t1, t2])
+    db_session.flush()
+    
+    # Create scheduled group fixture in progress
+    f_live = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=t1.id,
+        away_team_id=t2.id,
+        api_id="9999",
+        stage="Regular Season",
+        status="Scheduled",
+        date_utc=datetime.now(timezone.utc),
+        winner_id=None
+    )
+    db_session.add(f_live)
+    db_session.commit()
+    
+    # Mock response from API-Football
+    mock_api_response = {
+        "response": [
+            {
+                "fixture": {
+                    "id": 9999,
+                    "date": "2026-07-18T13:00:00+00:00",
+                    "status": {"short": "FT"}
+                },
+                "league": {
+                    "round": "Regular Season - 1"
+                },
+                "teams": {
+                    "home": {"id": 42},
+                    "away": {"id": 49}
+                },
+                "goals": {
+                    "home": 3,
+                    "away": 1
+                }
+            }
+        ]
+    }
+    mock_call_api.return_value = mock_api_response
+    mock_fetch_clubelo.return_value = {
+        "Arsenal": 1920,
+        "Chelsea": 1780
+    }
+    
+    # Run the results update
+    res = update_results_and_odds(db_session)
+    
+    assert res["status"] == "success"
+    assert res["fixtures_updated_results"] == 1
+    
+    # Verify DB updates
+    db_session.refresh(f_live)
+    assert f_live.status == "Finished"
+    assert f_live.home_score == 3
+    assert f_live.away_score == 1
+    assert f_live.winner_id == t1.id
+
+
+def test_calculate_default_odds_custom_advantage():
+    from backend.ingestor import calculate_default_odds
+    
+    # 1. Neutral venue (no home advantage applied)
+    h_odds_neutral, _, a_odds_neutral = calculate_default_odds(1600, 1600, neutral_venue=True)
+    assert h_odds_neutral == a_odds_neutral
+    
+    # 2. Non-neutral venue with default +100 home advantage
+    h_odds_100, _, a_odds_100 = calculate_default_odds(1600, 1600, neutral_venue=False, home_advantage=100)
+    # Home team should have lower odds (more likely to win)
+    assert h_odds_100 < a_odds_100
+    
+    # 3. Non-neutral venue with custom +70 home advantage
+    h_odds_70, _, a_odds_70 = calculate_default_odds(1600, 1600, neutral_venue=False, home_advantage=70)
+    assert h_odds_70 < a_odds_70
+    # Custom 70 home advantage should be less extreme than default 100
+    assert h_odds_70 > h_odds_100
+
+
+def test_recalculate_tournament_team_standings(db_session):
+    from backend.services.updater import recalculate_tournament_team_standings
+    from backend.database import Competition, Tournament, Team, TournamentTeam, Fixture
+    from datetime import datetime, timezone
+    
+    # Setup Competition & Tournament
+    comp = Competition(name="Custom Standings League", type="League", format_engine="league")
+    db_session.add(comp)
+    db_session.flush()
+    
+    tourney = Tournament(competition_id=comp.id, season_name="2026", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+    
+    # Setup Teams
+    t1 = Team(name="Team A", elo=1500)
+    t2 = Team(name="Team B", elo=1500)
+    db_session.add_all([t1, t2])
+    db_session.flush()
+    
+    # Setup TournamentTeam associations
+    tt1 = TournamentTeam(tournament_id=tourney.id, team_id=t1.id, points=0)
+    tt2 = TournamentTeam(tournament_id=tourney.id, team_id=t2.id, points=0)
+    db_session.add_all([tt1, tt2])
+    db_session.flush()
+    
+    # Add Finished Fixture
+    f = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=t1.id,
+        away_team_id=t2.id,
+        date_utc=datetime.now(timezone.utc),
+        stage="Regular Season",
+        status="Finished",
+        home_score=3,
+        away_score=1
+    )
+    db_session.add(f)
+    db_session.commit()
+    
+    # Recalculate standings cache
+    recalculate_tournament_team_standings(db_session, tourney.id)
+    
+    # Refresh cache from DB
+    db_session.refresh(tt1)
+    db_session.refresh(tt2)
+    
+    assert tt1.points == 3
+    assert tt1.wins == 1
+    assert tt1.goals_for == 3
+    assert tt1.goals_against == 1
+    
+    assert tt2.points == 0
+    assert tt2.losses == 1
+    assert tt2.goals_for == 1
+    assert tt2.goals_against == 3
+
+
+
+
+
 

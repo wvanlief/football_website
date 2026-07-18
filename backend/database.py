@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, DateTime, Boolean, UniqueConstraint
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
@@ -27,8 +30,10 @@ class Competition(Base):
     relegation_spots = Column(Integer, default=0)
     promotion_spots = Column(Integer, default=0)
     relegation_playoff_spots = Column(Integer, default=0)
+    api_league_id = Column(Integer, nullable=True)
     
     tournaments = relationship("Tournament", back_populates="competition", cascade="all, delete-orphan")
+
 
 class Tournament(Base):
     __tablename__ = "tournaments"

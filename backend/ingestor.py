@@ -173,9 +173,10 @@ def get_fallback_matches():
         }
     ]
 
-def calculate_default_odds(home_elo, away_elo, neutral_venue: bool = True):
+def calculate_default_odds(home_elo, away_elo, neutral_venue: bool = True, home_advantage: int = 100):
     if not neutral_venue:
-        home_elo += 100  # Apply standard ELO boost for home advantage
+        home_elo += home_advantage
+
     diff = home_elo - away_elo
     prob_home_expected = 1.0 / (1.0 + 10.0 ** (-diff / 400.0))
     prob_away_expected = 1.0 - prob_home_expected
@@ -871,7 +872,8 @@ def seed_competition(
     relegation_spots: int = 0,
     promotion_spots: int = 0,
     relegation_playoff_spots: int = 0,
-    odds_api_sport_key: str = None
+    odds_api_sport_key: str = None,
+    home_advantage_elo: int = 100
 ):
     """Seed / Upsert competition fixture data idempotently from API-Football."""
     comp = db.query(Competition).filter(Competition.name == competition_name).first()
@@ -881,11 +883,12 @@ def seed_competition(
             type=competition_type,
             format_engine=format_engine,
             odds_api_sport_key=odds_api_sport_key,
-            home_advantage_elo=0 if neutral_venue else 100,
+            home_advantage_elo=0 if neutral_venue else home_advantage_elo,
             neutral_venue=neutral_venue,
             relegation_spots=relegation_spots,
             promotion_spots=promotion_spots,
-            relegation_playoff_spots=relegation_playoff_spots
+            relegation_playoff_spots=relegation_playoff_spots,
+            api_league_id=api_league_id
         )
         db.add(comp)
         db.flush()
@@ -898,8 +901,11 @@ def seed_competition(
         comp.relegation_spots = relegation_spots
         comp.promotion_spots = promotion_spots
         comp.relegation_playoff_spots = relegation_playoff_spots
+        comp.home_advantage_elo = 0 if neutral_venue else home_advantage_elo
+        comp.api_league_id = api_league_id
         db.flush()
         print(f"Updated Competition metadata: {competition_name}")
+
         
     tourney = db.query(Tournament).filter(
         Tournament.competition_id == comp.id,
@@ -1029,7 +1035,8 @@ def seed_competition(
             h_elo = fixture.home_team.elo if fixture.home_team else 1500
             a_elo = fixture.away_team.elo if fixture.away_team else 1500
             
-            h_odds, d_odds, a_odds = calculate_default_odds(h_elo, a_elo, neutral_venue)
+            h_odds, d_odds, a_odds = calculate_default_odds(h_elo, a_elo, neutral_venue=neutral_venue, home_advantage=comp.home_advantage_elo or 100)
+
             
             init_odds = FixtureOdds(
                 fixture_id=fixture.id,
@@ -1062,6 +1069,8 @@ if __name__ == "__main__":
     parser.add_argument("--format-engine", type=str, default="league", help="Competition format engine")
     parser.add_argument("--neutral", action="store_true", help="Matches played on neutral venues")
     parser.add_argument("--file", type=str, default="backend/data/elo_name_review.json", help="Path to ELO review file")
+    parser.add_argument("--odds-key", type=str, help="Odds API sport key (e.g. soccer_epl)")
+    parser.add_argument("--home-advantage", type=int, default=100, help="ELO boost for home teams (if non-neutral)")
     
     args = parser.parse_args()
     
@@ -1091,7 +1100,10 @@ if __name__ == "__main__":
                     season=str(args.season),
                     api_league_id=args.league,
                     api_season=args.season,
-                    neutral_venue=args.neutral
+                    neutral_venue=args.neutral,
+                    odds_api_sport_key=args.odds_key,
+                    home_advantage_elo=args.home_advantage
                 )
+
     finally:
         db.close()
