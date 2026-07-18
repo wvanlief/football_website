@@ -74,3 +74,24 @@ class CountrySimpleOut(BaseModel):
 class ThirdPlacedTeamStanding(TeamStanding):
     group: str
 
+
+class TournamentSimpleOut(BaseModel):
+    id: int
+    season_name: str
+    status: str
+
+    class Config:
+        from_attributes = True
+
+
+class CompetitionSelectorOut(BaseModel):
+    id: int
+    name: str
+    type: str
+    format_engine: str
+    tournaments: List[TournamentSimpleOut]
+
+    class Config:
+        from_attributes = True
+
+

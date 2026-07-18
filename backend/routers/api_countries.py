@@ -9,24 +9,33 @@ from backend.services.tournament import get_country_details
 router = APIRouter(prefix="/api/country", tags=["Countries"])
 
 @router.get("", response_model=List[CountrySimpleOut])
-def get_all_countries(db: Session = Depends(get_db)):
+def get_all_countries(
+    tournament_id: int = Query(None, description="Filter by tournament ID"),
+    db: Session = Depends(get_db)
+):
     """
     Returns a list of all countries in the tournament, sorted by next upcoming match.
     """
     from datetime import datetime
-    from backend.database import Fixture
+    from backend.database import Fixture, Tournament
     
-    teams = db.query(Team).all()
-    tts = db.query(TournamentTeam).all()
+    if tournament_id is None:
+        active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
+        tournament_id = active_tourney.id if active_tourney else None
+        
+    teams = crud_team.get_all_teams(db, tournament_id=tournament_id)
+    
+    tts_query = db.query(TournamentTeam)
+    if tournament_id is not None:
+        tts_query = tts_query.filter(TournamentTeam.tournament_id == tournament_id)
+    tts = tts_query.all()
     team_group_map = {tt.team_id: tt.group_name for tt in tts}
     
     # Get all scheduled/live fixtures ordered by date
-    upcoming_fixtures = (
-        db.query(Fixture)
-        .filter(Fixture.status != "Finished")
-        .order_by(Fixture.date_utc.asc())
-        .all()
-    )
+    fixtures_query = db.query(Fixture).filter(Fixture.status != "Finished")
+    if tournament_id is not None:
+        fixtures_query = fixtures_query.filter(Fixture.tournament_id == tournament_id)
+    upcoming_fixtures = fixtures_query.order_by(Fixture.date_utc.asc()).all()
     
     # Map team_id to next match: (date_utc, fixture_id, home_or_away_flag)
     next_match_info = {}
@@ -55,11 +64,17 @@ def get_all_countries(db: Session = Depends(get_db)):
     ]
 
 @router.get("/{country_name}", response_model=CountryDetailsResponse)
-def get_country(country_name: str, tz: str = Query("UTC", description="Target timezone"), db: Session = Depends(get_db)):
+def get_country(
+    country_name: str,
+    tournament_id: int = Query(None, description="Filter by tournament ID"),
+    tz: str = Query("UTC", description="Target timezone"),
+    db: Session = Depends(get_db)
+):
     """
     Returns country profile, ELO, top players, form results, and future fixtures.
     """
-    details = get_country_details(db, country_name, tz)
+    details = get_country_details(db, country_name, tz, tournament_id=tournament_id)
     if not details:
         raise HTTPException(status_code=404, detail="Country not found")
     return details
+

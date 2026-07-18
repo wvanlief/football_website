@@ -4,7 +4,7 @@ from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session, joinedload
 
-from backend.database import Fixture, Team, Player, PlayerContract, TournamentTeam
+from backend.database import Fixture, Team, Player, PlayerContract, TournamentTeam, Tournament, Competition
 import backend.crud.fixture as crud_fixture
 import backend.crud.team as crud_team
 import backend.crud.player as crud_player
@@ -167,13 +167,18 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
         if tt:
             group_letter = tt.group_name
             
+    # Determine contract type (Club vs Country) based on competition type
+    comp = f.tournament.competition if f.tournament else None
+    contract_type = "Country" if comp and comp.type == "International" else "Club"
+    
     # Get players
     if team_players_map is not None:
         home_players = team_players_map.get(f.home_team_id, [])
         away_players = team_players_map.get(f.away_team_id, [])
     else:
-        home_players = crud_player.get_players_by_team(db, home_team.name) if home_team else []
-        away_players = crud_player.get_players_by_team(db, away_team.name) if away_team else []
+        home_players = crud_player.get_players_by_team(db, home_team.name, contract_type=contract_type) if home_team else []
+        away_players = crud_player.get_players_by_team(db, away_team.name, contract_type=contract_type) if away_team else []
+
         
     reasons = []
     try:
@@ -223,23 +228,35 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
         "reasons": reasons
     }
 
-def get_grouped_fixtures(db: Session, tz_str: str) -> dict:
+def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) -> dict:
     target_tz = get_timezone(tz_str)
-    fixtures = crud_fixture.get_all_fixtures(db)
+    
+    if tournament_id is None:
+        active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
+        tournament_id = active_tourney.id if active_tourney else None
+        
+    contract_type = "Country"
+    if tournament_id:
+        tourney = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+        if tourney and tourney.competition:
+            contract_type = "Country" if tourney.competition.type == "International" else "Club"
+            
+    fixtures = crud_fixture.get_all_fixtures(db, tournament_id=tournament_id)
     
     # Preload maps to avoid N+1 queries
     contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(
-        PlayerContract.type == "Country",
+        PlayerContract.type == contract_type,
         PlayerContract.is_active == True
     ).all()
     team_players_map = {}
     for c in contracts:
         team_players_map.setdefault(c.team_id, []).append(c.player)
         
-    tts = db.query(TournamentTeam).all()
+    tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all() if tournament_id else db.query(TournamentTeam).all()
     team_group_map = {}
     for tt in tts:
         team_group_map[(tt.tournament_id, tt.team_id)] = tt.group_name
+
         
     today_fixtures = []
     tomorrow_fixtures = []
@@ -282,28 +299,44 @@ def get_grouped_fixtures(db: Session, tz_str: str) -> dict:
         "finished": finished_fixtures
     }
 
-def get_recommended_fixtures(db: Session, tz_str: str, min_score: float = 75.0) -> list:
+def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None, min_score: float = 75.0) -> list:
     target_tz = get_timezone(tz_str)
-    fixtures = crud_fixture.get_recommended_fixtures(db, min_score)
+    
+    if tournament_id is None:
+        active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
+        tournament_id = active_tourney.id if active_tourney else None
+        
+    contract_type = "Country"
+    if tournament_id:
+        tourney = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+        if tourney and tourney.competition:
+            contract_type = "Country" if tourney.competition.type == "International" else "Club"
+            
+    fixtures = crud_fixture.get_recommended_fixtures(db, tournament_id=tournament_id, min_score=min_score)
     
     # Preload maps to avoid N+1 queries
     contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(
-        PlayerContract.type == "Country",
+        PlayerContract.type == contract_type,
         PlayerContract.is_active == True
     ).all()
     team_players_map = {}
     for c in contracts:
         team_players_map.setdefault(c.team_id, []).append(c.player)
         
-    tts = db.query(TournamentTeam).all()
+    tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all() if tournament_id else db.query(TournamentTeam).all()
     team_group_map = {}
     for tt in tts:
         team_group_map[(tt.tournament_id, tt.team_id)] = tt.group_name
         
     return [enrich_fixture(f, db, target_tz, team_players_map, team_group_map) for f in fixtures]
 
-def calculate_standings(db: Session, group_letter: str) -> list:
-    teams = crud_team.get_teams_by_group(db, group_letter)
+
+def calculate_standings(db: Session, group_letter: str, tournament_id: int = None) -> list:
+    if tournament_id is None:
+        active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
+        tournament_id = active_tourney.id if active_tourney else None
+        
+    teams = crud_team.get_teams_by_group(db, group_letter, tournament_id=tournament_id)
     standings = []
     for t in teams:
         standings.append({
@@ -320,9 +353,10 @@ def calculate_standings(db: Session, group_letter: str) -> list:
         })
         
     team_names = [t.name for t in teams]
-    finished_fixtures = crud_fixture.get_finished_group_stage_fixtures_for_teams(db, team_names)
+    finished_fixtures = crud_fixture.get_finished_group_stage_fixtures_for_teams(db, team_names, tournament_id=tournament_id)
     
     standings_map = {s["name"]: s for s in standings}
+
     
     for f in finished_fixtures:
         h = standings_map.get(f.home_team.name)
@@ -357,26 +391,39 @@ def calculate_standings(db: Session, group_letter: str) -> list:
     standings.sort(key=lambda x: (x["points"], x["goal_difference"], x["goals_for"], x["elo"]), reverse=True)
     return standings
 
-def get_country_details(db: Session, country_name: str, tz_str: str) -> dict:
+def get_country_details(db: Session, country_name: str, tz_str: str, tournament_id: int = None) -> dict:
     target_tz = get_timezone(tz_str)
     team = crud_team.get_team_by_name(db, country_name)
     if not team:
         return None
         
-    tt = db.query(TournamentTeam).filter(TournamentTeam.team_id == team.id).first()
+    if tournament_id is None:
+        active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
+        tournament_id = active_tourney.id if active_tourney else None
+        
+    contract_type = "Country"
+    if tournament_id:
+        tourney = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+        if tourney and tourney.competition:
+            contract_type = "Country" if tourney.competition.type == "International" else "Club"
+            
+    tt = db.query(TournamentTeam).filter(
+        TournamentTeam.team_id == team.id,
+        TournamentTeam.tournament_id == tournament_id
+    ).first() if tournament_id else db.query(TournamentTeam).filter(TournamentTeam.team_id == team.id).first()
     group_name = tt.group_name if tt else None
     
-    group_standings = calculate_standings(db, group_name) if group_name else []
+    group_standings = calculate_standings(db, group_name, tournament_id=tournament_id) if group_name else []
     rank = 1
     for index, standing in enumerate(group_standings):
         if standing["name"] == country_name:
             rank = index + 1
             break
             
-    players = crud_player.get_top_players_by_team(db, country_name, limit=3)
+    players = crud_player.get_top_players_by_team(db, country_name, contract_type=contract_type, limit=3)
     players_data = [{"name": p.name, "position": p.position, "form": p.form_score} for p in players]
     
-    finished_fixtures = crud_fixture.get_finished_fixtures_for_country(db, country_name)
+    finished_fixtures = crud_fixture.get_finished_fixtures_for_country(db, country_name, tournament_id=tournament_id)
     finished_fixtures.sort(key=lambda x: x.date_utc, reverse=True)
     
     form_results = []
@@ -412,22 +459,23 @@ def get_country_details(db: Session, country_name: str, tz_str: str) -> dict:
     form_results = form_results[:5]
     form_results.reverse()
     
-    future_fixtures = crud_fixture.get_future_fixtures_for_country(db, country_name)
+    future_fixtures = crud_fixture.get_future_fixtures_for_country(db, country_name, tournament_id=tournament_id)
     future_fixtures.sort(key=lambda x: x.date_utc)
     
     # Preload maps to avoid N+1 queries
     contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(
-        PlayerContract.type == "Country",
+        PlayerContract.type == contract_type,
         PlayerContract.is_active == True
     ).all()
     team_players_map = {}
     for c in contracts:
         team_players_map.setdefault(c.team_id, []).append(c.player)
         
-    tts = db.query(TournamentTeam).all()
+    tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all() if tournament_id else db.query(TournamentTeam).all()
     team_group_map = {}
     for t_t in tts:
         team_group_map[(t_t.tournament_id, t_t.team_id)] = t_t.group_name
+
 
     future_matches_data = [enrich_fixture(f, db, target_tz, team_players_map, team_group_map) for f in future_fixtures]
         
@@ -441,13 +489,20 @@ def get_country_details(db: Session, country_name: str, tz_str: str) -> dict:
         "future_matches": future_matches_data
     }
 
-def calculate_points_needed_to_guarantee_top_2(db: Session, team_name: str, group_letter: str) -> int:
+def calculate_points_needed_to_guarantee_top_2(db: Session, team_name: str, group_letter: str, tournament_id: int = None) -> int:
     from typing import Optional
     import itertools
     from backend.database import Team, TournamentTeam, Fixture
     
+    if tournament_id is None:
+        active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
+        tournament_id = active_tourney.id if active_tourney else None
+        
     # Get all teams in this group
-    tts = db.query(TournamentTeam).filter(TournamentTeam.group_name == group_letter).all()
+    tts = db.query(TournamentTeam).filter(
+        TournamentTeam.group_name == group_letter,
+        TournamentTeam.tournament_id == tournament_id
+    ).all()
     group_team_ids = [tt.team_id for tt in tts]
     
     if not group_team_ids:
@@ -462,7 +517,8 @@ def calculate_points_needed_to_guarantee_top_2(db: Session, team_name: str, grou
         
     # Get all Group Stage fixtures for these teams
     from backend.crud.fixture import get_fixtures_for_group
-    fixtures = get_fixtures_for_group(db, team_names)
+    fixtures = get_fixtures_for_group(db, team_names, tournament_id=tournament_id)
+
     
     # Classify fixtures
     finished_fixtures = []
@@ -558,7 +614,12 @@ def calculate_points_needed_to_guarantee_top_2(db: Session, team_name: str, grou
         return 3 * target_remaining
 
 
-def get_all_third_placed_teams(db: Session) -> list:
+
+def get_all_third_placed_teams(db: Session, tournament_id: int = None) -> list:
+    if tournament_id is None:
+        active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
+        tournament_id = active_tourney.id if active_tourney else None
+        
     groups = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
     third_placed = []
     
@@ -577,37 +638,49 @@ def get_all_third_placed_teams(db: Session) -> list:
             team_probs[p["team"]] = p
             
     for g in groups:
-        standings = calculate_standings(db, g)
-        if len(standings) >= 3:
-            team_standing = dict(standings[2])
-            team_standing["group"] = g
+        standings = calculate_standings(db, g, tournament_id=tournament_id)
+        if len(standings) < 3:
+            continue
             
-            prob_data = team_probs.get(team_standing["name"])
-            if prob_data:
-                team_standing["qualification_probability"] = round(100.0 - prob_data["group_exit_pct"], 2)
-                if prob_data["group_exit_pct"] == 0.0:
-                    team_standing["status"] = "Qualified"
-                elif prob_data["group_exit_pct"] == 100.0:
-                    team_standing["status"] = "Eliminated"
-                else:
-                    team_standing["status"] = "Active"
+        team_standing = standings[2].copy()
+        team_standing["group"] = g
+        
+        prob_data = team_probs.get(team_standing["name"])
+        if prob_data:
+            team_standing["qualification_probability"] = round(prob_data["r32_exit_pct"] + prob_data["r16_exit_pct"] + prob_data["qf_exit_pct"] + prob_data["sf_exit_pct"] + prob_data["runner_up_pct"] + prob_data["champion_pct"], 2)
+            if team_standing["qualification_probability"] == 0.0:
+                team_standing["status"] = "Eliminated"
             else:
-                team_standing["qualification_probability"] = None
                 team_standing["status"] = "Active"
-                
-            third_placed.append(team_standing)
+        else:
+            team_standing["qualification_probability"] = None
+            team_standing["status"] = "Active"
+            
+        third_placed.append(team_standing)
+
             
     third_placed.sort(key=lambda x: (x["points"], x["goal_difference"], x["goals_for"], x["elo"]), reverse=True)
     return third_placed
 
 
-def get_group_details(db: Session, group_letter: str, tz_str: str) -> dict:
+def get_group_details(db: Session, group_letter: str, tz_str: str, tournament_id: int = None) -> dict:
     target_tz = get_timezone(tz_str)
-    teams = crud_team.get_teams_by_group(db, group_letter)
+    
+    if tournament_id is None:
+        active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
+        tournament_id = active_tourney.id if active_tourney else None
+        
+    contract_type = "Country"
+    if tournament_id:
+        tourney = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+        if tourney and tourney.competition:
+            contract_type = "Country" if tourney.competition.type == "International" else "Club"
+            
+    teams = crud_team.get_teams_by_group(db, group_letter, tournament_id=tournament_id)
     if not teams:
         return None
         
-    standings = calculate_standings(db, group_letter)
+    standings = calculate_standings(db, group_letter, tournament_id=tournament_id)
     
     sim_data = None
     file_path = os.path.join(os.path.dirname(__file__), "..", "data", "simulation_results.json")
@@ -637,21 +710,21 @@ def get_group_details(db: Session, group_letter: str, tz_str: str) -> dict:
             s["qualification_probability"] = None
             s["status"] = "Active"
             
-        s["points_needed_top_2"] = calculate_points_needed_to_guarantee_top_2(db, s["name"], group_letter)
+        s["points_needed_top_2"] = calculate_points_needed_to_guarantee_top_2(db, s["name"], group_letter, tournament_id=tournament_id)
         
     team_names = [t.name for t in teams]
-    fixtures = crud_fixture.get_fixtures_for_group(db, team_names)
+    fixtures = crud_fixture.get_fixtures_for_group(db, team_names, tournament_id=tournament_id)
     
     # Preload maps to avoid N+1 queries
     contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(
-        PlayerContract.type == "Country",
+        PlayerContract.type == contract_type,
         PlayerContract.is_active == True
     ).all()
     team_players_map = {}
     for c in contracts:
         team_players_map.setdefault(c.team_id, []).append(c.player)
         
-    tts = db.query(TournamentTeam).all()
+    tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all() if tournament_id else db.query(TournamentTeam).all()
     team_group_map = {}
     for tt in tts:
         team_group_map[(tt.tournament_id, tt.team_id)] = tt.group_name
@@ -663,6 +736,7 @@ def get_group_details(db: Session, group_letter: str, tz_str: str) -> dict:
         "standings": standings,
         "fixtures": fixtures_data
     }
+
 
 def simulate_group_stage(db: Session) -> dict:
     from backend.database import TournamentTeam
@@ -806,7 +880,7 @@ def assign_third_placed_bipartite(best_thirds: list) -> dict:
             fallback[w] = best_thirds[i] if i < len(best_thirds) else best_thirds[0]
         return fallback
 
-def simulate_bracket(db: Session) -> dict:
+def simulate_bracket(db: Session, tournament_id: int = None) -> dict:
     import os
     import json
     
@@ -819,9 +893,10 @@ def simulate_bracket(db: Session) -> dict:
             pass
             
     # File not found or corrupt -> generate it
-    return run_monte_carlo_simulation(db)
+    return run_monte_carlo_simulation(db, tournament_id=tournament_id)
 
-def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000) -> dict:
+def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000, tournament_id: int = None) -> dict:
+
     import random
     import math
     import os
@@ -1329,10 +1404,14 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000) -> dict
     return result
 
 
-def get_calendar_fixtures(db: Session, tz_str: str) -> list:
+def get_calendar_fixtures(db: Session, tz_str: str, tournament_id: int = None) -> list:
     target_tz = get_timezone(tz_str)
     today_dt = datetime.now(target_tz)
     
+    if tournament_id is None:
+        active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
+        tournament_id = active_tourney.id if active_tourney else None
+        
     # 7 days ago at start of day
     start_date = (today_dt - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
     # 30 days from now at end of day
@@ -1341,20 +1420,24 @@ def get_calendar_fixtures(db: Session, tz_str: str) -> list:
     start_utc = start_date.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
     end_utc = end_date.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
     
-    fixtures = db.query(Fixture).options(
+    q = db.query(Fixture).options(
         joinedload(Fixture.home_team),
         joinedload(Fixture.away_team)
     ).filter(
         Fixture.date_utc >= start_utc,
         Fixture.date_utc <= end_utc
-    ).all()
+    )
+    if tournament_id is not None:
+        q = q.filter(Fixture.tournament_id == tournament_id)
+    fixtures = q.all()
     
     fixtures.sort(key=lambda x: x.date_utc)
     
-    tts = db.query(TournamentTeam).all()
+    tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all() if tournament_id else db.query(TournamentTeam).all()
     team_group_map = {}
     for tt in tts:
         team_group_map[(tt.tournament_id, tt.team_id)] = tt.group_name
+
         
     calendar_data = []
     for f in fixtures:

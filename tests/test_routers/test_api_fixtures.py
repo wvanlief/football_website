@@ -245,4 +245,68 @@ def test_get_fixture_detail(client, db_session):
     assert response404.status_code == 404
 
 
+def test_fixtures_tournament_id_filtering(client, db_session):
+    # Setup Competition A & B
+    compA = Competition(name="League A", type="League")
+    compB = Competition(name="League B", type="League")
+    db_session.add_all([compA, compB])
+    db_session.flush()
+    
+    tA = Tournament(competition_id=compA.id, season_name="2026")
+    tB = Tournament(competition_id=compB.id, season_name="2026")
+    db_session.add_all([tA, tB])
+    db_session.flush()
+    
+    team1 = Team(name="Arsenal Test", elo=1800)
+    team2 = Team(name="Chelsea Test", elo=1750)
+    team3 = Team(name="Liverpool Test", elo=1850)
+    db_session.add_all([team1, team2, team3])
+    db_session.flush()
+    
+    tt1 = TournamentTeam(tournament_id=tA.id, team_id=team1.id, points=0)
+    tt2 = TournamentTeam(tournament_id=tA.id, team_id=team2.id, points=0)
+    tt3 = TournamentTeam(tournament_id=tB.id, team_id=team2.id, points=0)
+    tt4 = TournamentTeam(tournament_id=tB.id, team_id=team3.id, points=0)
+    db_session.add_all([tt1, tt2, tt3, tt4])
+    db_session.flush()
+    
+    today_utc = datetime.now(timezone.utc)
+    
+    # Fixture for Tournament A
+    fA = Fixture(
+        tournament_id=tA.id,
+        home_team_id=team1.id,
+        away_team_id=team2.id,
+        date_utc=today_utc.replace(hour=12, minute=0, second=0, microsecond=0, tzinfo=None),
+        stage="Regular Season",
+        status="Scheduled"
+    )
+    # Fixture for Tournament B
+    fB = Fixture(
+        tournament_id=tB.id,
+        home_team_id=team2.id,
+        away_team_id=team3.id,
+        date_utc=today_utc.replace(hour=14, minute=0, second=0, microsecond=0, tzinfo=None),
+        stage="Regular Season",
+        status="Scheduled"
+    )
+    db_session.add_all([fA, fB])
+    db_session.commit()
+    
+    # Query with tournament_id = tA.id
+    respA = client.get(f"/api/fixtures?tournament_id={tA.id}")
+    assert respA.status_code == 200
+    dataA = respA.json()
+    assert len(dataA["today"]) == 1
+    assert dataA["today"][0]["home_team"]["name"] == "Arsenal Test"
+    
+    # Query with tournament_id = tB.id
+    respB = client.get(f"/api/fixtures?tournament_id={tB.id}")
+    assert respB.status_code == 200
+    dataB = respB.json()
+    assert len(dataB["today"]) == 1
+    assert dataB["today"][0]["home_team"]["name"] == "Chelsea Test"
+
+
+
 
