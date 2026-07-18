@@ -45,15 +45,8 @@ def upgrade() -> None:
 
     with op.batch_alter_table('fixtures', schema=None) as batch_op:
         batch_op.add_column(sa.Column('matchday_number', sa.Integer(), nullable=True))
-        batch_op.add_column(sa.Column('home_team_placeholder', sa.String(), nullable=True))
-        batch_op.add_column(sa.Column('away_team_placeholder', sa.String(), nullable=True))
-        batch_op.add_column(sa.Column('api_id', sa.String(), nullable=True))
-        batch_op.alter_column('home_team_id',
-                   existing_type=sa.INTEGER(),
-                   nullable=True)
-        batch_op.alter_column('away_team_id',
-                   existing_type=sa.INTEGER(),
-                   nullable=True)
+        # Drop unique index on api_id and recreate as non-unique
+        batch_op.drop_index('ix_fixtures_api_id')
         batch_op.create_index('ix_fixtures_api_id', ['api_id'], unique=False)
         batch_op.create_unique_constraint('uq_fixture_tournament_api', ['tournament_id', 'api_id'])
 
@@ -105,15 +98,7 @@ def downgrade() -> None:
     with op.batch_alter_table('fixtures', schema=None) as batch_op:
         batch_op.drop_constraint('uq_fixture_tournament_api', type_='unique')
         batch_op.drop_index('ix_fixtures_api_id')
-        batch_op.alter_column('away_team_id',
-                   existing_type=sa.INTEGER(),
-                   nullable=False)
-        batch_op.alter_column('home_team_id',
-                   existing_type=sa.INTEGER(),
-                   nullable=False)
-        batch_op.drop_column('api_id')
-        batch_op.drop_column('away_team_placeholder')
-        batch_op.drop_column('home_team_placeholder')
+        batch_op.create_index('ix_fixtures_api_id', ['api_id'], unique=True)
         batch_op.drop_column('matchday_number')
 
     with op.batch_alter_table('competitions', schema=None) as batch_op:
