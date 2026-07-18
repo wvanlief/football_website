@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, DateTime, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, DateTime, Boolean, UniqueConstraint
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./football_games.db")
@@ -20,6 +20,13 @@ class Competition(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)
     type = Column(String, nullable=False) # League, Cup, International
+    format_engine = Column(String, default="group_knockout")  # "league" | "cup" | "group_knockout" | "league_phase_knockout" | "nations_league"
+    odds_api_sport_key = Column(String, nullable=True)        # e.g. "soccer_epl"
+    home_advantage_elo = Column(Integer, default=0)           # e.g. +70 for leagues, 0 for WC
+    neutral_venue = Column(Boolean, default=False)            # default status for home advantage calculations
+    relegation_spots = Column(Integer, default=0)
+    promotion_spots = Column(Integer, default=0)
+    relegation_playoff_spots = Column(Integer, default=0)
     
     tournaments = relationship("Tournament", back_populates="competition", cascade="all, delete-orphan")
 
@@ -38,9 +45,16 @@ class Tournament(Base):
 class Team(Base):
     __tablename__ = "teams"
     
+    __table_args__ = (
+        UniqueConstraint("name", "country_code", name="uq_team_name_country"),
+    )
+    
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, index=True, nullable=False)
     country_code = Column(String, nullable=True)
+    team_type = Column(String, default="National")    # "National" | "Club"
+    elo_source = Column(String, default="eloratings") # "eloratings" | "clubelo" | "manual"
+    api_id = Column(Integer, nullable=True, unique=True, index=True) # API-Football team ID
     
     # ELO & Form cache (stored on team for fast lookup)
     elo = Column(Integer, default=1500)
@@ -61,6 +75,17 @@ class TournamentTeam(Base):
     group_name = Column(String, nullable=True) # A, B, C, etc.
     tournament_status = Column(String, default="Active") # Active, Eliminated, Champion
     final_stage_reached = Column(String, nullable=True) # Group Stage, Round of 16, etc.
+    division = Column(String, nullable=True)          # e.g. "A", "B", "C", "D"
+    promoted = Column(Boolean, default=False)
+    relegated = Column(Boolean, default=False)
+    
+    # Standings Cache
+    points = Column(Integer, default=0)
+    wins = Column(Integer, default=0)
+    draws = Column(Integer, default=0)
+    losses = Column(Integer, default=0)
+    goals_for = Column(Integer, default=0)
+    goals_against = Column(Integer, default=0)
     
     tournament = relationship("Tournament", back_populates="tournament_teams")
     team = relationship("Team", back_populates="tournament_teams")
@@ -91,6 +116,10 @@ class PlayerContract(Base):
 class Fixture(Base):
     __tablename__ = "fixtures"
     
+    __table_args__ = (
+        UniqueConstraint("tournament_id", "api_id", name="uq_fixture_tournament_api"),
+    )
+    
     id = Column(Integer, primary_key=True, index=True)
     tournament_id = Column(Integer, ForeignKey("tournaments.id", ondelete="CASCADE"), nullable=False, index=True)
     home_team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), nullable=True, index=True)
@@ -100,11 +129,12 @@ class Fixture(Base):
     status = Column(String, default="Scheduled") # Scheduled, Live, Finished
     home_score = Column(Integer, nullable=True)
     away_score = Column(Integer, nullable=True)
+    matchday_number = Column(Integer, nullable=True)  # Game Week number
     
     # Placeholders & External ID mapping
     home_team_placeholder = Column(String, nullable=True)
     away_team_placeholder = Column(String, nullable=True)
-    api_id = Column(String, nullable=True, unique=True, index=True)
+    api_id = Column(String, nullable=True, index=True)
 
     # Knockout extension fields
     home_penalty_score = Column(Integer, nullable=True)
@@ -186,24 +216,19 @@ class EloHistory(Base):
     
     team = relationship("Team", back_populates="elo_history")
 
+class FixtureDependency(Base):
+    __tablename__ = "fixture_dependencies"
+    
+    id = Column(Integer, primary_key=True)
+    source_fixture_id = Column(Integer, ForeignKey("fixtures.id", ondelete="CASCADE"), index=True)
+    target_fixture_id = Column(Integer, ForeignKey("fixtures.id", ondelete="CASCADE"), index=True)
+    slot = Column(String)         # "home" | "away"
+    result_type = Column(String)  # "winner" | "loser"
+
 def init_db():
+    # Schema changes are managed via Alembic migrations.
+    # We still run create_all to ensure simple initializations (e.g. in tests) succeed.
     Base.metadata.create_all(bind=engine)
-    
-    # Run automatic migrations for fixtures table columns if they are missing
-    from sqlalchemy import inspect, text
-    inspector = inspect(engine)
-    
-    try:
-        columns = [c["name"] for c in inspector.get_columns("fixtures")]
-        with engine.begin() as conn:
-            if "home_team_placeholder" not in columns:
-                conn.execute(text("ALTER TABLE fixtures ADD COLUMN home_team_placeholder VARCHAR"))
-            if "away_team_placeholder" not in columns:
-                conn.execute(text("ALTER TABLE fixtures ADD COLUMN away_team_placeholder VARCHAR"))
-            if "api_id" not in columns:
-                conn.execute(text("ALTER TABLE fixtures ADD COLUMN api_id VARCHAR"))
-    except Exception as e:
-        print(f"Database migration check encountered an error (this may be normal if schema is already up to date): {e}")
 
 def get_db():
     db = SessionLocal()

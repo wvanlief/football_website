@@ -173,7 +173,9 @@ def get_fallback_matches():
         }
     ]
 
-def calculate_default_odds(home_elo, away_elo):
+def calculate_default_odds(home_elo, away_elo, neutral_venue: bool = True):
+    if not neutral_venue:
+        home_elo += 100  # Apply standard ELO boost for home advantage
     diff = home_elo - away_elo
     prob_home_expected = 1.0 / (1.0 + 10.0 ** (-diff / 400.0))
     prob_away_expected = 1.0 - prob_home_expected
@@ -188,14 +190,17 @@ def calculate_default_odds(home_elo, away_elo):
     
     return odds_home, odds_draw, odds_away
 
-def update_odds_from_api(fixtures: list, db: Session):
+def update_odds_from_api(fixtures: list, db: Session, sport_key: str = "soccer_fifa_world_cup"):
+    if not sport_key:
+        print("Odds API sport key is None. Skipping Odds API update.")
+        return
     api_key = os.getenv("THE_ODDS_API_KEY")
     if not api_key:
         print("No THE_ODDS_API_KEY found in environment. Skipping Odds API update.")
         return
         
-    print("Fetching odds from The Odds API...")
-    url = f"https://api.the-odds-api.com/v4/sports/soccer_fifa_world_cup/odds/?apiKey={api_key}&regions=eu&markets=h2h"
+    print(f"Fetching odds from The Odds API for {sport_key}...")
+    url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?apiKey={api_key}&regions=eu&markets=h2h"
     try:
         odds_data = fetch_json_with_retry(url)
             
@@ -264,21 +269,30 @@ def seed_database(db: Session):
     """
     Seeds database using actual World Cup 2026 schedules from GitHub, falling back to mock fixtures if offline.
     """
-    # 1. Clear database in proper dependency order
-    db.query(PlayerMatchStat).delete()
-    db.query(FixtureOdds).delete()
-    db.query(Fixture).delete()
-    db.query(PlayerContract).delete()
-    db.query(Player).delete()
-    db.query(TournamentTeam).delete()
-    db.query(Tournament).delete()
-    db.query(Competition).delete()
-    db.query(EloHistory).delete()
-    db.query(Team).delete()
+    # 1. Clear World Cup competition and associated data in proper dependency order
+    comp = db.query(Competition).filter_by(name="FIFA World Cup").first()
+    if comp:
+        db.delete(comp)
+        db.commit()
+        
+    # Clear national teams and their associated history/contracts/tournament associations
+    db.query(Team).filter(Team.team_type == "National").delete()
+    db.commit()
+    
+    # Clean up orphaned players (who have no contracts left)
+    active_player_ids = db.query(PlayerContract.player_id).subquery()
+    db.query(Player).filter(~Player.id.in_(active_player_ids)).delete(synchronize_session=False)
     db.commit()
 
     # 1.5 Create Competition and Tournament
-    comp = Competition(name="FIFA World Cup", type="International")
+    comp = Competition(
+        name="FIFA World Cup",
+        type="International",
+        format_engine="group_knockout",
+        odds_api_sport_key="soccer_fifa_world_cup",
+        home_advantage_elo=0,
+        neutral_venue=True
+    )
     db.add(comp)
     db.flush()
     
@@ -586,10 +600,498 @@ def seed_database(db: Session):
         
     print("Database seeding and simulation completed.")
 
+def call_football_api(endpoint: str, params: dict = None) -> dict:
+    """Helper to query the API-Football API."""
+    api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
+    if not api_key:
+        raise ValueError("FOOTBALL_API_KEY/API_FOOTBALL_KEY is not configured in the environment.")
+    
+    query = ""
+    if params:
+        query = "?" + "&".join(f"{k}={v}" for k, v in params.items())
+        
+    url = f"https://v3.football.api-sports.io/{endpoint}{query}"
+    headers = {
+        "x-apisports-key": api_key,
+        "User-Agent": "Mozilla/5.0"
+    }
+    return fetch_json_with_retry(url, headers=headers)
+
+
+def fetch_clubelo_ratings(date_str: str = None) -> dict[str, int]:
+    """Fetches the current Elo ratings of club teams from clubelo.com."""
+    if not date_str:
+        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    url = f"http://api.clubelo.com/{date_str}"
+    print(f"Fetching ClubElo CSV from: {url}")
+    try:
+        content = fetch_url_with_retry(url).decode('utf-8')
+    except Exception as e:
+        print(f"Error fetching ClubElo ratings: {e}")
+        return {}
+        
+    ratings = {}
+    lines = content.split('\n')
+    if len(lines) < 2:
+        print("Warning: ClubElo response is empty or invalid.")
+        return ratings
+        
+    for line in lines[1:]: # skip header
+        if not line.strip():
+            continue
+        parts = line.split(',')
+        if len(parts) >= 5:
+            club_name = parts[1].strip()
+            elo_str = parts[4].strip()
+            try:
+                elo = int(float(elo_str))
+                ratings[club_name] = elo
+            except ValueError:
+                pass
+    return ratings
+
+
+def fuzzy_match_team(team_name: str, clubelo_names: list[str]) -> tuple[str, float]:
+    """Fuzzy match team name against ClubElo name registry with fallback SequenceMatcher."""
+    import difflib
+    best_name = None
+    best_score = 0.0
+    
+    try:
+        from rapidfuzz import process, fuzz
+        match = process.extractOne(team_name, clubelo_names, scorer=fuzz.token_sort_ratio)
+        if match:
+            return match[0], match[1] / 100.0
+    except ImportError:
+        pass
+        
+    for name in clubelo_names:
+        score = difflib.SequenceMatcher(None, team_name.lower(), name.lower()).ratio()
+        if score > best_score:
+            best_score = score
+            best_name = name
+            
+    return best_name, best_score
+
+
+def review_elo_matches(db: Session, output_path: str = "backend/data/elo_name_review.json"):
+    """Generates an ELO match review file comparing DB club teams with ClubElo database."""
+    # Find all clubs in DB that use clubelo ELO source
+    teams = db.query(Team).filter(Team.team_type == "Club", Team.elo_source == "clubelo").all()
+    if not teams:
+        print("No club teams found in DB. Did you fetch teams first?")
+        return
+        
+    clubelo_ratings = fetch_clubelo_ratings()
+    if not clubelo_ratings:
+        print("Failed to fetch ClubElo ratings.")
+        return
+        
+    clubelo_names = list(clubelo_ratings.keys())
+    review_list = []
+    
+    for team in teams:
+        best_name, confidence = fuzzy_match_team(team.name, clubelo_names)
+        elo_val = clubelo_ratings.get(best_name, 1500)
+        status = "approved" if confidence >= 0.85 else "needs_review"
+        
+        review_list.append({
+            "api_football_name": team.name,
+            "clubelo_name": best_name,
+            "confidence": round(confidence, 2),
+            "elo": elo_val,
+            "status": status
+        })
+        
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(review_list, f, indent=2)
+        
+    print(f"Generated ELO review file: {output_path}")
+    print("Please review the mapping in this file, fix any wrong mappings, and run apply-elo-matches.")
+
+
+def apply_elo_matches(db: Session, file_path: str):
+    """Applies verified ELO mappings from elo_name_review.json to DB."""
+    if not os.path.exists(file_path):
+        print(f"ELO review file {file_path} not found.")
+        return
+        
+    with open(file_path, "r", encoding="utf-8") as f:
+        review_list = json.load(f)
+        
+    now_time = datetime.now(timezone.utc)
+    count = 0
+    for item in review_list:
+        if item.get("status") == "approved":
+            api_name = item.get("api_football_name")
+            clubelo_name = item.get("clubelo_name")
+            elo = item.get("elo")
+            
+            team = db.query(Team).filter(Team.name == api_name, Team.team_type == "Club").first()
+            if team:
+                team.elo = elo
+                team.form_score = round(min(95.0, max(45.0, 50.0 + (elo - 1500) * 0.05)), 1)
+                
+                # Add to EloHistory
+                history = EloHistory(
+                    team_id=team.id,
+                    recorded_at=now_time,
+                    elo_rating=elo
+                )
+                db.add(history)
+                count += 1
+                print(f"Applied ELO {elo} to {api_name} (mapped from {clubelo_name})")
+                
+    db.commit()
+    print(f"Successfully applied ELO ratings to {count} teams.")
+
+
+def fetch_and_seed_teams(
+    db: Session,
+    api_league_id: int,
+    api_season: int,
+    team_type: str = "Club",
+    elo_source: str = "clubelo"
+):
+    """Fetches all teams for a league and picks spotlight players for each team."""
+    print(f"Fetching teams for league {api_league_id}, season {api_season}...")
+    try:
+        res = call_football_api("teams", {"league": api_league_id, "season": api_season})
+    except Exception as e:
+        print(f"Error calling football API for teams: {e}")
+        return
+        
+    if not isinstance(res, dict) or "response" not in res:
+        print(f"Invalid API response: {res}")
+        return
+        
+    teams_data = res["response"]
+    print(f"Seeding {len(teams_data)} teams...")
+    
+    for t_wrapper in teams_data:
+        t_info = t_wrapper.get("team", {})
+        api_team_id = t_info.get("id")
+        name = normalize_team_name(t_info.get("name", ""))
+        country_name = t_info.get("country", "")
+        country_code = t_info.get("code")
+        if not country_code and country_name:
+            country_code = country_name[:3].upper()
+            
+        db_team = None
+        if api_team_id:
+            db_team = db.query(Team).filter(Team.api_id == api_team_id).first()
+        if not db_team:
+            db_team = db.query(Team).filter(Team.name == name, Team.country_code == country_code).first()
+            
+        if db_team:
+            db_team.api_id = api_team_id
+            db_team.team_type = team_type
+            db_team.elo_source = elo_source
+            print(f"Updated existing team: {name} (api_id={api_team_id})")
+        else:
+            db_team = Team(
+                name=name,
+                country_code=country_code,
+                team_type=team_type,
+                elo_source=elo_source,
+                api_id=api_team_id,
+                elo=1500,
+                form_score=50.0,
+                win_streak=0,
+                draw_streak=0,
+                loss_streak=0
+            )
+            db.add(db_team)
+            print(f"Created new team: {name} (api_id={api_team_id})")
+        db.flush()
+        
+        # Fetch squad players to select 3 spotlight players (1 GK, 1 MID, 1 FWD)
+        try:
+            print(f"Fetching squad for {name}...")
+            squad_res = call_football_api("players/squads", {"team": api_team_id})
+            squad_data = squad_res.get("response", [])
+            if squad_data and isinstance(squad_data, list):
+                players_list = squad_data[0].get("players", [])
+                gks = [p for p in players_list if p.get("position") == "Goalkeeper"]
+                mids = [p for p in players_list if p.get("position") == "Midfielder"]
+                fwds = [p for p in players_list if p.get("position") == "Attacker" or p.get("position") == "Forward"]
+                
+                spotlights = []
+                for p_group in (gks, mids, fwds):
+                    if p_group:
+                        p_group_sorted = sorted(p_group, key=lambda x: x.get("age") or 0, reverse=True)
+                        spotlights.append(p_group_sorted[0])
+                        
+                for p in spotlights:
+                    p_name = p.get("name")
+                    p_pos = p.get("position")
+                    if p_pos == "Attacker":
+                        p_pos = "Forward"
+                        
+                    db_player = db.query(Player).filter(Player.name == p_name, Player.position == p_pos).first()
+                    if not db_player:
+                        db_player = Player(
+                            name=p_name,
+                            position=p_pos,
+                            form_score=75.0
+                        )
+                        db.add(db_player)
+                        db.flush()
+                        
+                    contract = db.query(PlayerContract).filter(
+                        PlayerContract.player_id == db_player.id,
+                        PlayerContract.team_id == db_team.id,
+                        PlayerContract.type == team_type
+                    ).first()
+                    if not contract:
+                        contract = PlayerContract(
+                            player_id=db_player.id,
+                            team_id=db_team.id,
+                            type=team_type,
+                            is_active=True
+                        )
+                        db.add(contract)
+        except Exception as squad_err:
+            print(f"Warning: Failed to fetch squad for {name}: {squad_err}")
+            
+    db.commit()
+    print(f"Successfully seeded teams and spotlights for league={api_league_id}.")
+
+
+def seed_competition(
+    db: Session,
+    competition_name: str,
+    competition_type: str,
+    format_engine: str,
+    season: str,
+    api_league_id: int,
+    api_season: int,
+    neutral_venue: bool = False,
+    relegation_spots: int = 0,
+    promotion_spots: int = 0,
+    relegation_playoff_spots: int = 0,
+    odds_api_sport_key: str = None
+):
+    """Seed / Upsert competition fixture data idempotently from API-Football."""
+    comp = db.query(Competition).filter(Competition.name == competition_name).first()
+    if not comp:
+        comp = Competition(
+            name=competition_name,
+            type=competition_type,
+            format_engine=format_engine,
+            odds_api_sport_key=odds_api_sport_key,
+            home_advantage_elo=0 if neutral_venue else 100,
+            neutral_venue=neutral_venue,
+            relegation_spots=relegation_spots,
+            promotion_spots=promotion_spots,
+            relegation_playoff_spots=relegation_playoff_spots
+        )
+        db.add(comp)
+        db.flush()
+        print(f"Created Competition: {competition_name}")
+    else:
+        comp.type = competition_type
+        comp.format_engine = format_engine
+        comp.odds_api_sport_key = odds_api_sport_key
+        comp.neutral_venue = neutral_venue
+        comp.relegation_spots = relegation_spots
+        comp.promotion_spots = promotion_spots
+        comp.relegation_playoff_spots = relegation_playoff_spots
+        db.flush()
+        print(f"Updated Competition metadata: {competition_name}")
+        
+    tourney = db.query(Tournament).filter(
+        Tournament.competition_id == comp.id,
+        Tournament.season_name == season
+    ).first()
+    if not tourney:
+        tourney = Tournament(
+            competition_id=comp.id,
+            season_name=season,
+            status="Active"
+        )
+        db.add(tourney)
+        db.flush()
+        print(f"Created Tournament season: {season}")
+        
+    print(f"Fetching fixtures from API-Football for league={api_league_id}, season={api_season}...")
+    try:
+        res = call_football_api("fixtures", {"league": api_league_id, "season": api_season})
+    except Exception as e:
+        print(f"Error fetching fixtures from API-Football: {e}")
+        return
+        
+    if not isinstance(res, dict) or "response" not in res:
+        print(f"Invalid API response for fixtures: {res}")
+        return
+        
+    fixtures_data = res["response"]
+    print(f"Found {len(fixtures_data)} fixtures in response. Seeding/Upserting...")
+    
+    fixtures_saved = []
+    team_ids_in_fixtures = set()
+    
+    for item in fixtures_data:
+        f_info = item.get("fixture", {})
+        t_info = item.get("teams", {})
+        goals = item.get("goals", {})
+        league_info = item.get("league", {})
+        
+        api_id = str(f_info.get("id"))
+        date_utc_str = f_info.get("date")
+        date_utc = datetime.fromisoformat(date_utc_str.replace('Z', '+00:00'))
+        round_str = league_info.get("round", "")
+        
+        matchday_number = None
+        if round_str and "Regular Season" in round_str:
+            try:
+                matchday_number = int(round_str.split("-")[-1].strip())
+            except ValueError:
+                pass
+                
+        h_api_id = t_info.get("home", {}).get("id")
+        a_api_id = t_info.get("away", {}).get("id")
+        
+        home_team = db.query(Team).filter(Team.api_id == h_api_id).first()
+        away_team = db.query(Team).filter(Team.api_id == a_api_id).first()
+        
+        if home_team:
+            team_ids_in_fixtures.add(home_team.id)
+        if away_team:
+            team_ids_in_fixtures.add(away_team.id)
+            
+        stage = "Regular Season" if format_engine in ("league", "league_playoffs") else round_str
+        status_short = f_info.get("status", {}).get("short", "")
+        status = "Scheduled"
+        if status_short in ("FT", "AET", "PEN"):
+            status = "Finished"
+        elif status_short in ("1H", "2H", "HT", "ET", "P", "LIVE"):
+            status = "Live"
+            
+        home_score = goals.get("home")
+        away_score = goals.get("away")
+        
+        fixture = db.query(Fixture).filter(
+            Fixture.tournament_id == tourney.id,
+            Fixture.api_id == api_id
+        ).first()
+        
+        if not fixture:
+            fixture = Fixture(
+                tournament_id=tourney.id,
+                api_id=api_id,
+                home_team_id=home_team.id if home_team else None,
+                away_team_id=away_team.id if away_team else None,
+                home_team_placeholder=None if home_team else t_info.get("home", {}).get("name"),
+                away_team_placeholder=None if away_team else t_info.get("away", {}).get("name"),
+                date_utc=date_utc,
+                stage=stage,
+                matchday_number=matchday_number,
+                status=status,
+                home_score=home_score,
+                away_score=away_score,
+                winner_id=home_team.id if status == "Finished" and home_team and away_team and home_score > away_score else (away_team.id if status == "Finished" and home_team and away_team and home_score < away_score else None)
+            )
+            db.add(fixture)
+        else:
+            fixture.home_team_id = home_team.id if home_team else fixture.home_team_id
+            fixture.away_team_id = away_team.id if away_team else fixture.away_team_id
+            fixture.date_utc = date_utc
+            fixture.stage = stage
+            fixture.matchday_number = matchday_number
+            fixture.status = status
+            fixture.home_score = home_score
+            fixture.away_score = away_score
+            fixture.winner_id = home_team.id if status == "Finished" and home_team and away_team and home_score > away_score else (away_team.id if status == "Finished" and home_team and away_team and home_score < away_score else None)
+            
+        db.flush()
+        fixtures_saved.append(fixture)
+        
+    for tid in team_ids_in_fixtures:
+        tt = db.query(TournamentTeam).filter(
+            TournamentTeam.tournament_id == tourney.id,
+            TournamentTeam.team_id == tid
+        ).first()
+        if not tt:
+            tt = TournamentTeam(
+                tournament_id=tourney.id,
+                team_id=tid,
+                group_name=None,
+                tournament_status="Active"
+            )
+            db.add(tt)
+            
+    db.flush()
+    
+    for fixture in fixtures_saved:
+        if not fixture.odds_history:
+            h_elo = fixture.home_team.elo if fixture.home_team else 1500
+            a_elo = fixture.away_team.elo if fixture.away_team else 1500
+            
+            h_odds, d_odds, a_odds = calculate_default_odds(h_elo, a_elo, neutral_venue)
+            
+            init_odds = FixtureOdds(
+                fixture_id=fixture.id,
+                recorded_at=fixture.date_utc - timedelta(days=2),
+                odds_home=h_odds,
+                odds_draw=d_odds,
+                odds_away=a_odds
+            )
+            db.add(init_odds)
+            
+        db.flush()
+        update_fixture_score(fixture, db)
+        
+    db.commit()
+    print(f"Successfully seeded competition {competition_name} for season {season}.")
+
+
 if __name__ == "__main__":
+    import argparse
     from backend.database import SessionLocal
+    
+    parser = argparse.ArgumentParser(description="findfootball.games Database Ingestion and Seeding CLI")
+    parser.add_argument("command", nargs="?", default="seed-wc", 
+                        choices=["seed-wc", "fetch-teams", "review-elo-matches", "apply-elo-matches", "seed-competition"],
+                        help="Seeding command to run")
+    parser.add_argument("--league", type=int, help="API-Football league ID")
+    parser.add_argument("--season", type=int, help="API-Football season year")
+    parser.add_argument("--comp-name", type=str, help="Competition name (for seed-competition)")
+    parser.add_argument("--comp-type", type=str, default="League", help="Competition type (League/Cup/International)")
+    parser.add_argument("--format-engine", type=str, default="league", help="Competition format engine")
+    parser.add_argument("--neutral", action="store_true", help="Matches played on neutral venues")
+    parser.add_argument("--file", type=str, default="backend/data/elo_name_review.json", help="Path to ELO review file")
+    
+    args = parser.parse_args()
+    
     db = SessionLocal()
     try:
-        seed_database(db)
+        if args.command == "seed-wc":
+            print("Seeding legacy World Cup 2026...")
+            seed_database(db)
+        elif args.command == "fetch-teams":
+            if not args.league or not args.season:
+                print("Error: --league and --season are required for fetch-teams.")
+            else:
+                fetch_and_seed_teams(db, args.league, args.season)
+        elif args.command == "review-elo-matches":
+            review_elo_matches(db, output_path=args.file)
+        elif args.command == "apply-elo-matches":
+            apply_elo_matches(db, file_path=args.file)
+        elif args.command == "seed-competition":
+            if not args.league or not args.season or not args.comp_name:
+                print("Error: --league, --season, and --comp-name are required for seed-competition.")
+            else:
+                seed_competition(
+                    db=db,
+                    competition_name=args.comp_name,
+                    competition_type=args.comp_type,
+                    format_engine=args.format_engine,
+                    season=str(args.season),
+                    api_league_id=args.league,
+                    api_season=args.season,
+                    neutral_venue=args.neutral
+                )
     finally:
         db.close()

@@ -19,6 +19,7 @@
 - **Gameweek (Matchday) Segmentation**: Paginate matches by Gameweek 1-38 using a calendar slider bar, showing only hot matches (>= 75%) for the active week.
 - **Spotlight Calendar**: Display a curated "Top 5 Blockbusters" carousel looking 30 days ahead (e.g. major derbies).
 - **Favorite Team Filtering**: Allow users to filter the hot list by selecting their favorite clubs.
+- **Full Squad Ingestion**: Fetch and seed all players from API-Football squads instead of the current 3-player spotlight heuristic (to support comprehensive player ratings and scoring updates).
 
 #### Done
 - Odds changes 

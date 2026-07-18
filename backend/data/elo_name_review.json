@@ -1,0 +1,142 @@
+[
+  {
+    "api_football_name": "Manchester United",
+    "clubelo_name": "Man United",
+    "confidence": 0.74,
+    "elo": 1915,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Newcastle",
+    "clubelo_name": "Newcastle",
+    "confidence": 1.0,
+    "elo": 1837,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Bournemouth",
+    "clubelo_name": "Bournemouth",
+    "confidence": 1.0,
+    "elo": 1871,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Fulham",
+    "clubelo_name": "Fulham",
+    "confidence": 1.0,
+    "elo": 1813,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Liverpool",
+    "clubelo_name": "Liverpool",
+    "confidence": 1.0,
+    "elo": 1910,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Arsenal",
+    "clubelo_name": "Arsenal",
+    "confidence": 1.0,
+    "elo": 2063,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Everton",
+    "clubelo_name": "Everton",
+    "confidence": 1.0,
+    "elo": 1803,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Tottenham",
+    "clubelo_name": "Tottenham",
+    "confidence": 1.0,
+    "elo": 1777,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Chelsea",
+    "clubelo_name": "Chelsea",
+    "confidence": 1.0,
+    "elo": 1831,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Manchester City",
+    "clubelo_name": "Man City",
+    "confidence": 0.7,
+    "elo": 1970,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Brighton",
+    "clubelo_name": "Brighton",
+    "confidence": 1.0,
+    "elo": 1842,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Crystal Palace",
+    "clubelo_name": "Crystal Palace",
+    "confidence": 1.0,
+    "elo": 1803,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Brentford",
+    "clubelo_name": "Brentford",
+    "confidence": 1.0,
+    "elo": 1836,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Ipswich",
+    "clubelo_name": "Ipswich",
+    "confidence": 1.0,
+    "elo": 1639,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Leeds",
+    "clubelo_name": "Leeds",
+    "confidence": 1.0,
+    "elo": 1797,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Hull City",
+    "clubelo_name": "Hull",
+    "confidence": 0.62,
+    "elo": 1532,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Nottingham Forest",
+    "clubelo_name": "Forest",
+    "confidence": 0.8,
+    "elo": 1822,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Aston Villa",
+    "clubelo_name": "Aston Villa",
+    "confidence": 1.0,
+    "elo": 1920,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Sunderland",
+    "clubelo_name": "Sunderland",
+    "confidence": 1.0,
+    "elo": 1735,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Coventry",
+    "clubelo_name": "Coventry",
+    "confidence": 1.0,
+    "elo": 1661,
+    "status": "approved"
+  }
+]
