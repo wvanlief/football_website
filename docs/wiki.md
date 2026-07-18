@@ -106,3 +106,13 @@ python -m backend.ingestor seed-competition --league=39 --season=2026 --comp-nam
 ```
 This creates the tournament edition, loads game weeks, and calculates default ELO-weighted odds (incorporating ELO home advantages if `neutral_venue=False`). Running this multiple times updates existing fixture results and statuses without duplicate inserts.
 
+### 3.4 Target Remote Database Execution
+To target a remote database (such as the production Postgres instances on Railway) instead of local SQLite:
+1. Open the local [`.env`](file:///c:/Users/user/PycharmProjects/football_website/.env) file.
+2. Define the remote connection string using `DATABASE_URL` (Alembic and SQLAlchemy automatically override defaults when this env var is present):
+   ```env
+   DATABASE_URL=postgresql://your-username:your-password@your-railway-host:port/railway
+   ```
+3. Run the migrations and seeding commands locally as documented above. The scripts will direct all actions and queries to the remote database.
+
+
