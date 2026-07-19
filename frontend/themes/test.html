@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theme Sandbox & Component Gallery | findfootball.games</title>
+    <!-- Google Fonts: Geist, Outfit, JetBrains Mono, Space Grotesk -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/css/styles.css?v=1.0.4">
+    <style>
+        /* Sandbox specific overlay styling */
+        .sandbox-container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 2rem;
+            align-items: start;
+        }
+        @media (max-width: 1024px) {
+            .sandbox-container {
+                grid-template-columns: 1fr;
+            }
+        }
+        .sandbox-controls {
+            position: sticky;
+            top: 90px;
+            z-index: 10;
+            padding: 1.5rem;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .control-group label {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+        }
+        .control-group select, .control-group input[type="text"] {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.6rem;
+            border-radius: 8px;
+            font-family: inherit;
+            outline: none;
+        }
+        .color-pickers-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        .color-picker-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            padding: 0.5rem;
+            border-radius: 8px;
+        }
+        .color-picker-wrapper input[type="color"] {
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            cursor: pointer;
+            background: transparent;
+        }
+        .color-picker-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .presets-row {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .preset-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.3rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+        .preset-btn:hover, .preset-btn.active {
+            background: var(--text-secondary);
+            border-color: var(--text-secondary);
+            color: white;
+        }
+        .export-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .export-modal.open {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .export-content {
+            background: var(--bg-card-solid);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .export-content textarea {
+            width: 100%;
+            height: 300px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color);
+            color: #10b981;
+            font-family: 'Geist Mono', monospace;
+            padding: 1rem;
+            border-radius: 8px;
+            resize: none;
+            outline: none;
+        }
+    </style>
+</head>
+<body class="theme-flag">
+    <div class="glow-bg" id="sandbox-glow"></div>
+
+    <header class="app-header">
+        <div class="header-container">
+            <div class="logo-area">
+                <i class="fa-solid fa-trophy trophy-logo"></i>
+                <div class="logo-text">
+                    <h1>FIND<span>FOOTBALL</span>.GAMES</h1>
+                    <p>Theme Sandbox & Gallery</p>
+                </div>
+            </div>
+            <nav class="header-nav">
+                <a href="#" class="nav-link active"><i class="fa-solid fa-flask"></i> Sandbox</a>
+                <a href="/" class="nav-link"><i class="fa-solid fa-house"></i> Live Site</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="sandbox-container">
+        <!-- Control Panel -->
+        <aside class="sandbox-controls glass">
+            <h3 style="margin-bottom: 0.5rem; font-weight: 800;"><i class="fa-solid fa-sliders"></i> Theme Configurator</h3>
+            <p class="text-muted" style="font-size: 0.8rem; margin-bottom: 1rem;">Real-time styling overrides. Export your values directly to index.css/styles.css.</p>
+
+            <!-- Theme Presets -->
+            <div class="control-group">
+                <label>Color Theme Preset</label>
+                <div class="presets-row">
+                    <button class="preset-btn active" data-preset="stadium-lights">Stadium Lights</button>
+                    <button class="preset-btn" data-preset="neon-dark">Neon Dark</button>
+                    <button class="preset-btn" data-preset="glass-classic">Classic Indigo</button>
+                </div>
+            </div>
+
+            <!-- Font Choices -->
+            <div class="control-group">
+                <label>Primary Heading Font</label>
+                <select id="select-primary-font">
+                    <option value="'Geist', sans-serif">Geist (Modern/Clean)</option>
+                    <option value="'Outfit', sans-serif">Outfit (Rounded/Premium)</option>
+                    <option value="'Space Grotesk', sans-serif">Space Grotesk (High contrast)</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Monospace Stats Font</label>
+                <select id="select-mono-font">
+                    <option value="'Geist Mono', monospace">Geist Mono (Monospace)</option>
+                    <option value="'JetBrains Mono', monospace">JetBrains Mono (Readable)</option>
+                    <option value="monospace">Standard System Mono</option>
+                </select>
+            </div>
+
+            <!-- Custom Colors -->
+            <div class="control-group">
+                <label>Color Customizer</label>
+                <div class="color-pickers-grid">
+                    <div class="color-picker-wrapper">
+                        <input type="color" id="picker-bg-main" value="#070913">
+                        <span class="color-picker-label">Background</span>
+                    </div>
+                    <div class="color-picker-wrapper">
+                        <input type="color" id="picker-text-secondary" value="#F59E0B">
+                        <span class="color-picker-label">Accent</span>
+                    </div>
+                    <div class="color-picker-wrapper">
+                        <input type="color" id="picker-bg-card" value="#121629">
+                        <span class="color-picker-label">Card BG</span>
+                    </div>
+                    <div class="color-picker-wrapper">
+                        <input type="color" id="picker-glow" value="#F59E0B">
+                        <span class="color-picker-label">Glow Color</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card Layouts style -->
+            <div class="control-group">
+                <label>Card Style & Glow</label>
+                <select id="select-card-style">
+                    <option value="glass">Translucent / Glassmorphic</option>
+                    <option value="solid">Flat / High Contrast Panels</option>
+                </select>
+            </div>
+
+            <!-- Text Alignment style -->
+            <div class="control-group">
+                <label>Detail Text Alignment</label>
+                <select id="select-text-align">
+                    <option value="center">Centered Alignment</option>
+                    <option value="left">Left-Aligned</option>
+                </select>
+            </div>
+
+            <button class="btn btn-primary btn-block" id="btn-export"><i class="fa-solid fa-download"></i> Export CSS Variables</button>
+        </aside>
+
+        <!-- Components Showcase Area -->
+        <main class="sandbox-showcase" style="display: flex; flex-direction: column; gap: 2.5rem;">
+            <!-- Typography Test -->
+            <section class="glass" style="padding: 2rem; border-radius: 16px;">
+                <h2 style="margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;"><i class="fa-solid fa-font"></i> Typography & Headings</h2>
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <h1>H1 Header Title Example</h1>
+                    <h2>H2 Subtitle Section Example</h2>
+                    <h3>H3 Card Title Header Example</h3>
+                    <p>Standard body text font: General paragraph styling containing details, metrics, ELO rating updates, and stats formatted with monospace styling: <span style="font-family: var(--font-mono); font-weight: 600;">ELO 2063 &bull; Rank #1 &bull; 94% Chance</span>.</p>
+                </div>
+            </section>
+
+            <!-- Navigation Pills Test -->
+            <section class="glass" style="padding: 2rem; border-radius: 16px;">
+                <h2 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;"><i class="fa-solid fa-list"></i> Selector Pill Bars</h2>
+                <div class="competition-pills-nav-bar" style="margin-bottom: 0;">
+                    <button class="comp-nav-pill active"><span class="comp-nav-badge">⚽</span> <span class="comp-nav-text">Premier League</span></button>
+                    <button class="comp-nav-pill"><span class="comp-nav-badge">🏆</span> <span class="comp-nav-text">FIFA World Cup</span></button>
+                </div>
+            </section>
+
+            <!-- Match Cards Test -->
+            <section class="glass" style="padding: 2rem; border-radius: 16px;">
+                <h2 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;"><i class="fa-solid fa-ticket"></i> Mock Match Cards (Watchability Scale)</h2>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem;">
+                    <!-- Must Watch -->
+                    <div class="match-card must-watch">
+                        <div class="card-header">
+                            <div style="display: flex; gap: 6px; align-items: center;">
+                                <span class="stage-tag">Finals</span>
+                                <span class="competition-badge">🏆 World Cup</span>
+                            </div>
+                            <span class="score-badge must-watch"><i class="fa-solid fa-trophy"></i> Must Watch</span>
+                        </div>
+                        <div class="card-matchup">
+                            <div class="team-box home">
+                                <span class="team-name">Spain</span>
+                                <span class="elo-val">ELO 1892</span>
+                            </div>
+                            <div class="match-info-center">
+                                <span class="match-time">20:00</span>
+                                <span class="match-vs">vs</span>
+                            </div>
+                            <div class="team-box away">
+                                <span class="team-name">Argentina</span>
+                                <span class="elo-val">ELO 1912</span>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="odds-row">
+                                <span>H: <span class="odds-val">2.30</span></span>
+                                <span>D: <span class="odds-val">3.10</span></span>
+                                <span>A: <span class="odds-val">2.80</span></span>
+                            </div>
+                            <p class="narrative-snippet"><i class="fa-solid fa-circle-info"></i> High stakes: World Cup final showdown.</p>
+                        </div>
+                    </div>
+
+                    <!-- Recommended -->
+                    <div class="match-card recommended">
+                        <div class="card-header">
+                            <div style="display: flex; gap: 6px; align-items: center;">
+                                <span class="stage-tag">Reg Season</span>
+                                <span class="competition-badge">⚽ Premier League</span>
+                            </div>
+                            <span class="score-badge recommended"><i class="fa-solid fa-fire"></i> Recommended</span>
+                        </div>
+                        <div class="card-matchup">
+                            <div class="team-box home">
+                                <span class="team-name">Arsenal</span>
+                                <span class="elo-val">ELO 2063</span>
+                            </div>
+                            <div class="match-info-center">
+                                <span class="match-time">15:00</span>
+                                <span class="match-vs">vs</span>
+                            </div>
+                            <div class="team-box away">
+                                <span class="team-name">Man City</span>
+                                <span class="elo-val">ELO 1970</span>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="odds-row">
+                                <span>H: <span class="odds-val">2.10</span></span>
+                                <span>D: <span class="odds-val">3.40</span></span>
+                                <span>A: <span class="odds-val">3.20</span></span>
+                            </div>
+                            <p class="narrative-snippet"><i class="fa-solid fa-circle-info"></i> Top of the table clash featuring elite squads.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Export Dialog -->
+    <div id="export-modal" class="export-modal">
+        <div class="export-content">
+            <h3 style="font-weight: 800; color: white;"><i class="fa-solid fa-code"></i> Copy CSS Variable Overrides</h3>
+            <p class="text-muted" style="font-size: 0.85rem;">Copy this block and replace the variables at the top of your <code>styles.css</code> file:</p>
+            <textarea id="export-code" readonly></textarea>
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+                <button class="btn btn-secondary" onclick="closeExportModal()">Close</button>
+                <button class="btn btn-primary" onclick="copyToClipboard()"><i class="fa-regular fa-copy"></i> Copy to Clipboard</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const root = document.body;
+
+        // Theme presets configuration
+        const presets = {
+            "stadium-lights": {
+                "--bg-main": "#06070c",
+                "--text-secondary": "#fbbf24", // Warm Amber Gold
+                "--bg-card": "rgba(18, 22, 41, 0.35)",
+                "--bg-card-solid": "#121528",
+                "--border-color": "rgba(251, 191, 36, 0.15)",
+                "--glow-color": "rgba(251, 191, 36, 0.12)"
+            },
+            "neon-dark": {
+                "--bg-main": "#030008",
+                "--text-secondary": "#d946ef", // Neon Magenta
+                "--bg-card": "rgba(15, 0, 24, 0.4)",
+                "--bg-card-solid": "#12001c",
+                "--border-color": "rgba(217, 70, 239, 0.2)",
+                "--glow-color": "rgba(217, 70, 239, 0.15)"
+            },
+            "glass-classic": {
+                "--bg-main": "#070913",
+                "--text-secondary": "#818cf8", // Indigo Blue
+                "--bg-card": "rgba(18, 22, 41, 0.25)",
+                "--bg-card-solid": "#121629",
+                "--border-color": "rgba(255, 255, 255, 0.08)",
+                "--glow-color": "rgba(129, 140, 248, 0.15)"
+            }
+        };
+
+        // Select inputs
+        const selectPrimaryFont = document.getElementById('select-primary-font');
+        const selectMonoFont = document.getElementById('select-mono-font');
+        const selectCardStyle = document.getElementById('select-card-style');
+        const selectTextAlign = document.getElementById('select-text-align');
+
+        // Color Pickers
+        const pickerBgMain = document.getElementById('picker-bg-main');
+        const pickerTextSecondary = document.getElementById('picker-text-secondary');
+        const pickerBgCard = document.getElementById('picker-bg-card');
+        const pickerGlow = document.getElementById('picker-glow');
+
+        // Preset Buttons Click handler
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const presetKey = btn.getAttribute('data-preset');
+                applyPreset(presetKey);
+            });
+        });
+
+        function applyPreset(key) {
+            const config = presets[key];
+            for (const [prop, val] of Object.entries(config)) {
+                root.style.setProperty(prop, val);
+            }
+            // Update color pickers to match preset
+            pickerBgMain.value = config["--bg-main"];
+            pickerTextSecondary.value = rgbToHex(getComputedStyle(root).getPropertyValue('--text-secondary').trim()) || config["--text-secondary"];
+            pickerBgCard.value = rgbToHex(getComputedStyle(root).getPropertyValue('--bg-card-solid').trim()) || config["--bg-card-solid"];
+        }
+
+        // Handle custom picker inputs
+        pickerBgMain.addEventListener('input', (e) => {
+            root.style.setProperty('--bg-main', e.target.value);
+        });
+        pickerTextSecondary.addEventListener('input', (e) => {
+            root.style.setProperty('--text-secondary', e.target.value);
+        });
+        pickerBgCard.addEventListener('input', (e) => {
+            root.style.setProperty('--bg-card-solid', e.target.value);
+            root.style.setProperty('--bg-card', `rgba(${hexToRgb(e.target.value)}, 0.35)`);
+        });
+        pickerGlow.addEventListener('input', (e) => {
+            root.style.setProperty('--glow-color', `rgba(${hexToRgb(e.target.value)}, 0.15)`);
+            document.getElementById('sandbox-glow').style.background = `radial-gradient(circle, rgba(${hexToRgb(e.target.value)}, 0.15) 0%, rgba(0,0,0,0) 70%)`;
+        });
+
+        // Font Switch handlers
+        selectPrimaryFont.addEventListener('change', (e) => {
+            root.style.setProperty('--font-family', e.target.value);
+        });
+        selectMonoFont.addEventListener('change', (e) => {
+            root.style.setProperty('--font-mono', e.target.value);
+        });
+
+        // Card Styles modifier
+        selectCardStyle.addEventListener('change', (e) => {
+            const val = e.target.value;
+            const cards = document.querySelectorAll('.match-card');
+            const glassPanels = document.querySelectorAll('.glass');
+            if (val === 'solid') {
+                cards.forEach(c => c.style.background = 'var(--bg-card-solid)');
+                cards.forEach(c => c.style.boxShadow = 'none');
+                glassPanels.forEach(p => p.style.background = 'var(--bg-card-solid)');
+            } else {
+                cards.forEach(c => c.style.background = '');
+                cards.forEach(c => c.style.boxShadow = '');
+                glassPanels.forEach(p => p.style.background = '');
+            }
+        });
+
+        // Text Alignment modifier
+        selectTextAlign.addEventListener('change', (e) => {
+            const val = e.target.value;
+            const matchups = document.querySelectorAll('.card-matchup');
+            if (val === 'left') {
+                matchups.forEach(m => m.style.justifyContent = 'flex-start');
+                matchups.forEach(m => m.style.gap = '2rem');
+            } else {
+                matchups.forEach(m => m.style.justifyContent = '');
+                matchups.forEach(m => m.style.gap = '');
+            }
+        });
+
+        // Export Actions
+        const modal = document.getElementById('export-modal');
+        const codeText = document.getElementById('export-code');
+
+        document.getElementById('btn-export').addEventListener('click', () => {
+            const styles = getComputedStyle(root);
+            const primaryFont = styles.getPropertyValue('--font-family').trim();
+            const monoFont = styles.getPropertyValue('--font-mono').trim();
+            const bgMain = styles.getPropertyValue('--bg-main').trim();
+            const textSecondary = styles.getPropertyValue('--text-secondary').trim();
+            const bgCard = styles.getPropertyValue('--bg-card').trim();
+            const bgCardSolid = styles.getPropertyValue('--bg-card-solid').trim();
+            const borderCol = styles.getPropertyValue('--border-color').trim();
+            const glowCol = styles.getPropertyValue('--glow-color').trim();
+
+            const cssBlock = `:root {
+    --font-family: ${primaryFont};
+    --font-mono: ${monoFont};
+    --bg-main: ${bgMain};
+    --text-secondary: ${textSecondary};
+    --bg-card: ${bgCard};
+    --bg-card-solid: ${bgCardSolid};
+    --border-color: ${borderCol};
+    --glow-color: ${glowCol};
+}`;
+            codeText.value = cssBlock;
+            modal.classList.add('open');
+        });
+
+        function closeExportModal() {
+            modal.classList.remove('open');
+        }
+
+        function copyToClipboard() {
+            codeText.select();
+            document.execCommand('copy');
+            alert('Theme variables copied to clipboard!');
+            closeExportModal();
+        }
+
+        // Hex converters
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : null;
+        }
+
+        function rgbToHex(rgb) {
+            if (rgb.startsWith('#')) return rgb;
+            const parts = rgb.match(/^rgba?[\s+]?\([\s+]?(\d+)[\s+]?,[\s+]?(\d+)[\s+]?,[\s+]?(\d+)/i);
+            if (parts) {
+                return "#" + 
+                    ("0" + parseInt(parts[1], 10).toString(16)).slice(-2) +
+                    ("0" + parseInt(parts[2], 10).toString(16)).slice(-2) +
+                    ("0" + parseInt(parts[3], 10).toString(16)).slice(-2);
+            }
+            return null;
+        }
+    </script>
+</body>
+</html>
