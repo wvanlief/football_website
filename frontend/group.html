@@ -160,12 +160,20 @@
                     <button id="toggle-leaderboard-btn" class="toggle-btn">
                         <i class="fa-solid fa-list-ol"></i> Watchability
                     </button>
+                    <button id="toggle-matrix-btn" class="toggle-btn" style="display: none;">
+                        <i class="fa-solid fa-table-cells"></i> Matrix View
+                    </button>
                 </div>
             </div>
 
             <!-- Dynamic Matches Schedule -->
             <div id="group-matches-container">
                 <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading schedule...</div>
+            </div>
+
+            <!-- Results Matrix Cross Table (hidden by default) -->
+            <div id="matrix-container" style="display: none; overflow-x: auto; margin-top: 1rem; border-radius: 12px;" class="glass">
+                <!-- Injected dynamically -->
             </div>
         </section>
     </main>

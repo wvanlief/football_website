@@ -36,7 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // View Toggles
     const toggleScheduleBtn = document.getElementById('toggle-schedule-btn');
     const toggleLeaderboardBtn = document.getElementById('toggle-leaderboard-btn');
+    const toggleMatrixBtn = document.getElementById('toggle-matrix-btn');
     const groupMatchesContainer = document.getElementById('group-matches-container');
+    const matrixContainer = document.getElementById('matrix-container');
     const standingsTbody = document.getElementById('standings-tbody');
 
     // Modal
@@ -78,6 +80,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (toggleLeaderboardBtn) {
         toggleLeaderboardBtn.addEventListener('click', () => {
             activeView = 'leaderboard';
+            localStorage.setItem('findfootball-group-view', activeView);
+            updateToggleButtonsUI();
+            renderMatches();
+        });
+    }
+
+    if (toggleMatrixBtn) {
+        toggleMatrixBtn.addEventListener('click', () => {
+            activeView = 'matrix';
             localStorage.setItem('findfootball-group-view', activeView);
             updateToggleButtonsUI();
             renderMatches();
@@ -180,6 +191,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) {
             console.error("Error fetching format engine in group.js", e);
+        }
+
+        if (toggleMatrixBtn) {
+            if (formatEngine === 'league_phase_knockout') {
+                toggleMatrixBtn.style.display = 'inline-flex';
+            } else {
+                toggleMatrixBtn.style.display = 'none';
+                if (activeView === 'matrix') {
+                    activeView = 'schedule';
+                    localStorage.setItem('findfootball-group-view', activeView);
+                }
+            }
         }
 
         // Adjust UI elements for league format
@@ -525,6 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderMatches() {
         groupMatchesContainer.innerHTML = '';
+        if (matrixContainer) matrixContainer.innerHTML = '';
         const fixtures = activeGroupData.fixtures;
         if (!fixtures || fixtures.length === 0) {
             groupMatchesContainer.innerHTML = '<div class="loading-spinner"><p>No matches scheduled in this group.</p></div>';
@@ -533,8 +557,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (activeView === 'schedule') {
             renderScheduleView(fixtures);
-        } else {
+        } else if (activeView === 'leaderboard') {
             renderLeaderboardView(fixtures);
+        } else if (activeView === 'matrix') {
+            renderMatrixView(fixtures);
         }
     }
 
@@ -588,6 +614,157 @@ document.addEventListener('DOMContentLoaded', () => {
             gridContainer.appendChild(card);
         });
         groupMatchesContainer.appendChild(section);
+    }
+
+    function renderMatrixView(fixtures) {
+        if (!matrixContainer) return;
+        matrixContainer.innerHTML = '';
+
+        const teams = activeGroupData.standings.map(s => s.name);
+        if (teams.length === 0) {
+            matrixContainer.innerHTML = '<div style="padding: 2rem; text-align: center;">No standings data available to build the matrix.</div>';
+            return;
+        }
+
+        function getAbbreviation(name) {
+            if (!name) return "TBD";
+            const clean = name.replace(/[^a-zA-Z\s]/g, '').trim();
+            const parts = clean.split(/\s+/);
+            if (parts.length >= 2) {
+                return (parts[0][0] + parts[1][0] + (parts[1][1] || '')).toUpperCase();
+            }
+            return clean.substring(0, 3).toUpperCase();
+        }
+
+        const fixtureMap = {};
+        teams.forEach(home => {
+            fixtureMap[home] = {};
+        });
+
+        fixtures.forEach(f => {
+            if (f.home_team && f.away_team && fixtureMap[f.home_team.name]) {
+                fixtureMap[f.home_team.name][f.away_team.name] = f;
+            }
+        });
+
+        const table = document.createElement('table');
+        table.className = 'matrix-table';
+        table.style.width = '100%';
+        table.style.borderCollapse = 'collapse';
+        table.style.textAlign = 'center';
+        table.style.fontSize = '0.85rem';
+
+        const thead = document.createElement('thead');
+        const headerTr = document.createElement('tr');
+        
+        const cornerTh = document.createElement('th');
+        cornerTh.className = 'matrix-corner';
+        cornerTh.style.position = 'sticky';
+        cornerTh.style.left = '0';
+        cornerTh.style.zIndex = '3';
+        cornerTh.style.background = 'var(--bg-glass-card, rgba(30, 41, 59, 0.8))';
+        cornerTh.style.backdropFilter = 'blur(12px)';
+        cornerTh.style.borderBottom = '1px solid rgba(255, 255, 255, 0.1)';
+        cornerTh.style.borderRight = '1px solid rgba(255, 255, 255, 0.1)';
+        cornerTh.style.padding = '0.75rem';
+        cornerTh.innerHTML = `<span style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase;">Home \\ Away</span>`;
+        headerTr.appendChild(cornerTh);
+
+        teams.forEach(team => {
+            const th = document.createElement('th');
+            th.style.padding = '0.75rem';
+            th.style.borderBottom = '1px solid rgba(255, 255, 255, 0.1)';
+            th.style.fontWeight = '600';
+            th.style.minWidth = '55px';
+            th.style.color = 'var(--text-secondary)';
+            th.title = team;
+            th.innerHTML = `<div style="font-size: 0.75rem; writing-mode: vertical-lr; transform: rotate(180deg); margin: 0 auto; letter-spacing: 1px;">${getAbbreviation(team)}</div>`;
+            headerTr.appendChild(th);
+        });
+        thead.appendChild(headerTr);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        teams.forEach((homeTeam) => {
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid rgba(255, 255, 255, 0.05)';
+            
+            const rowHeader = document.createElement('td');
+            rowHeader.className = 'matrix-row-header';
+            rowHeader.style.position = 'sticky';
+            rowHeader.style.left = '0';
+            rowHeader.style.zIndex = '2';
+            rowHeader.style.background = 'var(--bg-glass-card, rgba(30, 41, 59, 0.8))';
+            rowHeader.style.backdropFilter = 'blur(12px)';
+            rowHeader.style.borderRight = '1px solid rgba(255, 255, 255, 0.1)';
+            rowHeader.style.padding = '0.75rem 1rem';
+            rowHeader.style.textAlign = 'left';
+            rowHeader.style.fontWeight = '500';
+            rowHeader.style.whiteSpace = 'nowrap';
+            rowHeader.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <img src="${getFlagUrl(homeTeam)}" style="width: 18px; height: 12px; object-fit: cover; border-radius: 2px;" alt="">
+                    <span>${homeTeam}</span>
+                </div>
+            `;
+            tr.appendChild(rowHeader);
+
+            teams.forEach((awayTeam) => {
+                const td = document.createElement('td');
+                td.style.padding = '0.75rem';
+                td.style.position = 'relative';
+                
+                if (homeTeam === awayTeam) {
+                    td.style.background = 'rgba(255, 255, 255, 0.03)';
+                    td.innerHTML = `<div style="width: 100%; height: 100%; color: rgba(255,255,255,0.15); font-size: 1.1rem;"><i class="fa-solid fa-ban"></i></div>`;
+                } else {
+                    const match = fixtureMap[homeTeam] ? fixtureMap[homeTeam][awayTeam] : null;
+                    if (match) {
+                        td.className = 'matrix-cell clickable-matrix-cell';
+                        td.style.cursor = 'pointer';
+                        td.style.fontWeight = '600';
+                        td.title = `${homeTeam} vs ${awayTeam}`;
+                        
+                        const watchScore = match.watchability ? match.watchability.overall : match.watchability_score;
+                        let watchClass = getRatingClass(watchScore);
+                        let indicatorColor = 'transparent';
+                        if (watchClass === 'must-watch') indicatorColor = '#F59E0B';
+                        else if (watchClass === 'recommended') indicatorColor = '#10B981';
+                        else if (watchClass === 'average') indicatorColor = '#3B82F6';
+                        
+                        if (indicatorColor !== 'transparent') {
+                            td.style.borderLeft = `3px solid ${indicatorColor}`;
+                        }
+
+                        if (match.status === 'Finished') {
+                            td.innerHTML = `<span style="color: var(--text-primary); font-size: 0.85rem;">${match.score}</span>`;
+                        } else {
+                            let displayDate = 'TBD';
+                            if (match.date) {
+                                try {
+                                    const d = new Date(match.date);
+                                    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                                    displayDate = `${d.getDate()} ${months[d.getMonth()]}`;
+                                } catch (e) {
+                                    displayDate = match.formatted_date_short || 'TBD';
+                                }
+                            }
+                            td.innerHTML = `<span style="color: var(--text-secondary); font-size: 0.75rem;">${displayDate}</span>`;
+                        }
+
+                        td.addEventListener('click', () => {
+                            openMatchDetails(match);
+                        });
+                    } else {
+                        td.innerHTML = `<span style="color: rgba(255,255,255,0.1); font-weight: 300;">—</span>`;
+                    }
+                }
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        matrixContainer.appendChild(table);
     }
 
     function createMatchCard(match, showRank = false, rank = 1) {
@@ -790,12 +967,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateToggleButtonsUI() {
+        if (toggleScheduleBtn) toggleScheduleBtn.classList.remove('active');
+        if (toggleLeaderboardBtn) toggleLeaderboardBtn.classList.remove('active');
+        if (toggleMatrixBtn) toggleMatrixBtn.classList.remove('active');
+
         if (activeView === 'schedule') {
-            toggleScheduleBtn.classList.add('active');
-            toggleLeaderboardBtn.classList.remove('active');
-        } else {
-            toggleLeaderboardBtn.classList.add('active');
-            toggleScheduleBtn.classList.remove('active');
+            if (toggleScheduleBtn) toggleScheduleBtn.classList.add('active');
+            if (groupMatchesContainer) groupMatchesContainer.style.display = 'block';
+            if (matrixContainer) matrixContainer.style.display = 'none';
+        } else if (activeView === 'leaderboard') {
+            if (toggleLeaderboardBtn) toggleLeaderboardBtn.classList.add('active');
+            if (groupMatchesContainer) groupMatchesContainer.style.display = 'block';
+            if (matrixContainer) matrixContainer.style.display = 'none';
+        } else if (activeView === 'matrix') {
+            if (toggleMatrixBtn) toggleMatrixBtn.classList.add('active');
+            if (groupMatchesContainer) groupMatchesContainer.style.display = 'none';
+            if (matrixContainer) matrixContainer.style.display = 'block';
         }
     }
 
