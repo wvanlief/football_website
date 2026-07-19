@@ -1407,7 +1407,7 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000, tournam
     return result
 
 
-def get_calendar_fixtures(db: Session, tz_str: str, tournament_id: int = None) -> list:
+def get_calendar_fixtures(db: Session, tz_str: str, tournament_id: int = None, start_date_str: str = None, end_date_str: str = None) -> list:
     target_tz = get_timezone(tz_str)
     today_dt = datetime.now(target_tz)
     
@@ -1415,10 +1415,24 @@ def get_calendar_fixtures(db: Session, tz_str: str, tournament_id: int = None) -
         active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
         tournament_id = active_tourney.id if active_tourney else None
         
-    # 7 days ago at start of day
-    start_date = (today_dt - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
-    # 30 days from now at end of day
-    end_date = (today_dt + timedelta(days=30)).replace(hour=23, minute=59, second=59, microsecond=999999)
+    # Default to 30 days back, 60 days forward (90 days total window)
+    if start_date_str:
+        try:
+            parsed = datetime.strptime(start_date_str, "%Y-%m-%d")
+            start_date = datetime(parsed.year, parsed.month, parsed.day, 0, 0, 0, tzinfo=target_tz)
+        except ValueError:
+            start_date = (today_dt - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        start_date = (today_dt - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+    if end_date_str:
+        try:
+            parsed = datetime.strptime(end_date_str, "%Y-%m-%d")
+            end_date = datetime(parsed.year, parsed.month, parsed.day, 23, 59, 59, 999999, tzinfo=target_tz)
+        except ValueError:
+            end_date = (today_dt + timedelta(days=60)).replace(hour=23, minute=59, second=59, microsecond=999999)
+    else:
+        end_date = (today_dt + timedelta(days=60)).replace(hour=23, minute=59, second=59, microsecond=999999)
     
     start_utc = start_date.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
     end_utc = end_date.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)

@@ -39,12 +39,14 @@ def get_recommended(
 def get_calendar(
     tournament_id: int = Query(None, description="Filter by tournament ID"),
     tz: str = Query("UTC", description="Target timezone"),
+    start_date: str = Query(None, description="Start date filter YYYY-MM-DD"),
+    end_date: str = Query(None, description="End date filter YYYY-MM-DD"),
     db: Session = Depends(get_db)
 ):
     """
-    Returns minimal fixture info for the calendar page (last 7 days and upcoming 30 days).
+    Returns minimal fixture info for the calendar page (last 30 days and upcoming 60 days by default).
     """
-    return get_calendar_fixtures(db, tz, tournament_id=tournament_id)
+    return get_calendar_fixtures(db, tz, tournament_id=tournament_id, start_date_str=start_date, end_date_str=end_date)
 
 
 @router.get("/{fixture_id}", response_model=FixtureOut)

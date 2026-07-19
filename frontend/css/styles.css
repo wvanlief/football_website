@@ -3618,8 +3618,9 @@ body.theme-flag .country-hero-flag-bg {
     display: flex;
     gap: 0.5rem;
     overflow-x: auto;
-    padding: 0.5rem 0 0.75rem 0;
-    margin-top: 0.75rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: 12px;
     scrollbar-width: none; /* Firefox */
 }
 .comp-filter-pill-box::-webkit-scrollbar {

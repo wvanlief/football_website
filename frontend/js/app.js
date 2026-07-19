@@ -160,10 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             activeFixtures = data;
 
-            renderColumn(lists.today, data.today, false);
-            renderColumn(lists.tomorrow, data.tomorrow, false);
-            renderColumn(lists.this_week, data.this_week, true);
-            renderResultsBar(data.finished);
+            renderAllColumns();
         } catch (err) {
             console.error("Failed to load fixtures", err);
             Object.keys(lists).forEach(col => {
@@ -212,6 +209,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
+
+    function renderAllColumns() {
+        if (!activeFixtures) return;
+        
+        const filterFn = (match) => {
+            if (activeCompFilter === 'all' || activeCompFilter === 'upcoming') {
+                return true;
+            }
+            return match.competition_name === activeCompFilter;
+        };
+
+        const filteredToday = activeFixtures.today.filter(filterFn);
+        const filteredTomorrow = activeFixtures.tomorrow.filter(filterFn);
+        const filteredWeek = activeFixtures.this_week.filter(filterFn);
+        const filteredFinished = activeFixtures.finished.filter(filterFn);
+
+        renderColumn(lists.today, filteredToday, false);
+        renderColumn(lists.tomorrow, filteredTomorrow, false);
+        renderColumn(lists.this_week, filteredWeek, true);
+        renderResultsBar(filteredFinished);
+    }
 
     // Render a list of fixtures in a column
     function renderColumn(container, fixtures, showDate = false) {
@@ -536,6 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.classList.add('active');
                 activeCompFilter = value;
                 applyExplorerFilters();
+                renderAllColumns();
             });
             return btn;
         };

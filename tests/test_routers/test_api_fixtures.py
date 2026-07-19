@@ -175,7 +175,9 @@ def test_get_calendar_fixtures(client, db_session):
     db_session.add_all([f1, f2, f3])
     db_session.commit()
 
-    response = client.get("/api/fixtures/calendar")
+    start_str = (today_utc - timedelta(days=7)).strftime("%Y-%m-%d")
+    end_str = (today_utc + timedelta(days=30)).strftime("%Y-%m-%d")
+    response = client.get(f"/api/fixtures/calendar?start_date={start_str}&end_date={end_str}")
     assert response.status_code == 200
     data = response.json()
     
