@@ -3573,3 +3573,39 @@ body.theme-flag .country-hero-flag-bg {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
 }
+
+/* ==========================================
+   COMPETITION SELECTOR STYLING
+   ========================================== */
+.competition-select-wrapper {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-control);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 0.8rem;
+    border-radius: 8px;
+    transition: var(--transition-smooth);
+}
+
+.competition-select-wrapper:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-control-hover);
+}
+
+.competition-select-wrapper select {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-family: var(--font-family);
+    font-size: 0.85rem;
+    font-weight: 600;
+    outline: none;
+    cursor: pointer;
+}
+
+.competition-select-wrapper select option {
+    background: #0f111a;
+    color: #f3f4f6;
+}
+

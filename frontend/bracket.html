@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,12 +9,14 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/css/styles.css?v=1.0.4">
 </head>
+
 <body class="theme-flag">
     <div class="glow-bg"></div>
 
@@ -26,7 +29,7 @@
                     <p>World Cup Watchability Index</p>
                 </div>
             </a>
-            
+
             <nav class="header-nav">
                 <a href="/" class="nav-link"><i class="fa-solid fa-house"></i> Home</a>
                 <a href="/group/A" class="nav-link"><i class="fa-solid fa-table-list"></i> Groups</a>
@@ -34,9 +37,10 @@
                 <a href="/bracket" class="nav-link active"><i class="fa-solid fa-sitemap"></i> Bracket</a>
                 <a href="/calendar" class="nav-link"><i class="fa-regular fa-calendar-days"></i> Calendar</a>
             </nav>
-            
+
             <div class="controls-area">
-                <div class="timezone-select-wrapper" style="display: none;"> <!-- Timezone is less relevant for predicted dates, but we keep the structure hidden or active -->
+                <div class="timezone-select-wrapper" style="display: none;">
+                    <!-- Timezone is less relevant for predicted dates, but we keep the structure hidden or active -->
                     <i class="fa-solid fa-globe timezone-icon"></i>
                     <select id="timezone-select" class="timezone-select">
                         <option value="local">Auto-Detect</option>
@@ -57,7 +61,8 @@
         <!-- Hero Header -->
         <section class="group-hero-section">
             <h2>TOURNAMENT BRACKET PREDICTOR</h2>
-            <p>Calculated dynamically based on ELO win projections. Adjust engine weights or mark group stage matches finished to watch the bracket adapt.</p>
+            <p>Calculated dynamically based on ELO win projections. Adjust engine weights or mark group stage matches
+                finished to watch the bracket adapt.</p>
         </section>
 
         <!-- Tab Navigation Toggle -->
@@ -118,7 +123,7 @@
                     <i class="fa-solid fa-magnifying-glass search-icon"></i>
                     <input type="text" id="team-search" placeholder="Search teams...">
                 </div>
-                
+
                 <div class="sort-select-wrapper">
                     <i class="fa-solid fa-sort sort-icon"></i>
                     <select id="leaderboard-sort" class="leaderboard-sort-select">
@@ -127,12 +132,12 @@
                         <option value="group_exit_pct">Sort by: Group Exit %</option>
                     </select>
                 </div>
-                
+
                 <div class="simulation-info-badge">
                     <i class="fa-solid fa-calculator"></i> <span id="simulation-meta">5,000 runs</span>
                 </div>
             </div>
-            
+
             <div class="leaderboard-container glass">
                 <div class="table-wrapper">
                     <table class="leaderboard-table">
@@ -157,7 +162,7 @@
                     </table>
                 </div>
             </div>
-            
+
             <div class="simulation-timestamp-footer">
                 <i class="fa-solid fa-clock"></i> Simulation last updated: <span id="simulation-timestamp">-</span>
             </div>
@@ -196,4 +201,5 @@
     <!-- Custom JS -->
     <script src="/js/bracket.js?v=1.0.3"></script>
 </body>
+
 </html>

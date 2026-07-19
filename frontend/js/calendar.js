@@ -137,7 +137,8 @@ document.addEventListener('DOMContentLoaded', () => {
         calendarContainer.innerHTML = '<div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading scheduled matches...</div>';
         
         try {
-            const res = await fetch(`/api/fixtures/calendar?tz=${encodeURIComponent(resolvedTimezone)}`);
+            const tournamentId = localStorage.getItem('findfootball-tournament-id') || '';
+            const res = await fetch(`/api/fixtures/calendar?tz=${encodeURIComponent(resolvedTimezone)}${tournamentId ? `&tournament_id=${tournamentId}` : ''}`);
             if (!res.ok) throw new Error("Failed to fetch calendar fixtures");
             cachedMatches = await res.json();
             
@@ -169,11 +170,16 @@ document.addEventListener('DOMContentLoaded', () => {
             currentMonth = now.getMonth();
         }
         
-        // World Cup 2026 starts in June 2026. If the local system time is outside June/July 2026,
-        // force default to June 2026 so the user sees matches immediately.
-        if (currentYear !== 2026) {
-            currentYear = 2026;
-            currentMonth = 5; // June
+        // Dynamic alignment: default calendar to the first match's month/year if no matches in current month
+        let hasMatchInCurrentView = cachedMatches.some(m => {
+            const d = new Date(m.date);
+            return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+        });
+        
+        if (!hasMatchInCurrentView && cachedMatches.length > 0) {
+            const firstMatchDate = new Date(cachedMatches[0].date);
+            currentYear = firstMatchDate.getFullYear();
+            currentMonth = firstMatchDate.getMonth();
         }
     }
 
@@ -487,7 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             modalContainer.querySelectorAll('.team-nav-link').forEach(el => {
                 el.addEventListener('click', () => {
-                    window.location.href = `/country/${encodeURIComponent(el.getAttribute('data-name'))}`;
+                    window.location.href = `/team/${encodeURIComponent(el.getAttribute('data-name'))}`;
                 });
             });
 

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,12 +9,14 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/css/styles.css?v=1.0.4">
 </head>
+
 <body class="theme-flag">
     <div class="glow-bg"></div>
 
@@ -26,7 +29,7 @@
                     <p>World Cup Watchability Index</p>
                 </div>
             </a>
-            
+
             <nav class="header-nav">
                 <a href="/" class="nav-link"><i class="fa-solid fa-house"></i> Home</a>
                 <a href="/group/A" class="nav-link active"><i class="fa-solid fa-table-list"></i> Groups</a>
@@ -34,7 +37,7 @@
                 <a href="/bracket" class="nav-link"><i class="fa-solid fa-sitemap"></i> Bracket</a>
                 <a href="/calendar" class="nav-link"><i class="fa-regular fa-calendar-days"></i> Calendar</a>
             </nav>
-            
+
             <div class="controls-area">
                 <div class="timezone-select-wrapper">
                     <i class="fa-solid fa-globe timezone-icon"></i>
@@ -75,7 +78,8 @@
                 <button class="group-tab-btn" data-group="J">Group J</button>
                 <button class="group-tab-btn" data-group="K">Group K</button>
                 <button class="group-tab-btn" data-group="L">Group L</button>
-                <button class="group-tab-btn thirds-tab" data-group="thirds"><i class="fa-solid fa-award"></i> Best 3rd</button>
+                <button class="group-tab-btn thirds-tab" data-group="thirds"><i class="fa-solid fa-award"></i> Best
+                    3rd</button>
             </div>
         </div>
 
@@ -102,7 +106,8 @@
                     </tbody>
                 </table>
             </div>
-            <p class="standings-footnote"><i class="fa-solid fa-info-circle"></i> Top two teams qualify for the Round of 32 knockout stage. Plus 8 best 3rd teams.</p>
+            <p class="standings-footnote"><i class="fa-solid fa-info-circle"></i> Top two teams qualify for the Round of
+                32 knockout stage. Plus 8 best 3rd teams.</p>
         </section>
 
         <!-- Dynamic Best 3rd Place Card (Hidden by default) -->
@@ -129,11 +134,13 @@
                     </tbody>
                 </table>
             </div>
-            <p class="standings-footnote"><i class="fa-solid fa-info-circle"></i> Top 8 third-placed teams qualify for the Round of 32 knockout stage.</p>
+            <p class="standings-footnote"><i class="fa-solid fa-info-circle"></i> Top 8 third-placed teams qualify for
+                the Round of 32 knockout stage.</p>
         </section>
 
         <!-- Projected Knockout Matchups Section -->
-        <section class="projected-knockout-section glass" id="projected-knockout-card" style="display: none; margin-bottom: 3rem;">
+        <section class="projected-knockout-section glass" id="projected-knockout-card"
+            style="display: none; margin-bottom: 3rem;">
             <h3><i class="fa-solid fa-sitemap"></i> Projected Round of 32 Matches</h3>
             <div class="projected-matches-grid" id="projected-matches-container">
                 <!-- Injected dynamically -->
@@ -183,4 +190,5 @@
     <!-- Custom JS -->
     <script src="/js/group.js?v=1.0.3"></script>
 </body>
+
 </html>

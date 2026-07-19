@@ -2,6 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+import backend.crud.team as crud_team
 from backend.database import get_db, Team, TournamentTeam
 from backend.schemas.tournament import CountryDetailsResponse, CountrySimpleOut
 from backend.services.tournament import get_country_details

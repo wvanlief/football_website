@@ -28,11 +28,16 @@ def get_recommended_page():
 
 @router.get("/country/{country_name}")
 def get_country_page(country_name: str):
-    return FileResponse("frontend/country.html", headers=NO_CACHE_HEADERS)
+    return FileResponse("frontend/team.html", headers=NO_CACHE_HEADERS)
+
+@router.get("/team/{team_name}")
+def get_team_page(team_name: str):
+    return FileResponse("frontend/team.html", headers=NO_CACHE_HEADERS)
 
 @router.get("/group/{group_letter}")
 def get_group_page(group_letter: str):
     return FileResponse("frontend/group.html", headers=NO_CACHE_HEADERS)
+
 
 @router.get("/bracket")
 def get_bracket_page():

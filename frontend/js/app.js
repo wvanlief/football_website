@@ -31,12 +31,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const timezoneSelect = document.getElementById('timezone-select');
     const resultsBarContainer = document.getElementById('results-bar-container');
     const resultsListHorizontal = document.getElementById('results-list-horizontal');
-    
+
     // Country Explorer elements
     const countrySearchInput = document.getElementById('country-search');
     const searchClearBtn = document.getElementById('search-clear');
     const flagCarouselContainer = document.getElementById('flag-carousel-container');
-    
+
 
 
     // Columns
@@ -158,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`/api/fixtures?tz=${encodeURIComponent(resolvedTimezone)}`);
             const data = await res.json();
             activeFixtures = data;
-            
+
             renderColumn(lists.today, data.today, false);
             renderColumn(lists.tomorrow, data.tomorrow, false);
             renderColumn(lists.this_week, data.this_week, true);
@@ -173,15 +173,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderResultsBar(fixtures) {
         if (!resultsBarContainer || !resultsListHorizontal) return;
-        
+
         if (!fixtures || fixtures.length === 0) {
             resultsBarContainer.style.display = 'none';
             return;
         }
-        
+
         resultsBarContainer.style.display = 'flex';
         resultsListHorizontal.innerHTML = '';
-        
+
         fixtures.forEach(match => {
             const card = document.createElement('div');
             card.className = 'result-ticker-card';
@@ -198,13 +198,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <img src="${getFlagUrl(match.away_team.name)}" class="ticker-flag" alt="${match.away_team.name}" title="${match.away_team.name}">
                 </div>
             `;
-            
+
             const scoreWrapper = card.querySelector('.score-wrapper');
             scoreWrapper.addEventListener('click', (e) => {
                 e.stopPropagation();
                 scoreWrapper.classList.toggle('blurred');
             });
-            
+
             card.addEventListener('click', () => openMatchDetails(match));
             resultsListHorizontal.appendChild(card);
         });
@@ -224,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const ratingClass = getRatingClass(match.watchability.overall);
             const ratingText = getRatingText(match.watchability.overall);
             const ratingIcon = getRatingIcon(match.watchability.overall);
-            
+
             const card = document.createElement('div');
             card.className = `match-card ${ratingClass}`;
             card.innerHTML = `
@@ -247,13 +247,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     
                     <div class="match-info-center">
-                        ${match.status === 'Finished' 
-                            ? `<span class="match-score">${match.score}</span>` 
-                            : (match.status === 'Live'
-                                ? `<span class="match-score live">${match.score}</span><span class="live-indicator"><span class="live-dot"></span>Live</span>`
-                                : `<span class="match-time">${match.formatted_time}</span>`
-                              )
-                        }
+                        ${match.status === 'Finished'
+                    ? `<span class="match-score">${match.score}</span>`
+                    : (match.status === 'Live'
+                        ? `<span class="match-score live">${match.score}</span><span class="live-indicator"><span class="live-dot"></span>Live</span>`
+                        : `<span class="match-time">${match.formatted_time}</span>`
+                    )
+                }
                         <span class="match-vs">vs</span>
                     </div>
                     
@@ -271,13 +271,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span>D: <span class="odds-val">${match.odds.draw.toFixed(2)}</span></span>
                         <span>A: <span class="odds-val">${match.odds.away.toFixed(2)}</span></span>
                     </div>
-                    ${match.reasons.length > 0 
-                        ? `<p class="narrative-snippet"><i class="fa-solid fa-circle-info"></i> ${match.reasons[0]}</p>`
-                        : ''
-                    }
+                    ${match.reasons.length > 0
+                    ? `<p class="narrative-snippet"><i class="fa-solid fa-circle-info"></i> ${match.reasons[0]}</p>`
+                    : ''
+                }
                 </div>
             `;
-            
+
             // Navigate to group page if stage tag clicked
             const stageTag = card.querySelector('.stage-tag');
             if (match.group_name) {
@@ -307,12 +307,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const ratingClass = getRatingClass(match.watchability.overall);
         const ratingText = getRatingText(match.watchability.overall);
         const ratingIcon = getRatingIcon(match.watchability.overall);
-        
+
         // Spotlight Players Render
         const homePlayers = match.home_team.players || [];
         const awayPlayers = match.away_team.players || [];
         const allPlayers = [...homePlayers, ...awayPlayers];
-        
+
         let playersHtml = '';
         if (allPlayers.length > 0) {
             playersHtml = `
@@ -435,11 +435,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Country Explorer Functions
     async function initCountryExplorer() {
         if (!flagCarouselContainer) return;
-        
+
         try {
             const res = await fetch('/api/country');
             if (!res.ok) throw new Error("Failed to fetch countries list");
-            
+
             const countries = await res.json();
             renderCountryCarousel(countries);
             setupSearchFiltering();
@@ -468,15 +468,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setupSearchFiltering() {
         if (!countrySearchInput) return;
-        
+
         countrySearchInput.addEventListener('input', () => {
             const query = countrySearchInput.value.trim().toLowerCase();
             const pills = flagCarouselContainer.querySelectorAll('.flag-pill');
-            
+
             if (searchClearBtn) {
                 searchClearBtn.style.display = query ? 'flex' : 'none';
             }
-            
+
             pills.forEach(pill => {
                 const name = pill.getAttribute('data-name');
                 if (name.includes(query)) {

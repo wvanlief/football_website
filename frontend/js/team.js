@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
         "Panama": "pa", "Ghana": "gh", "New Zealand": "nz", "Jordan": "jo",
         "Czechia": "cz", "Bosnia and Herzegovina": "ba", "Côte d'Ivoire": "ci",
         "Tunisia": "tn", "Poland": "pl", "Belgium": "be", "Egypt": "eg",
-        "Saudi Arabia": "sa", "Iraq": "iq", "Jamaica": "jm", "Sweden": "se",
+        "Saudi Arabia": "sa", "Iraq": iq = "iq", "Jamaica": "jm", "Sweden": "se",
         "Democratic Republic of the Congo": "cd"
     };
 
@@ -25,20 +25,20 @@ document.addEventListener('DOMContentLoaded', () => {
         return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgd2lkdGg9JzI0JyBoZWlnaHQ9JzI0Jz48Y2lyY2xlIGN4PScxMicgY3k9JzEyJyByPScxMCcgZmlsbD0nIzY2NicvPjwvc3ZnPg==';
     }
 
-    // Parse Country name from URL path
+    // Parse Team name from URL path
     const pathParts = window.location.pathname.split('/');
-    const countryName = decodeURIComponent(pathParts[pathParts.length - 1]);
-    document.title = `${countryName} Profile | findfootball.games`;
+    const teamName = decodeURIComponent(pathParts[pathParts.length - 1]);
+    document.title = `${teamName} Profile | findfootball.games`;
 
     // DOM Elements
     const toast = document.getElementById('toast');
     const timezoneSelect = document.getElementById('timezone-select');
     
-    const countryHero = document.getElementById('country-hero');
-    const countryDashboard = document.getElementById('country-dashboard');
-    const formIndicators = document.getElementById('country-form-indicators');
+    const teamHero = document.getElementById('team-hero');
+    const teamDashboard = document.getElementById('team-dashboard');
+    const formIndicators = document.getElementById('team-form-indicators');
     const spotlightPlayersList = document.getElementById('spotlight-players-list');
-    const countryMatchesContainer = document.getElementById('country-matches-container');
+    const teamMatchesContainer = document.getElementById('team-matches-container');
 
     // Modal
     const matchModal = document.getElementById('match-modal');
@@ -54,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
     if (timezoneSelect) {
         timezoneSelect.value = selectedTimezone;
-        // Timezone Switcher Event Listener
         timezoneSelect.addEventListener('change', () => {
             selectedTimezone = timezoneSelect.value;
             localStorage.setItem('findfootball-timezone', selectedTimezone);
@@ -88,11 +87,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             resolvedTimezone = selectedTimezone;
         }
-        await fetchCountryDetails();
+        await fetchTeamDetails();
     }
-
-
-
 
     if (modalClose) {
         modalClose.addEventListener('click', () => {
@@ -108,14 +104,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-
-    // Fetch Country Profile data
-    async function fetchCountryDetails() {
+    // Fetch Team Profile data
+    async function fetchTeamDetails() {
         try {
-            const res = await fetch(`/api/country/${encodeURIComponent(countryName)}?tz=${encodeURIComponent(resolvedTimezone)}`);
+            const tournamentId = localStorage.getItem('findfootball-tournament-id') || '';
+            const url = `/api/country/${encodeURIComponent(teamName)}?tz=${encodeURIComponent(resolvedTimezone)}${tournamentId ? `&tournament_id=${tournamentId}` : ''}`;
+            const res = await fetch(url);
+            
             if (!res.ok) {
-                countryHero.innerHTML = '<div class="loading-spinner text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Country profile not found.</div>';
-                countryMatchesContainer.innerHTML = '';
+                teamHero.innerHTML = '<div class="loading-spinner text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Team profile not found.</div>';
+                teamMatchesContainer.innerHTML = '';
                 return;
             }
             const data = await res.json();
@@ -124,13 +122,22 @@ document.addEventListener('DOMContentLoaded', () => {
             renderDashboard(data);
             renderSchedule(data.future_matches);
         } catch (err) {
-            console.error("Failed to load country details", err);
-            countryHero.innerHTML = '<div class="loading-spinner text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Error loading country profile.</div>';
+            console.error("Failed to load team details", err);
+            teamHero.innerHTML = '<div class="loading-spinner text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Error loading team profile.</div>';
         }
     }
 
     function renderHero(data) {
-        countryHero.innerHTML = `
+        let badgeHtml = '';
+        if (data.group_name) {
+            badgeHtml = `<i class="fa-solid fa-ranking-star"></i> Group ${data.group_name} &bull; Rank #${data.group_rank}`;
+        } else if (data.group_rank) {
+            badgeHtml = `<i class="fa-solid fa-ranking-star"></i> Standings Rank #${data.group_rank}`;
+        } else {
+            badgeHtml = `<i class="fa-solid fa-shield-halved"></i> Active Participant`;
+        }
+
+        teamHero.innerHTML = `
             <div class="country-hero-flag-bg" style="background-image: url('${getFlagUrl(data.name, 'w320')}');"></div>
             <div class="country-hero-content">
                 <div class="country-hero-header">
@@ -138,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div>
                         <h2>${data.name.toUpperCase()}</h2>
                         <span class="group-rank-badge">
-                            <i class="fa-solid fa-ranking-star"></i> Group ${data.group_name} &bull; Rank #${data.group_rank}
+                            ${badgeHtml}
                         </span>
                     </div>
                 </div>
@@ -153,16 +160,20 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderDashboard(data) {
         // Form
         formIndicators.innerHTML = '';
-        data.form.forEach(res => {
-            const dot = document.createElement('div');
-            dot.className = `form-dot-indicator ${res.toLowerCase()}`;
-            dot.innerText = res;
-            formIndicators.appendChild(dot);
-        });
+        if (data.form && data.form.length > 0) {
+            data.form.forEach(res => {
+                const dot = document.createElement('div');
+                dot.className = `form-dot-indicator ${res.toLowerCase()}`;
+                dot.innerText = res;
+                formIndicators.appendChild(dot);
+            });
+        } else {
+            formIndicators.innerHTML = '<p class="text-muted">No recent match results.</p>';
+        }
 
         // Spotlight players
         spotlightPlayersList.innerHTML = '';
-        if (data.players.length === 0) {
+        if (!data.players || data.players.length === 0) {
             spotlightPlayersList.innerHTML = '<p class="text-muted">No form player details found.</p>';
         } else {
             data.players.forEach(p => {
@@ -181,13 +192,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 spotlightPlayersList.appendChild(playerCard);
             });
         }
-        countryDashboard.style.display = 'grid';
+        teamDashboard.style.display = 'grid';
     }
 
     function renderSchedule(matches) {
-        countryMatchesContainer.innerHTML = '';
+        teamMatchesContainer.innerHTML = '';
         if (matches.length === 0) {
-            countryMatchesContainer.innerHTML = '<div class="loading-spinner"><p>No upcoming matches scheduled.</p></div>';
+            teamMatchesContainer.innerHTML = '<div class="loading-spinner"><p>No upcoming matches scheduled.</p></div>';
             return;
         }
 
@@ -203,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="card-flag-bg away-flag-bg" style="background-image: url('${getFlagUrl(match.away_team.name, 'w320')}');"></div>
                 <div class="tile-date-title"><i class="fa-regular fa-calendar"></i> ${match.formatted_date} &bull; ${match.formatted_time}</div>
                 <div class="card-header">
-                    <span class="stage-tag clickable" data-group="${match.group_name || ''}">${match.stage}</span>
+                    <span class="stage-tag">${match.stage}</span>
                     <span class="score-badge ${ratingClass}">
                         <i class="${ratingIcon}"></i> ${ratingText}
                     </span>
@@ -249,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
             
-            // Navigate to group page if stage tag clicked
+            // Navigate to group/standings page if stage tag clicked
             const stageTag = card.querySelector('.stage-tag');
             if (match.group_name) {
                 stageTag.classList.add('clickable');
@@ -259,17 +270,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // Click teams to navigate country pages
+            // Click teams to navigate team pages
             card.querySelectorAll('.clickable-team').forEach(teamBox => {
                 teamBox.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const teamName = teamBox.getAttribute('data-name');
-                    window.location.href = `/country/${encodeURIComponent(teamName)}`;
+                    const name = teamBox.getAttribute('data-name');
+                    window.location.href = `/team/${encodeURIComponent(name)}`;
                 });
             });
 
             card.addEventListener('click', () => openMatchDetails(match));
-            countryMatchesContainer.appendChild(card);
+            teamMatchesContainer.appendChild(card);
         });
     }
 
@@ -386,7 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         modalContainer.querySelectorAll('.team-nav-link').forEach(el => {
             el.addEventListener('click', () => {
-                window.location.href = `/country/${encodeURIComponent(el.getAttribute('data-name'))}`;
+                window.location.href = `/team/${encodeURIComponent(el.getAttribute('data-name'))}`;
             });
         });
 

@@ -90,7 +90,8 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchBracketDetails() {
         showLoadingSpinners();
         try {
-            const res = await fetch('/api/bracket');
+            const tournamentId = localStorage.getItem('findfootball-tournament-id') || '';
+            const res = await fetch(`/api/bracket${tournamentId ? `?tournament_id=${tournamentId}` : ''}`);
             const data = await res.json();
             
             const bracket = data.bracket;
@@ -153,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Link click on champion banner
         championBannerContainer.querySelector('.champion-projected-banner').addEventListener('click', () => {
-            window.location.href = `/country/${encodeURIComponent(champName)}`;
+            window.location.href = `/team/${encodeURIComponent(champName)}`;
         });
     }
 
@@ -272,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
         card.querySelectorAll('.clickable-team-bracket').forEach(row => {
             row.addEventListener('click', () => {
                 const teamName = row.getAttribute('data-name');
-                window.location.href = `/country/${encodeURIComponent(teamName)}`;
+                window.location.href = `/team/${encodeURIComponent(teamName)}`;
             });
         });
         
@@ -361,7 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Row click event navigation
             tr.addEventListener('click', () => {
-                window.location.href = `/country/${encodeURIComponent(team.team)}`;
+                window.location.href = `/team/${encodeURIComponent(team.team)}`;
             });
 
             leaderboardBody.appendChild(tr);

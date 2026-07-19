@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const toast = document.getElementById('toast');
     const timezoneSelect = document.getElementById('timezone-select');
-    
+
     // View Toggles
     const toggleScheduleBtn = document.getElementById('toggle-schedule-btn');
     const toggleLeaderboardBtn = document.getElementById('toggle-leaderboard-btn');
@@ -164,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderScheduleView() {
         // Sort chronologically by date
         const sorted = [...activeFixtures].sort((a, b) => new Date(a.date) - new Date(b.date));
-        
+
         // Group by local date string
         const grouped = {};
         sorted.forEach(match => {
@@ -178,23 +178,23 @@ document.addEventListener('DOMContentLoaded', () => {
         // Render each date section
         Object.keys(grouped).forEach(dateStr => {
             const matches = grouped[dateStr];
-            
+
             const section = document.createElement('section');
             section.className = 'recommended-date-section';
-            
+
             section.innerHTML = `
                 <div class="recommended-date-header">
                     <h3><i class="fa-regular fa-calendar-days"></i> ${dateStr}</h3>
                 </div>
                 <div class="recommended-grid"></div>
             `;
-            
+
             const gridContainer = section.querySelector('.recommended-grid');
             matches.forEach(match => {
                 const card = createMatchCard(match, false);
                 gridContainer.appendChild(card);
             });
-            
+
             recommendedContainer.appendChild(section);
         });
     }
@@ -207,13 +207,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const section = document.createElement('section');
         section.className = 'recommended-leaderboard-section';
         section.innerHTML = `<div class="recommended-grid"></div>`;
-        
+
         const gridContainer = section.querySelector('.recommended-grid');
         sorted.forEach((match, index) => {
             const card = createMatchCard(match, true, index + 1);
             gridContainer.appendChild(card);
         });
-        
+
         recommendedContainer.appendChild(section);
     }
 
@@ -222,10 +222,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const ratingClass = getRatingClass(match.watchability.overall);
         const ratingText = getRatingText(match.watchability.overall);
         const ratingIcon = getRatingIcon(match.watchability.overall);
-        
+
         const card = document.createElement('div');
         card.className = `match-card ${ratingClass}`;
-        
+
         card.innerHTML = `
             <div class="card-flag-bg home-flag-bg" style="background-image: url('${getFlagUrl(match.home_team.name, 'w320')}');"></div>
             <div class="card-flag-bg away-flag-bg" style="background-image: url('${getFlagUrl(match.away_team.name, 'w320')}');"></div>
@@ -252,13 +252,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 
                 <div class="match-info-center">
-                    ${match.status === 'Finished' 
-                        ? `<span class="match-score">${match.score}</span>` 
-                        : (match.status === 'Live'
-                            ? `<span class="match-score live">${match.score}</span><span class="live-indicator"><span class="live-dot"></span>Live</span>`
-                            : `<span class="match-time">${match.formatted_time}</span>`
-                          )
-                    }
+                    ${match.status === 'Finished'
+                ? `<span class="match-score">${match.score}</span>`
+                : (match.status === 'Live'
+                    ? `<span class="match-score live">${match.score}</span><span class="live-indicator"><span class="live-dot"></span>Live</span>`
+                    : `<span class="match-time">${match.formatted_time}</span>`
+                )
+            }
                     <span class="match-vs">vs</span>
                 </div>
                 
@@ -278,14 +278,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span>A: <span class="odds-val">${match.odds.away.toFixed(2)}</span></span>
                 </div>
                 <div class="card-extra-info">
-                    ${match.reasons.length > 0 
-                        ? `<p class="narrative-snippet"><i class="fa-solid fa-circle-info"></i> ${match.reasons[0]}</p>`
-                        : ''
-                    }
+                    ${match.reasons.length > 0
+                ? `<p class="narrative-snippet"><i class="fa-solid fa-circle-info"></i> ${match.reasons[0]}</p>`
+                : ''
+            }
                 </div>
             </div>
         `;
-        
+
         // Navigate to group page if stage tag clicked
         const stageTag = card.querySelector('.stage-tag');
         if (match.group_name) {
@@ -314,11 +314,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const ratingClass = getRatingClass(match.watchability.overall);
         const ratingText = getRatingText(match.watchability.overall);
         const ratingIcon = getRatingIcon(match.watchability.overall);
-        
+
         const homePlayers = match.home_team.players || [];
         const awayPlayers = match.away_team.players || [];
         const allPlayers = [...homePlayers, ...awayPlayers];
-        
+
         let playersHtml = '';
         if (allPlayers.length > 0) {
             playersHtml = `

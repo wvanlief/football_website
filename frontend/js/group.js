@@ -152,10 +152,60 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize tabs UI initial state
     updateTabsUI();
 
+    let formatEngine = 'group_knockout';
+    let competitionName = 'World Cup';
+
     // Resolve timezone and trigger fetch
     resolveAndTimezoneFetch();
 
     async function resolveAndTimezoneFetch() {
+        // Fetch format engine first
+        try {
+            const compRes = await fetch('/api/competitions');
+            if (compRes.ok) {
+                const competitions = await compRes.json();
+                const activeId = localStorage.getItem('findfootball-tournament-id');
+                let found = null;
+                competitions.forEach(comp => {
+                    comp.tournaments.forEach(tourney => {
+                        if (String(tourney.id) === String(activeId) || (!activeId && tourney.status === 'Active')) {
+                            found = { comp, tourney };
+                        }
+                    });
+                });
+                if (found) {
+                    formatEngine = found.comp.format_engine;
+                    competitionName = found.comp.name;
+                }
+            }
+        } catch (e) {
+            console.error("Error fetching format engine in group.js", e);
+        }
+
+        // Adjust UI elements for league format
+        const tabsRow = document.querySelector('.group-selector-tabs-wrapper');
+        const standingsFootnote = document.querySelector('.standings-footnote');
+        const tableTitle = document.querySelector('#group-standings-section h3');
+        
+        if (formatEngine === 'league') {
+            if (tabsRow) tabsRow.style.display = 'none';
+            if (standingsFootnote) {
+                standingsFootnote.innerHTML = `<i class="fa-solid fa-info-circle"></i> Standings for ${competitionName}. Rankings determined by points, GD, GF, and ELO.`;
+            }
+            if (tableTitle) {
+                tableTitle.innerHTML = `<i class="fa-solid fa-table-list"></i> ${competitionName} Table`;
+            }
+            activeGroup = 'STANDINGS';
+        } else {
+            if (tabsRow) tabsRow.style.display = 'block';
+            if (standingsFootnote) {
+                standingsFootnote.innerHTML = `<i class="fa-solid fa-info-circle"></i> Top two teams qualify for the Round of 32 knockout stage. Plus 8 best 3rd teams.`;
+            }
+            if (tableTitle) {
+                tableTitle.innerHTML = `<i class="fa-solid fa-table-list"></i> Group Table`;
+            }
+        }
+
         if (selectedTimezone === 'local') {
             try {
                 const geoRes = await fetch('https://ipapi.co/json/');
@@ -202,7 +252,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fetch Group details
     async function fetchGroupDetails() {
         try {
-            const res = await fetch(`/api/group/${encodeURIComponent(activeGroup)}?tz=${encodeURIComponent(resolvedTimezone)}`);
+            const tournamentId = localStorage.getItem('findfootball-tournament-id') || '';
+            const res = await fetch(`/api/group/${encodeURIComponent(activeGroup)}?tz=${encodeURIComponent(resolvedTimezone)}${tournamentId ? `&tournament_id=${tournamentId}` : ''}`);
             if (!res.ok) {
                 groupMatchesContainer.innerHTML = '<div class="loading-spinner text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Group not found.</div>';
                 return;
@@ -277,7 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             
             tr.querySelector('.clickable-team-row').addEventListener('click', () => {
-                window.location.href = `/country/${encodeURIComponent(team.name)}`;
+                window.location.href = `/team/${encodeURIComponent(team.name)}`;
             });
             
             thirdsTbody.appendChild(tr);
@@ -290,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!projectedCard || !projectedContainer) return;
         
-        if (activeGroup === 'THIRDS') {
+        if (activeGroup === 'THIRDS' || formatEngine === 'league') {
             projectedCard.style.display = 'none';
             return;
         }
@@ -298,7 +349,8 @@ document.addEventListener('DOMContentLoaded', () => {
         projectedContainer.innerHTML = '<div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading projected matchups...</div>';
         
         try {
-            const res = await fetch(`/api/bracket`);
+            const tournamentId = localStorage.getItem('findfootball-tournament-id') || '';
+            const res = await fetch(`/api/bracket${tournamentId ? `?tournament_id=${tournamentId}` : ''}`);
             if (!res.ok) {
                 projectedCard.style.display = 'none';
                 return;
@@ -418,9 +470,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="col-status">${statusHtml}</td>
             `;
             
-            // Add click to navigate to country page
             tr.querySelector('.clickable-team-row').addEventListener('click', () => {
-                window.location.href = `/country/${encodeURIComponent(team.name)}`;
+                window.location.href = `/team/${encodeURIComponent(team.name)}`;
             });
             
             standingsTbody.appendChild(tr);
@@ -564,7 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
         card.querySelectorAll('.clickable-team').forEach(teamBox => {
             teamBox.addEventListener('click', (e) => {
                 e.stopPropagation();
-                window.location.href = `/country/${encodeURIComponent(teamBox.getAttribute('data-name'))}`;
+                window.location.href = `/team/${encodeURIComponent(teamBox.getAttribute('data-name'))}`;
             });
         });
 
@@ -678,7 +729,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         modalContainer.querySelectorAll('.team-nav-link').forEach(el => {
             el.addEventListener('click', () => {
-                window.location.href = `/country/${encodeURIComponent(el.getAttribute('data-name'))}`;
+                window.location.href = `/team/${encodeURIComponent(el.getAttribute('data-name'))}`;
             });
         });
 
