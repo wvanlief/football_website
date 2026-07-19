@@ -223,6 +223,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const ratingText = getRatingText(match.watchability.overall);
         const ratingIcon = getRatingIcon(match.watchability.overall);
 
+        const badgeHtml = match.competition_name
+            ? `<span class="competition-badge" title="${match.competition_name}">${match.competition_badge || '⚽'} ${match.competition_name}</span>`
+            : '';
+
         const card = document.createElement('div');
         card.className = `match-card ${ratingClass}`;
 
@@ -231,7 +235,10 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="card-flag-bg away-flag-bg" style="background-image: url('${getFlagUrl(match.away_team.name, 'w320')}');"></div>
             
             <div class="card-header">
-                <span class="stage-tag">${match.stage}</span>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                    <span class="stage-tag">${match.stage}</span>
+                    ${badgeHtml}
+                </div>
                 <div class="header-badges">
                     ${showRank ? `<span class="rank-badge"><i class="fa-solid fa-fire"></i> Rank #${rank}</span>` : ''}
                     <span class="score-badge ${ratingClass}">
@@ -286,22 +293,29 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
 
-        // Navigate to group page if stage tag clicked
+        // Navigate to group/standings page if stage tag clicked
         const stageTag = card.querySelector('.stage-tag');
-        if (match.group_name) {
+        if (match.group_name || match.stage === "Regular Season") {
             stageTag.classList.add('clickable');
             stageTag.addEventListener('click', (e) => {
                 e.stopPropagation();
-                window.location.href = `/group/${match.group_name}`;
+                if (match.tournament_id) {
+                    localStorage.setItem('findfootball-tournament-id', match.tournament_id);
+                }
+                const targetPath = match.group_name ? match.group_name : 'standings';
+                window.location.href = `/group/${targetPath}`;
             });
         }
 
-        // Click teams to navigate country pages
+        // Click teams to navigate team detail pages
         card.querySelectorAll('.clickable-team').forEach(teamBox => {
             teamBox.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const teamName = teamBox.getAttribute('data-name');
-                window.location.href = `/country/${encodeURIComponent(teamName)}`;
+                if (match.tournament_id) {
+                    localStorage.setItem('findfootball-tournament-id', match.tournament_id);
+                }
+                window.location.href = `/team/${encodeURIComponent(teamName)}`;
             });
         });
 
@@ -414,15 +428,24 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         // Bind clicks in modal
-        if (match.group_name) {
-            modalContainer.querySelector('.stage-tag').addEventListener('click', () => {
-                window.location.href = `/group/${match.group_name}`;
+        const modalStageTag = modalContainer.querySelector('.stage-tag');
+        if (modalStageTag && (match.group_name || match.stage === "Regular Season")) {
+            modalStageTag.style.cursor = 'pointer';
+            modalStageTag.addEventListener('click', () => {
+                if (match.tournament_id) {
+                    localStorage.setItem('findfootball-tournament-id', match.tournament_id);
+                }
+                const targetPath = match.group_name ? match.group_name : 'standings';
+                window.location.href = `/group/${targetPath}`;
             });
         }
 
         modalContainer.querySelectorAll('.team-nav-link').forEach(el => {
             el.addEventListener('click', () => {
-                window.location.href = `/country/${encodeURIComponent(el.getAttribute('data-name'))}`;
+                if (match.tournament_id) {
+                    localStorage.setItem('findfootball-tournament-id', match.tournament_id);
+                }
+                window.location.href = `/team/${encodeURIComponent(el.getAttribute('data-name'))}`;
             });
         });
 

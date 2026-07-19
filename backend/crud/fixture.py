@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session, joinedload, aliased
-from backend.database import Fixture, Team
+from backend.database import Fixture, Team, Tournament
 
 def get_all_fixtures(db: Session, tournament_id: int = None) -> list[Fixture]:
     q = db.query(Fixture).options(
@@ -8,6 +8,9 @@ def get_all_fixtures(db: Session, tournament_id: int = None) -> list[Fixture]:
     )
     if tournament_id is not None:
         q = q.filter(Fixture.tournament_id == tournament_id)
+    else:
+        active_ids = [t.id for t in db.query(Tournament).filter(Tournament.status == "Active").all()]
+        q = q.filter(Fixture.tournament_id.in_(active_ids))
     return q.all()
 
 def count_fixtures(db: Session) -> int:
@@ -20,6 +23,9 @@ def get_recommended_fixtures(db: Session, tournament_id: int = None, min_score: 
     ).filter(Fixture.watchability_score >= min_score)
     if tournament_id is not None:
         q = q.filter(Fixture.tournament_id == tournament_id)
+    else:
+        active_ids = [t.id for t in db.query(Tournament).filter(Tournament.status == "Active").all()]
+        q = q.filter(Fixture.tournament_id.in_(active_ids))
     return q.all()
 
 def get_finished_group_stage_fixtures_for_teams(db: Session, team_names: list[str], tournament_id: int = None) -> list[Fixture]:

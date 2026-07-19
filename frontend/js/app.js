@@ -55,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeFixtures = null;
     let selectedTimezone = 'local';
     let resolvedTimezone = 'UTC';
+    let activeCompFilter = 'all';
 
     // Initialize Page
     selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
@@ -225,6 +226,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const ratingText = getRatingText(match.watchability.overall);
             const ratingIcon = getRatingIcon(match.watchability.overall);
 
+            const badgeHtml = match.competition_name
+                ? `<span class="competition-badge" title="${match.competition_name}">${match.competition_badge || '⚽'} ${match.competition_name}</span>`
+                : '';
+
             const card = document.createElement('div');
             card.className = `match-card ${ratingClass}`;
             card.innerHTML = `
@@ -232,7 +237,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="card-flag-bg away-flag-bg" style="background-image: url('${getFlagUrl(match.away_team.name, 'w320')}');"></div>
                 ${showDate ? `<div class="tile-date-title"><i class="fa-regular fa-calendar"></i> ${match.formatted_date}</div>` : ''}
                 <div class="card-header">
-                    <span class="stage-tag">${match.stage}</span>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <span class="stage-tag">${match.stage}</span>
+                        ${badgeHtml}
+                    </div>
                     <span class="score-badge ${ratingClass}">
                         <i class="${ratingIcon}"></i> ${ratingText}
                     </span>
@@ -278,22 +286,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
-            // Navigate to group page if stage tag clicked
+            // Navigate to group/standings page if stage tag clicked
             const stageTag = card.querySelector('.stage-tag');
-            if (match.group_name) {
+            if (match.group_name || match.stage === "Regular Season") {
                 stageTag.classList.add('clickable');
                 stageTag.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    window.location.href = `/group/${match.group_name}`;
+                    if (match.tournament_id) {
+                        localStorage.setItem('findfootball-tournament-id', match.tournament_id);
+                    }
+                    const targetPath = match.group_name ? match.group_name : 'standings';
+                    window.location.href = `/group/${targetPath}`;
                 });
             }
 
-            // Click teams to navigate country pages
+            // Click teams to navigate team detail pages
             card.querySelectorAll('.clickable-team').forEach(teamBox => {
                 teamBox.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const teamName = teamBox.getAttribute('data-name');
-                    window.location.href = `/country/${encodeURIComponent(teamName)}`;
+                    if (match.tournament_id) {
+                        localStorage.setItem('findfootball-tournament-id', match.tournament_id);
+                    }
+                    window.location.href = `/team/${encodeURIComponent(teamName)}`;
                 });
             });
 
@@ -409,15 +424,24 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         // Bind clicks in modal
-        if (match.group_name) {
-            modalContainer.querySelector('.stage-tag').addEventListener('click', () => {
-                window.location.href = `/group/${match.group_name}`;
+        const modalStageTag = modalContainer.querySelector('.stage-tag');
+        if (modalStageTag && (match.group_name || match.stage === "Regular Season")) {
+            modalStageTag.style.cursor = 'pointer';
+            modalStageTag.addEventListener('click', () => {
+                if (match.tournament_id) {
+                    localStorage.setItem('findfootball-tournament-id', match.tournament_id);
+                }
+                const targetPath = match.group_name ? match.group_name : 'standings';
+                window.location.href = `/group/${targetPath}`;
             });
         }
 
         modalContainer.querySelectorAll('.team-nav-link').forEach(el => {
             el.addEventListener('click', () => {
-                window.location.href = `/country/${encodeURIComponent(el.getAttribute('data-name'))}`;
+                if (match.tournament_id) {
+                    localStorage.setItem('findfootball-tournament-id', match.tournament_id);
+                }
+                window.location.href = `/team/${encodeURIComponent(el.getAttribute('data-name'))}`;
             });
         });
 
@@ -442,6 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const countries = await res.json();
             renderCountryCarousel(countries);
+            renderCompetitionPills(countries);
             setupSearchFiltering();
         } catch (err) {
             console.error("Error initializing Country Explorer:", err);
@@ -455,14 +480,99 @@ document.addEventListener('DOMContentLoaded', () => {
             const pill = document.createElement('div');
             pill.className = 'flag-pill';
             pill.setAttribute('data-name', country.name.toLowerCase());
-            pill.title = `${country.name} (ELO ${country.elo})`;
+            pill.setAttribute('data-competition', country.competition_name || '');
+            pill.setAttribute('data-upcoming', country.has_upcoming_game ? 'true' : 'false');
+            
+            let badgeText = country.competition_badge || '⚽';
+            let titleText = `${country.name} (ELO ${country.elo})`;
+            if (country.competition_name) {
+                titleText += `\n${badgeText} ${country.competition_name}`;
+            }
+            if (country.has_upcoming_game) {
+                titleText += `\n🔥 Match in next 7 days`;
+            }
+            
+            pill.title = titleText;
             pill.innerHTML = `
                 <img src="${getFlagUrl(country.name)}" class="flag-pill-img" alt="${country.name} flag">
+                ${country.has_upcoming_game ? '<span class="upcoming-dot-indicator"></span>' : ''}
             `;
             pill.addEventListener('click', () => {
-                window.location.href = `/country/${encodeURIComponent(country.name)}`;
+                if (country.tournament_id) {
+                    localStorage.setItem('findfootball-tournament-id', country.tournament_id);
+                }
+                window.location.href = `/team/${encodeURIComponent(country.name)}`;
             });
             flagCarouselContainer.appendChild(pill);
+        });
+    }
+
+    function renderCompetitionPills(countries) {
+        const compFiltersContainer = document.getElementById('explorer-comp-filters');
+        if (!compFiltersContainer) return;
+
+        // Get unique competitions
+        const competitions = [];
+        const compNames = new Set();
+        countries.forEach(c => {
+            if (c.competition_name && !compNames.has(c.competition_name)) {
+                compNames.add(c.competition_name);
+                competitions.push({
+                    name: c.competition_name,
+                    badge: c.competition_badge,
+                    tournamentId: c.tournament_id
+                });
+            }
+        });
+
+        compFiltersContainer.innerHTML = '';
+
+        const createPill = (label, value) => {
+            const btn = document.createElement('button');
+            btn.className = `comp-filter-pill${activeCompFilter === value ? ' active' : ''}`;
+            btn.innerHTML = label;
+            btn.addEventListener('click', () => {
+                compFiltersContainer.querySelectorAll('.comp-filter-pill').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                activeCompFilter = value;
+                applyExplorerFilters();
+            });
+            return btn;
+        };
+
+        compFiltersContainer.appendChild(createPill('⚽ All Active', 'all'));
+        compFiltersContainer.appendChild(createPill('🔥 Next 7 Days', 'upcoming'));
+
+        competitions.forEach(comp => {
+            compFiltersContainer.appendChild(createPill(`${comp.badge || '⚽'} ${comp.name}`, comp.name));
+        });
+    }
+
+    function applyExplorerFilters() {
+        const query = countrySearchInput ? countrySearchInput.value.trim().toLowerCase() : '';
+        const pills = flagCarouselContainer.querySelectorAll('.flag-pill');
+
+        pills.forEach(pill => {
+            const name = pill.getAttribute('data-name');
+            const comp = pill.getAttribute('data-competition');
+            const upcoming = pill.getAttribute('data-upcoming') === 'true';
+
+            let matchesQuery = name.includes(query);
+            let matchesComp = false;
+
+            if (activeCompFilter === 'all') {
+                matchesComp = true;
+            } else if (activeCompFilter === 'upcoming') {
+                matchesComp = upcoming;
+            } else {
+                matchesComp = (comp === activeCompFilter);
+            }
+
+            if (matchesQuery && matchesComp) {
+                pill.classList.remove('hidden');
+            } else {
+                pill.classList.add('hidden');
+            }
         });
     }
 
@@ -471,28 +581,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         countrySearchInput.addEventListener('input', () => {
             const query = countrySearchInput.value.trim().toLowerCase();
-            const pills = flagCarouselContainer.querySelectorAll('.flag-pill');
-
             if (searchClearBtn) {
                 searchClearBtn.style.display = query ? 'flex' : 'none';
             }
-
-            pills.forEach(pill => {
-                const name = pill.getAttribute('data-name');
-                if (name.includes(query)) {
-                    pill.classList.remove('hidden');
-                } else {
-                    pill.classList.add('hidden');
-                }
-            });
+            applyExplorerFilters();
         });
 
         if (searchClearBtn) {
             searchClearBtn.addEventListener('click', () => {
                 countrySearchInput.value = '';
                 searchClearBtn.style.display = 'none';
-                const pills = flagCarouselContainer.querySelectorAll('.flag-pill');
-                pills.forEach(pill => pill.classList.remove('hidden'));
+                applyExplorerFilters();
                 countrySearchInput.focus();
             });
         }

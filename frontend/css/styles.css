@@ -3609,3 +3609,127 @@ body.theme-flag .country-hero-flag-bg {
     color: #f3f4f6;
 }
 
+/* ==========================================
+   PHASE 2 COMPONENT STYLES
+   ========================================== */
+
+/* Competition Filters in Explorer */
+.comp-filter-pill-box {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.5rem 0 0.75rem 0;
+    margin-top: 0.75rem;
+    scrollbar-width: none; /* Firefox */
+}
+.comp-filter-pill-box::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+}
+
+.comp-filter-pill {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    padding: 0.4rem 0.9rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: var(--transition-smooth);
+    font-family: var(--font-family);
+}
+.comp-filter-pill:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+.comp-filter-pill.active {
+    background: var(--text-secondary);
+    color: #ffffff;
+    border-color: var(--text-secondary);
+    box-shadow: 0 2px 10px rgba(129, 140, 248, 0.3);
+}
+
+/* Upcoming Game Indicator for flag pills */
+.flag-pill {
+    position: relative;
+}
+.upcoming-dot-indicator {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 10px;
+    height: 10px;
+    background: #ef4444;
+    border-radius: 50%;
+    border: 2px solid #0a0e1e;
+    box-shadow: 0 0 6px #ef4444;
+    pointer-events: none;
+}
+
+/* Match Card Competition Badge */
+.competition-badge {
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    opacity: 0.85;
+}
+
+/* Deep Page Horizontal Pill Nav Bar */
+.competition-pills-nav-bar {
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+    scrollbar-width: none;
+    background: rgba(18, 22, 41, 0.4);
+    border: 1px solid var(--border-color);
+}
+.competition-pills-nav-bar::-webkit-scrollbar {
+    display: none;
+}
+
+.comp-nav-pill {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: var(--text-primary);
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: var(--transition-smooth);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-family);
+}
+.comp-nav-pill:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+.comp-nav-pill.active {
+    background: var(--text-secondary);
+    color: #ffffff;
+    border-color: var(--text-secondary);
+    box-shadow: 0 4px 15px rgba(129, 140, 248, 0.35);
+}
+.comp-nav-badge {
+    font-size: 1rem;
+}
+.comp-nav-text {
+    line-height: 1;
+}
+

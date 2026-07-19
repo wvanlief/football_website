@@ -1,0 +1,1505 @@
+{
+  "bracket": {
+    "r32": [
+      {
+        "team1": {
+          "name": "Germany",
+          "elo": 1958,
+          "group_name": "E"
+        },
+        "team2": {
+          "name": "Bosnia and Herzegovina",
+          "elo": 1618,
+          "group_name": "B"
+        },
+        "winner": "Germany",
+        "home_score": 5,
+        "away_score": 1,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 74
+      },
+      {
+        "team1": {
+          "name": "France",
+          "elo": 2066,
+          "group_name": "I"
+        },
+        "team2": {
+          "name": "Cape Verde",
+          "elo": 1588,
+          "group_name": "H"
+        },
+        "winner": "France",
+        "home_score": 2,
+        "away_score": 1,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 77
+      },
+      {
+        "team1": {
+          "name": "Czechia",
+          "elo": 1726,
+          "group_name": "A"
+        },
+        "team2": {
+          "name": "Canada",
+          "elo": 1775,
+          "group_name": "B"
+        },
+        "winner": "Canada",
+        "home_score": 1,
+        "away_score": 2,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 73
+      },
+      {
+        "team1": {
+          "name": "Netherlands",
+          "elo": 1954,
+          "group_name": "F"
+        },
+        "team2": {
+          "name": "Morocco",
+          "elo": 1828,
+          "group_name": "C"
+        },
+        "winner": "Netherlands",
+        "home_score": 6,
+        "away_score": 2,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 75
+      },
+      {
+        "team1": {
+          "name": "Democratic Republic of the Congo",
+          "elo": 1720,
+          "group_name": "K"
+        },
+        "team2": {
+          "name": "Croatia",
+          "elo": 1897,
+          "group_name": "L"
+        },
+        "winner": "Croatia",
+        "home_score": 0,
+        "away_score": 3,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 83
+      },
+      {
+        "team1": {
+          "name": "Spain",
+          "elo": 2163,
+          "group_name": "H"
+        },
+        "team2": {
+          "name": "Austria",
+          "elo": 1846,
+          "group_name": "J"
+        },
+        "winner": "Spain",
+        "home_score": 3,
+        "away_score": 1,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 84
+      },
+      {
+        "team1": {
+          "name": "Australia",
+          "elo": 1847,
+          "group_name": "D"
+        },
+        "team2": {
+          "name": "Sweden",
+          "elo": 1738,
+          "group_name": "F"
+        },
+        "winner": "Australia",
+        "home_score": 6,
+        "away_score": 2,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 81
+      },
+      {
+        "team1": {
+          "name": "Belgium",
+          "elo": 1913,
+          "group_name": "G"
+        },
+        "team2": {
+          "name": "South Korea",
+          "elo": 1750,
+          "group_name": "A"
+        },
+        "winner": "South Korea",
+        "home_score": 0,
+        "away_score": 1,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 82
+      },
+      {
+        "team1": {
+          "name": "Brazil",
+          "elo": 1987,
+          "group_name": "C"
+        },
+        "team2": {
+          "name": "Japan",
+          "elo": 1892,
+          "group_name": "F"
+        },
+        "winner": "Brazil",
+        "home_score": 3,
+        "away_score": 1,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 76
+      },
+      {
+        "team1": {
+          "name": "C\u00f4te d'Ivoire",
+          "elo": 1740,
+          "group_name": "E"
+        },
+        "team2": {
+          "name": "Norway",
+          "elo": 1936,
+          "group_name": "I"
+        },
+        "winner": "Norway",
+        "home_score": 0,
+        "away_score": 6,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 78
+      },
+      {
+        "team1": {
+          "name": "Mexico",
+          "elo": 1884,
+          "group_name": "A"
+        },
+        "team2": {
+          "name": "Haiti",
+          "elo": 1559,
+          "group_name": "C"
+        },
+        "winner": "Mexico",
+        "home_score": 2,
+        "away_score": 0,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 79
+      },
+      {
+        "team1": {
+          "name": "England",
+          "elo": 2040,
+          "group_name": "L"
+        },
+        "team2": {
+          "name": "Colombia",
+          "elo": 1962,
+          "group_name": "K"
+        },
+        "winner": "England",
+        "home_score": 1,
+        "away_score": 0,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 80
+      },
+      {
+        "team1": {
+          "name": "Argentina",
+          "elo": 2125,
+          "group_name": "J"
+        },
+        "team2": {
+          "name": "Uruguay",
+          "elo": 1895,
+          "group_name": "H"
+        },
+        "winner": "Uruguay",
+        "home_score": 0,
+        "away_score": 2,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 86
+      },
+      {
+        "team1": {
+          "name": "USA",
+          "elo": 1786,
+          "group_name": "D"
+        },
+        "team2": {
+          "name": "Iran",
+          "elo": 1781,
+          "group_name": "G"
+        },
+        "winner": "USA",
+        "home_score": 1,
+        "away_score": 0,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 88
+      },
+      {
+        "team1": {
+          "name": "Switzerland",
+          "elo": 1866,
+          "group_name": "B"
+        },
+        "team2": {
+          "name": "Senegal",
+          "elo": 1846,
+          "group_name": "I"
+        },
+        "winner": "Switzerland",
+        "home_score": 3,
+        "away_score": 2,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 85
+      },
+      {
+        "team1": {
+          "name": "Portugal",
+          "elo": 1982,
+          "group_name": "K"
+        },
+        "team2": {
+          "name": "Ghana",
+          "elo": 1543,
+          "group_name": "L"
+        },
+        "winner": "Portugal",
+        "home_score": 4,
+        "away_score": 0,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 32",
+        "match_num": 87
+      }
+    ],
+    "r16": [
+      {
+        "team1": {
+          "name": "Germany",
+          "elo": 1962,
+          "group_name": "E"
+        },
+        "team2": {
+          "name": "France",
+          "elo": 2067,
+          "group_name": "I"
+        },
+        "winner": "France",
+        "home_score": 0,
+        "away_score": 1,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 16",
+        "match_num": 89
+      },
+      {
+        "team1": {
+          "name": "Canada",
+          "elo": 1788,
+          "group_name": "B"
+        },
+        "team2": {
+          "name": "Netherlands",
+          "elo": 1964,
+          "group_name": "F"
+        },
+        "winner": "Canada",
+        "home_score": 1,
+        "away_score": 0,
+        "has_extra_time": true,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 16",
+        "match_num": 90
+      },
+      {
+        "team1": {
+          "name": "Croatia",
+          "elo": 1905,
+          "group_name": "L"
+        },
+        "team2": {
+          "name": "Spain",
+          "elo": 2167,
+          "group_name": "H"
+        },
+        "winner": "Spain",
+        "home_score": 1,
+        "away_score": 4,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 16",
+        "match_num": 93
+      },
+      {
+        "team1": {
+          "name": "Australia",
+          "elo": 1858,
+          "group_name": "D"
+        },
+        "team2": {
+          "name": "South Korea",
+          "elo": 1772,
+          "group_name": "A"
+        },
+        "winner": "Australia",
+        "home_score": 2,
+        "away_score": 1,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 16",
+        "match_num": 94
+      },
+      {
+        "team1": {
+          "name": "Brazil",
+          "elo": 1998,
+          "group_name": "C"
+        },
+        "team2": {
+          "name": "Norway",
+          "elo": 1943,
+          "group_name": "I"
+        },
+        "winner": "Brazil",
+        "home_score": 2,
+        "away_score": 0,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 16",
+        "match_num": 91
+      },
+      {
+        "team1": {
+          "name": "Mexico",
+          "elo": 1888,
+          "group_name": "A"
+        },
+        "team2": {
+          "name": "England",
+          "elo": 2051,
+          "group_name": "L"
+        },
+        "winner": "England",
+        "home_score": 0,
+        "away_score": 4,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 16",
+        "match_num": 92
+      },
+      {
+        "team1": {
+          "name": "Uruguay",
+          "elo": 1918,
+          "group_name": "H"
+        },
+        "team2": {
+          "name": "USA",
+          "elo": 1801,
+          "group_name": "D"
+        },
+        "winner": "Uruguay",
+        "home_score": 2,
+        "away_score": 1,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Round of 16",
+        "match_num": 95
+      },
+      {
+        "team1": {
+          "name": "Switzerland",
+          "elo": 1880,
+          "group_name": "B"
+        },
+        "team2": {
+          "name": "Portugal",
+          "elo": 1985,
+          "group_name": "K"
+        },
+        "winner": "Portugal",
+        "home_score": 1,
+        "away_score": 1,
+        "has_extra_time": true,
+        "has_penalties": true,
+        "home_penalty_score": 4,
+        "away_penalty_score": 5,
+        "stage": "Round of 16",
+        "match_num": 96
+      }
+    ],
+    "qf": [
+      {
+        "team1": {
+          "name": "France",
+          "elo": 2078,
+          "group_name": "I"
+        },
+        "team2": {
+          "name": "Canada",
+          "elo": 1795,
+          "group_name": "B"
+        },
+        "winner": "France",
+        "home_score": 2,
+        "away_score": 0,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Quarter-final",
+        "match_num": 97
+      },
+      {
+        "team1": {
+          "name": "Spain",
+          "elo": 2172,
+          "group_name": "H"
+        },
+        "team2": {
+          "name": "Australia",
+          "elo": 1869,
+          "group_name": "D"
+        },
+        "winner": "Spain",
+        "home_score": 1,
+        "away_score": 0,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Quarter-final",
+        "match_num": 98
+      },
+      {
+        "team1": {
+          "name": "Brazil",
+          "elo": 2011,
+          "group_name": "C"
+        },
+        "team2": {
+          "name": "England",
+          "elo": 2060,
+          "group_name": "L"
+        },
+        "winner": "Brazil",
+        "home_score": 1,
+        "away_score": 0,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Quarter-final",
+        "match_num": 99
+      },
+      {
+        "team1": {
+          "name": "Uruguay",
+          "elo": 1929,
+          "group_name": "H"
+        },
+        "team2": {
+          "name": "Portugal",
+          "elo": 1980,
+          "group_name": "K"
+        },
+        "winner": "Portugal",
+        "home_score": 1,
+        "away_score": 2,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Quarter-final",
+        "match_num": 100
+      }
+    ],
+    "sf": [
+      {
+        "team1": {
+          "name": "France",
+          "elo": 2083,
+          "group_name": "I"
+        },
+        "team2": {
+          "name": "Spain",
+          "elo": 2177,
+          "group_name": "H"
+        },
+        "winner": "Spain",
+        "home_score": 0,
+        "away_score": 1,
+        "has_extra_time": false,
+        "has_penalties": false,
+        "home_penalty_score": null,
+        "away_penalty_score": null,
+        "stage": "Semi-final",
+        "match_num": 101
+      },
+      {
+        "team1": {
+          "name": "Brazil",
+          "elo": 2028,
+          "group_name": "C"
+        },
+        "team2": {
+          "name": "Portugal",
+          "elo": 1993,
+          "group_name": "K"
+        },
+        "winner": "Brazil",
+        "home_score": 1,
+        "away_score": 1,
+        "has_extra_time": true,
+        "has_penalties": true,
+        "home_penalty_score": 5,
+        "away_penalty_score": 4,
+        "stage": "Semi-final",
+        "match_num": 102
+      }
+    ],
+    "third": {
+      "team1": {
+        "name": "France",
+        "elo": 2072,
+        "group_name": "I"
+      },
+      "team2": {
+        "name": "Portugal",
+        "elo": 1995,
+        "group_name": "K"
+      },
+      "winner": "France",
+      "home_score": 2,
+      "away_score": 1,
+      "has_extra_time": false,
+      "has_penalties": false,
+      "home_penalty_score": null,
+      "away_penalty_score": null,
+      "stage": "Third-place play-off",
+      "match_num": 103
+    },
+    "final": {
+      "team1": {
+        "name": "Spain",
+        "elo": 2188,
+        "group_name": "H"
+      },
+      "team2": {
+        "name": "Brazil",
+        "elo": 2026,
+        "group_name": "C"
+      },
+      "winner": "Spain",
+      "home_score": 4,
+      "away_score": 0,
+      "has_extra_time": false,
+      "has_penalties": false,
+      "home_penalty_score": null,
+      "away_penalty_score": null,
+      "stage": "Final",
+      "match_num": 104
+    },
+    "champion": "Spain"
+  },
+  "probabilities": [
+    {
+      "team": "Spain",
+      "elo": 2157,
+      "group_name": "H",
+      "group_exit_pct": 0.84,
+      "r32_exit_pct": 18.14,
+      "r16_exit_pct": 14.38,
+      "qf_exit_pct": 8.66,
+      "sf_exit_pct": 12.84,
+      "runner_up_pct": 14.12,
+      "champion_pct": 31.02
+    },
+    {
+      "team": "Argentina",
+      "elo": 2115,
+      "group_name": "J",
+      "group_exit_pct": 0.24,
+      "r32_exit_pct": 24.36,
+      "r16_exit_pct": 9.84,
+      "qf_exit_pct": 14.76,
+      "sf_exit_pct": 14.5,
+      "runner_up_pct": 14.04,
+      "champion_pct": 22.26
+    },
+    {
+      "team": "France",
+      "elo": 2063,
+      "group_name": "I",
+      "group_exit_pct": 1.74,
+      "r32_exit_pct": 14.16,
+      "r16_exit_pct": 21.12,
+      "qf_exit_pct": 16.24,
+      "sf_exit_pct": 22.28,
+      "runner_up_pct": 10.88,
+      "champion_pct": 13.58
+    },
+    {
+      "team": "England",
+      "elo": 2024,
+      "group_name": "L",
+      "group_exit_pct": 1.1,
+      "r32_exit_pct": 24.1,
+      "r16_exit_pct": 24.32,
+      "qf_exit_pct": 17.38,
+      "sf_exit_pct": 16.24,
+      "runner_up_pct": 8.86,
+      "champion_pct": 8.0
+    },
+    {
+      "team": "Portugal",
+      "elo": 1989,
+      "group_name": "K",
+      "group_exit_pct": 4.08,
+      "r32_exit_pct": 29.46,
+      "r16_exit_pct": 25.4,
+      "qf_exit_pct": 21.2,
+      "sf_exit_pct": 9.44,
+      "runner_up_pct": 6.12,
+      "champion_pct": 4.3
+    },
+    {
+      "team": "Colombia",
+      "elo": 1982,
+      "group_name": "K",
+      "group_exit_pct": 4.84,
+      "r32_exit_pct": 29.86,
+      "r16_exit_pct": 26.84,
+      "qf_exit_pct": 20.16,
+      "sf_exit_pct": 9.16,
+      "runner_up_pct": 5.6,
+      "champion_pct": 3.54
+    },
+    {
+      "team": "Brazil",
+      "elo": 1978,
+      "group_name": "C",
+      "group_exit_pct": 1.78,
+      "r32_exit_pct": 36.52,
+      "r16_exit_pct": 21.44,
+      "qf_exit_pct": 19.24,
+      "sf_exit_pct": 12.08,
+      "runner_up_pct": 5.6,
+      "champion_pct": 3.34
+    },
+    {
+      "team": "Germany",
+      "elo": 1939,
+      "group_name": "E",
+      "group_exit_pct": 0.1,
+      "r32_exit_pct": 29.64,
+      "r16_exit_pct": 40.52,
+      "qf_exit_pct": 12.32,
+      "sf_exit_pct": 11.28,
+      "runner_up_pct": 3.9,
+      "champion_pct": 2.24
+    },
+    {
+      "team": "Netherlands",
+      "elo": 1944,
+      "group_name": "F",
+      "group_exit_pct": 2.9,
+      "r32_exit_pct": 40.7,
+      "r16_exit_pct": 19.8,
+      "qf_exit_pct": 20.02,
+      "sf_exit_pct": 10.32,
+      "runner_up_pct": 4.18,
+      "champion_pct": 2.08
+    },
+    {
+      "team": "Norway",
+      "elo": 1914,
+      "group_name": "I",
+      "group_exit_pct": 11.42,
+      "r32_exit_pct": 30.92,
+      "r16_exit_pct": 29.06,
+      "qf_exit_pct": 15.26,
+      "sf_exit_pct": 8.78,
+      "runner_up_pct": 3.16,
+      "champion_pct": 1.4
+    },
+    {
+      "team": "Belgium",
+      "elo": 1894,
+      "group_name": "G",
+      "group_exit_pct": 2.86,
+      "r32_exit_pct": 30.08,
+      "r16_exit_pct": 30.86,
+      "qf_exit_pct": 26.12,
+      "sf_exit_pct": 6.0,
+      "runner_up_pct": 2.8,
+      "champion_pct": 1.28
+    },
+    {
+      "team": "Japan",
+      "elo": 1910,
+      "group_name": "F",
+      "group_exit_pct": 3.64,
+      "r32_exit_pct": 45.72,
+      "r16_exit_pct": 20.72,
+      "qf_exit_pct": 17.56,
+      "sf_exit_pct": 8.04,
+      "runner_up_pct": 3.06,
+      "champion_pct": 1.26
+    },
+    {
+      "team": "Croatia",
+      "elo": 1912,
+      "group_name": "L",
+      "group_exit_pct": 4.2,
+      "r32_exit_pct": 45.34,
+      "r16_exit_pct": 28.22,
+      "qf_exit_pct": 11.26,
+      "sf_exit_pct": 6.9,
+      "runner_up_pct": 3.08,
+      "champion_pct": 1.0
+    },
+    {
+      "team": "Uruguay",
+      "elo": 1892,
+      "group_name": "H",
+      "group_exit_pct": 6.32,
+      "r32_exit_pct": 62.72,
+      "r16_exit_pct": 14.2,
+      "qf_exit_pct": 8.84,
+      "sf_exit_pct": 4.86,
+      "runner_up_pct": 2.08,
+      "champion_pct": 0.98
+    },
+    {
+      "team": "Mexico",
+      "elo": 1881,
+      "group_name": "A",
+      "group_exit_pct": 0.62,
+      "r32_exit_pct": 35.7,
+      "r16_exit_pct": 38.94,
+      "qf_exit_pct": 15.58,
+      "sf_exit_pct": 6.66,
+      "runner_up_pct": 1.8,
+      "champion_pct": 0.7
+    },
+    {
+      "team": "Senegal",
+      "elo": 1860,
+      "group_name": "I",
+      "group_exit_pct": 23.42,
+      "r32_exit_pct": 34.8,
+      "r16_exit_pct": 24.12,
+      "qf_exit_pct": 11.36,
+      "sf_exit_pct": 4.56,
+      "runner_up_pct": 1.22,
+      "champion_pct": 0.52
+    },
+    {
+      "team": "Ecuador",
+      "elo": 1890,
+      "group_name": "E",
+      "group_exit_pct": 21.92,
+      "r32_exit_pct": 40.02,
+      "r16_exit_pct": 20.58,
+      "qf_exit_pct": 11.46,
+      "sf_exit_pct": 4.24,
+      "runner_up_pct": 1.34,
+      "champion_pct": 0.44
+    },
+    {
+      "team": "Switzerland",
+      "elo": 1865,
+      "group_name": "B",
+      "group_exit_pct": 7.22,
+      "r32_exit_pct": 33.16,
+      "r16_exit_pct": 36.66,
+      "qf_exit_pct": 16.98,
+      "sf_exit_pct": 4.2,
+      "runner_up_pct": 1.36,
+      "champion_pct": 0.42
+    },
+    {
+      "team": "Australia",
+      "elo": 1839,
+      "group_name": "D",
+      "group_exit_pct": 2.62,
+      "r32_exit_pct": 38.52,
+      "r16_exit_pct": 34.96,
+      "qf_exit_pct": 18.38,
+      "sf_exit_pct": 3.74,
+      "runner_up_pct": 1.44,
+      "champion_pct": 0.34
+    },
+    {
+      "team": "Turkey",
+      "elo": 1849,
+      "group_name": "D",
+      "group_exit_pct": 39.4,
+      "r32_exit_pct": 28.94,
+      "r16_exit_pct": 22.36,
+      "qf_exit_pct": 6.02,
+      "sf_exit_pct": 2.26,
+      "runner_up_pct": 0.78,
+      "champion_pct": 0.24
+    },
+    {
+      "team": "Morocco",
+      "elo": 1840,
+      "group_name": "C",
+      "group_exit_pct": 7.2,
+      "r32_exit_pct": 57.62,
+      "r16_exit_pct": 17.98,
+      "qf_exit_pct": 11.96,
+      "sf_exit_pct": 4.08,
+      "runner_up_pct": 0.94,
+      "champion_pct": 0.22
+    },
+    {
+      "team": "Austria",
+      "elo": 1830,
+      "group_name": "J",
+      "group_exit_pct": 26.36,
+      "r32_exit_pct": 54.74,
+      "r16_exit_pct": 11.14,
+      "qf_exit_pct": 4.74,
+      "sf_exit_pct": 2.26,
+      "runner_up_pct": 0.58,
+      "champion_pct": 0.18
+    },
+    {
+      "team": "South Korea",
+      "elo": 1786,
+      "group_name": "A",
+      "group_exit_pct": 1.46,
+      "r32_exit_pct": 46.2,
+      "r16_exit_pct": 37.66,
+      "qf_exit_pct": 11.12,
+      "sf_exit_pct": 2.9,
+      "runner_up_pct": 0.56,
+      "champion_pct": 0.1
+    },
+    {
+      "team": "USA",
+      "elo": 1780,
+      "group_name": "D",
+      "group_exit_pct": 10.78,
+      "r32_exit_pct": 49.2,
+      "r16_exit_pct": 28.88,
+      "qf_exit_pct": 9.18,
+      "sf_exit_pct": 1.52,
+      "runner_up_pct": 0.34,
+      "champion_pct": 0.1
+    },
+    {
+      "team": "Iran",
+      "elo": 1772,
+      "group_name": "G",
+      "group_exit_pct": 14.26,
+      "r32_exit_pct": 48.54,
+      "r16_exit_pct": 27.78,
+      "qf_exit_pct": 7.68,
+      "sf_exit_pct": 1.3,
+      "runner_up_pct": 0.36,
+      "champion_pct": 0.08
+    },
+    {
+      "team": "Scotland",
+      "elo": 1794,
+      "group_name": "C",
+      "group_exit_pct": 25.76,
+      "r32_exit_pct": 50.22,
+      "r16_exit_pct": 15.3,
+      "qf_exit_pct": 6.58,
+      "sf_exit_pct": 1.78,
+      "runner_up_pct": 0.28,
+      "champion_pct": 0.08
+    },
+    {
+      "team": "Canada",
+      "elo": 1767,
+      "group_name": "B",
+      "group_exit_pct": 9.88,
+      "r32_exit_pct": 49.12,
+      "r16_exit_pct": 29.46,
+      "qf_exit_pct": 9.5,
+      "sf_exit_pct": 1.68,
+      "runner_up_pct": 0.28,
+      "champion_pct": 0.08
+    },
+    {
+      "team": "Algeria",
+      "elo": 1772,
+      "group_name": "J",
+      "group_exit_pct": 37.66,
+      "r32_exit_pct": 48.58,
+      "r16_exit_pct": 9.38,
+      "qf_exit_pct": 3.42,
+      "sf_exit_pct": 0.62,
+      "runner_up_pct": 0.26,
+      "champion_pct": 0.08
+    },
+    {
+      "team": "Paraguay",
+      "elo": 1780,
+      "group_name": "D",
+      "group_exit_pct": 69.86,
+      "r32_exit_pct": 18.88,
+      "r16_exit_pct": 8.4,
+      "qf_exit_pct": 1.96,
+      "sf_exit_pct": 0.74,
+      "runner_up_pct": 0.12,
+      "champion_pct": 0.04
+    },
+    {
+      "team": "Czechia",
+      "elo": 1712,
+      "group_name": "A",
+      "group_exit_pct": 49.06,
+      "r32_exit_pct": 35.4,
+      "r16_exit_pct": 11.76,
+      "qf_exit_pct": 3.18,
+      "sf_exit_pct": 0.5,
+      "runner_up_pct": 0.06,
+      "champion_pct": 0.04
+    },
+    {
+      "team": "Sweden",
+      "elo": 1755,
+      "group_name": "F",
+      "group_exit_pct": 6.56,
+      "r32_exit_pct": 67.48,
+      "r16_exit_pct": 18.58,
+      "qf_exit_pct": 5.92,
+      "sf_exit_pct": 1.12,
+      "runner_up_pct": 0.32,
+      "champion_pct": 0.02
+    },
+    {
+      "team": "Panama",
+      "elo": 1730,
+      "group_name": "L",
+      "group_exit_pct": 56.72,
+      "r32_exit_pct": 35.38,
+      "r16_exit_pct": 5.82,
+      "qf_exit_pct": 1.46,
+      "sf_exit_pct": 0.46,
+      "runner_up_pct": 0.14,
+      "champion_pct": 0.02
+    },
+    {
+      "team": "Uzbekistan",
+      "elo": 1714,
+      "group_name": "K",
+      "group_exit_pct": 61.62,
+      "r32_exit_pct": 31.52,
+      "r16_exit_pct": 4.88,
+      "qf_exit_pct": 1.5,
+      "sf_exit_pct": 0.44,
+      "runner_up_pct": 0.02,
+      "champion_pct": 0.02
+    },
+    {
+      "team": "C\u00f4te d'Ivoire",
+      "elo": 1743,
+      "group_name": "E",
+      "group_exit_pct": 1.26,
+      "r32_exit_pct": 70.62,
+      "r16_exit_pct": 22.3,
+      "qf_exit_pct": 4.46,
+      "sf_exit_pct": 1.2,
+      "runner_up_pct": 0.16,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Egypt",
+      "elo": 1696,
+      "group_name": "G",
+      "group_exit_pct": 35.32,
+      "r32_exit_pct": 46.42,
+      "r16_exit_pct": 14.64,
+      "qf_exit_pct": 3.18,
+      "sf_exit_pct": 0.36,
+      "runner_up_pct": 0.08,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Democratic Republic of the Congo",
+      "elo": 1700,
+      "group_name": "K",
+      "group_exit_pct": 73.08,
+      "r32_exit_pct": 22.3,
+      "r16_exit_pct": 3.56,
+      "qf_exit_pct": 0.76,
+      "sf_exit_pct": 0.26,
+      "runner_up_pct": 0.04,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Bosnia and Herzegovina",
+      "elo": 1616,
+      "group_name": "B",
+      "group_exit_pct": 25.42,
+      "r32_exit_pct": 59.18,
+      "r16_exit_pct": 13.24,
+      "qf_exit_pct": 1.98,
+      "sf_exit_pct": 0.16,
+      "runner_up_pct": 0.02,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Jordan",
+      "elo": 1680,
+      "group_name": "J",
+      "group_exit_pct": 81.28,
+      "r32_exit_pct": 15.92,
+      "r16_exit_pct": 2.04,
+      "qf_exit_pct": 0.66,
+      "sf_exit_pct": 0.08,
+      "runner_up_pct": 0.02,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Cape Verde",
+      "elo": 1578,
+      "group_name": "H",
+      "group_exit_pct": 56.42,
+      "r32_exit_pct": 39.62,
+      "r16_exit_pct": 3.34,
+      "qf_exit_pct": 0.56,
+      "sf_exit_pct": 0.06,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Saudi Arabia",
+      "elo": 1576,
+      "group_name": "H",
+      "group_exit_pct": 69.58,
+      "r32_exit_pct": 27.36,
+      "r16_exit_pct": 2.54,
+      "qf_exit_pct": 0.48,
+      "sf_exit_pct": 0.04,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Iraq",
+      "elo": 1607,
+      "group_name": "I",
+      "group_exit_pct": 92.32,
+      "r32_exit_pct": 6.32,
+      "r16_exit_pct": 1.02,
+      "qf_exit_pct": 0.32,
+      "sf_exit_pct": 0.02,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Qatar",
+      "elo": 1447,
+      "group_name": "B",
+      "group_exit_pct": 82.36,
+      "r32_exit_pct": 16.0,
+      "r16_exit_pct": 1.46,
+      "qf_exit_pct": 0.16,
+      "sf_exit_pct": 0.02,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Haiti",
+      "elo": 1536,
+      "group_name": "C",
+      "group_exit_pct": 95.6,
+      "r32_exit_pct": 3.96,
+      "r16_exit_pct": 0.38,
+      "qf_exit_pct": 0.04,
+      "sf_exit_pct": 0.02,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "New Zealand",
+      "elo": 1562,
+      "group_name": "G",
+      "group_exit_pct": 82.52,
+      "r32_exit_pct": 14.4,
+      "r16_exit_pct": 2.84,
+      "qf_exit_pct": 0.24,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "South Africa",
+      "elo": 1511,
+      "group_name": "A",
+      "group_exit_pct": 93.76,
+      "r32_exit_pct": 5.4,
+      "r16_exit_pct": 0.74,
+      "qf_exit_pct": 0.1,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Tunisia",
+      "elo": 1585,
+      "group_name": "F",
+      "group_exit_pct": 98.54,
+      "r32_exit_pct": 1.26,
+      "r16_exit_pct": 0.16,
+      "qf_exit_pct": 0.04,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Ghana",
+      "elo": 1510,
+      "group_name": "L",
+      "group_exit_pct": 94.82,
+      "r32_exit_pct": 4.84,
+      "r16_exit_pct": 0.32,
+      "qf_exit_pct": 0.02,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Arsenal",
+      "elo": 2063,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Manchester City",
+      "elo": 1970,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Aston Villa",
+      "elo": 1920,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Manchester United",
+      "elo": 1915,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Liverpool",
+      "elo": 1910,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Bournemouth",
+      "elo": 1871,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Brighton",
+      "elo": 1842,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Newcastle",
+      "elo": 1837,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Brentford",
+      "elo": 1836,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Chelsea",
+      "elo": 1831,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Nottingham Forest",
+      "elo": 1822,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Fulham",
+      "elo": 1813,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Everton",
+      "elo": 1803,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Crystal Palace",
+      "elo": 1803,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Leeds",
+      "elo": 1797,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Tottenham",
+      "elo": 1777,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Sunderland",
+      "elo": 1735,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Coventry",
+      "elo": 1661,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Ipswich",
+      "elo": 1639,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Hull City",
+      "elo": 1532,
+      "group_name": null,
+      "group_exit_pct": 100.0,
+      "r32_exit_pct": 0.0,
+      "r16_exit_pct": 0.0,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    },
+    {
+      "team": "Cura\u00e7ao",
+      "elo": 1427,
+      "group_name": "E",
+      "group_exit_pct": 99.28,
+      "r32_exit_pct": 0.66,
+      "r16_exit_pct": 0.06,
+      "qf_exit_pct": 0.0,
+      "sf_exit_pct": 0.0,
+      "runner_up_pct": 0.0,
+      "champion_pct": 0.0
+    }
+  ],
+  "last_updated": "2026-07-19T11:16:06.488317+00:00",
+  "num_simulations": 5000
+}

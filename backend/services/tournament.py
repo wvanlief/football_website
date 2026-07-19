@@ -189,8 +189,14 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
     display_stage = f"Group {group_letter}" if f.stage == "Group Stage" and group_letter else f.stage
     latest_odds = f.latest_odds
     
+    comp_name = comp.name if comp else None
+    comp_badge = comp.badge if comp else "⚽"
+    
     return {
         "id": f.id,
+        "tournament_id": f.tournament_id,
+        "competition_name": comp_name,
+        "competition_badge": comp_badge,
         "home_team": {
             "name": home_team.name if home_team else resolve_placeholder_name(db, f.home_team_placeholder, f.tournament_id),
             "elo": home_team.elo if home_team else 1500,
@@ -231,28 +237,21 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
 def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) -> dict:
     target_tz = get_timezone(tz_str)
     
-    if tournament_id is None:
-        active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
-        tournament_id = active_tourney.id if active_tourney else None
+    if tournament_id is not None:
+        fixtures = crud_fixture.get_all_fixtures(db, tournament_id=tournament_id)
+        tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all()
+    else:
+        fixtures = crud_fixture.get_all_fixtures(db, tournament_id=None)
+        tts = db.query(TournamentTeam).all()
         
-    contract_type = "Country"
-    if tournament_id:
-        tourney = db.query(Tournament).filter(Tournament.id == tournament_id).first()
-        if tourney and tourney.competition:
-            contract_type = "Country" if tourney.competition.type == "International" else "Club"
-            
-    fixtures = crud_fixture.get_all_fixtures(db, tournament_id=tournament_id)
-    
     # Preload maps to avoid N+1 queries
     contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(
-        PlayerContract.type == contract_type,
         PlayerContract.is_active == True
     ).all()
     team_players_map = {}
     for c in contracts:
         team_players_map.setdefault(c.team_id, []).append(c.player)
         
-    tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all() if tournament_id else db.query(TournamentTeam).all()
     team_group_map = {}
     for tt in tts:
         team_group_map[(tt.tournament_id, tt.team_id)] = tt.group_name
@@ -302,28 +301,21 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
 def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None, min_score: float = 75.0) -> list:
     target_tz = get_timezone(tz_str)
     
-    if tournament_id is None:
-        active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
-        tournament_id = active_tourney.id if active_tourney else None
+    if tournament_id is not None:
+        fixtures = crud_fixture.get_recommended_fixtures(db, tournament_id=tournament_id, min_score=min_score)
+        tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all()
+    else:
+        fixtures = crud_fixture.get_recommended_fixtures(db, tournament_id=None, min_score=min_score)
+        tts = db.query(TournamentTeam).all()
         
-    contract_type = "Country"
-    if tournament_id:
-        tourney = db.query(Tournament).filter(Tournament.id == tournament_id).first()
-        if tourney and tourney.competition:
-            contract_type = "Country" if tourney.competition.type == "International" else "Club"
-            
-    fixtures = crud_fixture.get_recommended_fixtures(db, tournament_id=tournament_id, min_score=min_score)
-    
     # Preload maps to avoid N+1 queries
     contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(
-        PlayerContract.type == contract_type,
         PlayerContract.is_active == True
     ).all()
     team_players_map = {}
     for c in contracts:
         team_players_map.setdefault(c.team_id, []).append(c.player)
         
-    tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all() if tournament_id else db.query(TournamentTeam).all()
     team_group_map = {}
     for tt in tts:
         team_group_map[(tt.tournament_id, tt.team_id)] = tt.group_name

@@ -31,6 +31,7 @@ class Competition(Base):
     promotion_spots = Column(Integer, default=0)
     relegation_playoff_spots = Column(Integer, default=0)
     api_league_id = Column(Integer, nullable=True)
+    badge = Column(String, nullable=True, default="⚽")
     
     tournaments = relationship("Tournament", back_populates="competition", cascade="all, delete-orphan")
 

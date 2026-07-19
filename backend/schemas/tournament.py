@@ -69,6 +69,11 @@ class CountrySimpleOut(BaseModel):
     name: str
     elo: int
     group_name: Optional[str] = None
+    competition_name: Optional[str] = None
+    competition_badge: Optional[str] = None
+    tournament_id: Optional[int] = None
+    next_match_date: Optional[str] = None
+    has_upcoming_game: Optional[bool] = False
 
 
 class ThirdPlacedTeamStanding(TeamStanding):
@@ -89,6 +94,7 @@ class CompetitionSelectorOut(BaseModel):
     name: str
     type: str
     format_engine: str
+    badge: Optional[str] = "⚽"
     tournaments: List[TournamentSimpleOut]
 
     class Config:

@@ -2,24 +2,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const path = window.location.pathname.replace(/\/$/, '') || '/';
     const isMainPage = (path === '/' || path === '/recommended');
 
-    // 1. Find the controls-area and insert the competition select dropdown if it's missing (only on deep pages)
-    const controlsArea = document.querySelector('.controls-area');
-    if (controlsArea && !isMainPage && !document.getElementById('competition-select-wrapper')) {
-        const wrapper = document.createElement('div');
-        wrapper.id = 'competition-select-wrapper';
-        wrapper.className = 'competition-select-wrapper';
-        wrapper.style.marginRight = '1rem';
-        wrapper.innerHTML = `
-            <i class="fa-solid fa-trophy competition-icon" style="margin-right: 0.5rem; color: var(--text-secondary);"></i>
-            <select id="competition-select" class="timezone-select" style="background: transparent; border: none; color: var(--text-primary); font-family: var(--font-family); font-size: 0.85rem; font-weight: 600; outline: none; cursor: pointer;">
-                <option value="">Loading...</option>
-            </select>
-        `;
-        controlsArea.insertBefore(wrapper, controlsArea.firstChild);
+    // 1. Create the horizontal pill bar under the header if it's missing (only on deep pages)
+    const mainEl = document.querySelector('main.app-main');
+    if (mainEl && !isMainPage && !document.getElementById('competition-pills-nav')) {
+        const pillNav = document.createElement('div');
+        pillNav.id = 'competition-pills-nav';
+        pillNav.className = 'competition-pills-nav-bar glass';
+        mainEl.insertBefore(pillNav, mainEl.firstChild);
     }
 
-    const selectEl = document.getElementById('competition-select');
-    
     // 2. Fetch competitions and tournaments
     fetch('/api/competitions')
         .then(res => res.json())
@@ -38,20 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
 
-            // Populate selector if it exists
-            if (selectEl) {
-                selectEl.innerHTML = '';
-                activeTourneysList.forEach(tourney => {
-                    const comp = tourney.competition;
-                    const option = document.createElement('option');
-                    option.value = tourney.id;
-                    option.textContent = `${comp.name} (${tourney.season_name})`;
-                    option.setAttribute('data-engine', comp.format_engine);
-                    option.setAttribute('data-name', comp.name);
-                    selectEl.appendChild(option);
-                });
-            }
-            
             // Find matching active tournament
             if (selectedId) {
                 activeTourney = activeTourneysList.find(t => String(t.id) === String(selectedId));
@@ -63,7 +40,35 @@ document.addEventListener('DOMContentLoaded', () => {
             if (activeTourney) {
                 selectedId = activeTourney.id;
                 localStorage.setItem('findfootball-tournament-id', selectedId);
-                if (selectEl) selectEl.value = selectedId;
+            }
+            
+            // Populate selector pills if container exists
+            const pillsContainer = document.getElementById('competition-pills-nav');
+            if (pillsContainer) {
+                pillsContainer.innerHTML = '';
+                activeTourneysList.forEach(tourney => {
+                    const comp = tourney.competition;
+                    const btn = document.createElement('button');
+                    btn.className = `comp-nav-pill${String(tourney.id) === String(selectedId) ? ' active' : ''}`;
+                    btn.innerHTML = `<span class="comp-nav-badge">${comp.badge || '⚽'}</span> <span class="comp-nav-text">${comp.name}</span>`;
+                    btn.addEventListener('click', () => {
+                        if (String(tourney.id) !== String(selectedId)) {
+                            localStorage.setItem('findfootball-tournament-id', tourney.id);
+                            
+                            const newEngine = comp.format_engine;
+                            if (newEngine === 'league' && path.startsWith('/group/')) {
+                                window.location.href = '/group/standings';
+                            } else if (newEngine !== 'league' && path === '/group/standings') {
+                                window.location.href = '/group/A';
+                            } else if (newEngine === 'league' && path === '/bracket') {
+                                window.location.href = '/';
+                            } else {
+                                window.location.reload();
+                            }
+                        }
+                    });
+                    pillsContainer.appendChild(btn);
+                });
             }
             
             // Get format engine of selected tournament
@@ -112,27 +117,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (path === '/calendar') {
                     document.title = `${compName} Calendar | findfootball.games`;
                 }
-            }
-            
-            // 6. Handle change event
-            if (selectEl) {
-                selectEl.addEventListener('change', () => {
-                    const newId = selectEl.value;
-                    localStorage.setItem('findfootball-tournament-id', newId);
-                    
-                    const matchingTourney = activeTourneysList.find(t => String(t.id) === String(newId));
-                    const newEngine = matchingTourney ? matchingTourney.competition.format_engine : '';
-                    
-                    if (newEngine === 'league' && path.startsWith('/group/')) {
-                        window.location.href = '/group/standings';
-                    } else if (newEngine !== 'league' && path === '/group/standings') {
-                        window.location.href = '/group/A';
-                    } else if (newEngine === 'league' && path === '/bracket') {
-                        window.location.href = '/';
-                    } else {
-                        window.location.reload();
-                    }
-                });
             }
         })
         .catch(err => console.error("Error loading competitions selector:", err));
