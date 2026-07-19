@@ -1,6 +1,6 @@
 
 ## Prio 1
- - High scoring teams 
+
 
 ## Prio 2
  - Export Good matches to social media (Insta/ Tik Tok)
@@ -33,3 +33,4 @@
  - Add Group info
  - fade disqualified countries
  - Make sure the tournament stakes are taken into account and correct
+- High scoring teams (watchability algorithm, reasons, and team profile badge)

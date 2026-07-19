@@ -1,0 +1,54 @@
+{
+  "derbies": [
+    {
+      "teams": ["Arsenal", "Tottenham"],
+      "name": "North London Derby",
+      "boost": 10.0
+    },
+    {
+      "teams": ["Manchester United", "Manchester City"],
+      "name": "Manchester Derby",
+      "boost": 10.0
+    },
+    {
+      "teams": ["Real Madrid", "Barcelona"],
+      "name": "El Clásico",
+      "boost": 12.0
+    },
+    {
+      "teams": ["Liverpool", "Everton"],
+      "name": "Merseyside Derby",
+      "boost": 8.0
+    },
+    {
+      "teams": ["Liverpool", "Manchester United"],
+      "name": "North West Derby",
+      "boost": 10.0
+    },
+    {
+      "teams": ["AC Milan", "Inter"],
+      "name": "Derby della Madonnina",
+      "boost": 10.0
+    },
+    {
+      "teams": ["Roma", "Lazio"],
+      "name": "Derby della Capitale",
+      "boost": 10.0
+    },
+    {
+      "teams": ["Bayern Munich", "Borussia Dortmund"],
+      "name": "Der Klassiker",
+      "boost": 9.0
+    },
+    {
+      "teams": ["Chelsea", "Arsenal"],
+      "name": "London Derby",
+      "boost": 7.0
+    },
+    {
+      "teams": ["Chelsea", "Tottenham"],
+      "name": "London Derby",
+      "boost": 7.0
+    }
+  ]
+}

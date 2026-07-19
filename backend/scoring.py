@@ -5,6 +5,7 @@ from backend.database import Team, Player, Fixture
 
 _sim_data_cache = None
 _sim_data_mtime = 0
+_derbies_cache = None
 
 def get_simulation_probabilities():
     global _sim_data_cache, _sim_data_mtime
@@ -25,12 +26,47 @@ def get_simulation_probabilities():
     except Exception:
         return {}
 
+def get_derbies():
+    global _derbies_cache
+    if _derbies_cache is not None:
+        return _derbies_cache
+    file_path = os.path.join(os.path.dirname(__file__), "data", "derbies.json")
+    if not os.path.exists(file_path):
+        return []
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            _derbies_cache = data.get("derbies", [])
+            return _derbies_cache
+    except Exception:
+        return []
 
 DEFAULT_WEIGHTS = {
     "elo": 0.35,         # Proximity and average quality
     "odds": 0.25,        # Betting odds competitiveness
     "form": 0.15,        # Player and team form
     "narrative": 0.25    # Stage and stakes (significantly boosted)
+}
+
+WEIGHT_PRESETS = {
+    "league": {
+        "elo": 0.40,
+        "odds": 0.30,
+        "form": 0.20,
+        "narrative": 0.10
+    },
+    "cup": {
+        "elo": 0.25,
+        "odds": 0.20,
+        "form": 0.15,
+        "narrative": 0.40
+    },
+    "group_knockout": {
+        "elo": 0.35,
+        "odds": 0.25,
+        "form": 0.15,
+        "narrative": 0.25
+    }
 }
 
 def calculate_watchability(
@@ -42,10 +78,13 @@ def calculate_watchability(
 ) -> dict:
     """
     Calculates the watchability score for a fixture based on ELO, betting odds, form, and narratives.
-    Weights can be customized dynamically.
+    Weights can be customized dynamically or resolved based on competition format presets.
     """
+    comp = fixture.tournament.competition if (fixture.tournament and fixture.tournament.competition) else None
+    
     if weights is None:
-        weights = DEFAULT_WEIGHTS
+        format_engine = comp.format_engine if comp else "group_knockout"
+        weights = WEIGHT_PRESETS.get(format_engine, DEFAULT_WEIGHTS)
         
     reasons = []
     
@@ -120,79 +159,151 @@ def calculate_watchability(
         reasons.append(f"{away_team.name} is on a roll with a {away_team.win_streak}-match win streak.")
 
     # 4. Narrative & Stage Score
-    stage_scores = {
-        "Group Stage": 60.0,
-        "Round of 16": 75.0,
-        "Quarter-final": 88.0,
-        "Semi-final": 95.0,
-        "Final": 100.0
-    }
-    stage_score = stage_scores.get(fixture.stage, 60.0)
+    is_league = comp and (comp.format_engine == "league" or comp.type == "League")
     
-    if fixture.stage != "Group Stage":
-        narrative_score = stage_score
-        reasons.append(f"High stakes: World Cup {fixture.stage} knockout match (winner takes all).")
+    if is_league:
+        from backend.services.tournament import calculate_standings
+        
+        # Calculate dynamic standings to get rank and team points
+        standings = calculate_standings(db, "standings", tournament_id=fixture.tournament_id)
+        total_teams = len(standings)
+        total_matchdays = (total_teams - 1) * 2 if total_teams > 1 else 38
+        
+        gw = fixture.matchday_number if fixture.matchday_number else 1
+        matchday_factor = gw / total_matchdays if total_matchdays > 0 else 1.0
+        
+        narrative_score = 40.0 # Baseline league narrative
+        reasons.append(f"Gameweek {gw} of {total_matchdays} league clash.")
+        
+        home_rank = None
+        away_rank = None
+        for idx, s in enumerate(standings):
+            if s["name"] == home_team.name:
+                home_rank = idx + 1
+            if s["name"] == away_team.name:
+                away_rank = idx + 1
+                
+        if home_rank and away_rank:
+            boost = 0.0
+            
+            # Title Clash
+            if home_rank <= 3 and away_rank <= 3:
+                boost = 15.0
+                reasons.append("Title Decider: A crucial direct battle between championship contenders.")
+            elif home_rank <= 3 or away_rank <= 3:
+                boost = 6.0
+                leader_name = home_team.name if home_rank <= 3 else away_team.name
+                reasons.append(f"{leader_name} is fighting to maintain their championship lead.")
+                
+            # European Spot Battle
+            if 4 <= home_rank <= 6 and 4 <= away_rank <= 6:
+                boost = 8.0
+                reasons.append("European Six-Pointer: High-stakes battle for Champions League and European spots.")
+            elif (home_rank <= 6 or away_rank <= 6) and not (home_rank <= 3 or away_rank <= 3):
+                boost = 4.0
+                contender_name = home_team.name if home_rank <= 6 else away_team.name
+                reasons.append(f"{contender_name} is pursuing crucial points for European qualification.")
+                
+            # Relegation battle (Dynamic spots detection)
+            rel_spots = comp.relegation_spots if (comp and comp.relegation_spots and comp.relegation_spots > 0) else 3
+            rel_threshold = total_teams - rel_spots - 1 if total_teams > rel_spots else 15
+            
+            if home_rank >= rel_threshold and away_rank >= rel_threshold:
+                boost = 12.0
+                reasons.append("Relegation Six-Pointer: A vital battle for survival as both teams fight against relegation.")
+            elif home_rank >= rel_threshold or away_rank >= rel_threshold:
+                boost = 5.0
+                battler_name = home_team.name if home_rank >= rel_threshold else away_team.name
+                reasons.append(f"{battler_name} is fighting to escape the relegation zone.")
+                
+            # David vs Goliath / Upset Potential
+            is_home_underdog = home_rank >= rel_threshold
+            is_away_underdog = away_rank >= rel_threshold
+            is_home_favorite = home_rank <= 4
+            is_away_favorite = away_rank <= 4
+            
+            if (is_home_underdog and is_away_favorite) or (is_away_underdog and is_home_favorite):
+                boost = 6.0
+                fav_name = home_team.name if is_home_favorite else away_team.name
+                und_name = home_team.name if is_home_underdog else away_team.name
+                reasons.append(f"David vs. Goliath clash: Underdog {und_name} takes on title challenger {fav_name}!")
+                
+            narrative_score += boost * matchday_factor
+            narrative_score = round(min(100.0, narrative_score), 1)
+            
     else:
-        # Dynamic stakes calculation for Group Stage based on qualification probabilities
-        probs = get_simulation_probabilities()
+        stage_scores = {
+            "Group Stage": 60.0,
+            "Round of 16": 75.0,
+            "Quarter-final": 88.0,
+            "Semi-final": 95.0,
+            "Final": 100.0
+        }
+        stage_score = stage_scores.get(fixture.stage, 60.0)
         
-        from backend.database import TournamentTeam
-        tt = db.query(TournamentTeam).filter(
-            TournamentTeam.tournament_id == fixture.tournament_id,
-            TournamentTeam.team_id == home_team.id
-        ).first()
-        group_letter = tt.group_name if tt else ""
-        reasons.append(f"Crucial World Cup Group {group_letter} clash.")
-        
-        if home_team.name in probs and away_team.name in probs:
-            p_home = probs[home_team.name]
-            p_away = probs[away_team.name]
-            
-            # Calculate individual team qualification stakes (0 to 100)
-            # Closer to 50% means higher stakes (survival is on the line)
-            s_home = 100.0 - 2.0 * abs(p_home - 50.0)
-            s_away = 100.0 - 2.0 * abs(p_away - 50.0)
-            
-            # Combine home and away stakes: weighted towards the higher-stakes team
-            # but penalizing if the other team has zero stakes (already qualified/eliminated)
-            s_match = 0.7 * max(s_home, s_away) + 0.3 * min(s_home, s_away)
-            
-            # Scale to stage score (baseline is 10.0, max is 100.0)
-            baseline = 10.0
-            narrative_score = baseline + (100.0 - baseline) * (s_match / 100.0)
-            narrative_score = round(min(100.0, max(0.0, narrative_score)), 1)
-            
-            # Add detailed, context-specific stakes analysis reasons
-            is_home_safe = p_home >= 98.0
-            is_away_safe = p_away >= 98.0
-            is_home_out = p_home <= 2.0
-            is_away_out = p_away <= 2.0
-            
-            if is_home_safe and is_away_safe:
-                reasons.append("Qualification settled: Both teams have already secured qualification to the knockout stage.")
-            elif is_home_out and is_away_out:
-                reasons.append("Dead rubber: Both teams have already been eliminated from tournament progression.")
-            elif is_home_safe and is_away_out:
-                reasons.append(f"Mixed stakes: {home_team.name} is already qualified, while {away_team.name} has been eliminated.")
-            elif is_away_safe and is_home_out:
-                reasons.append(f"Mixed stakes: {away_team.name} is already qualified, while {home_team.name} has been eliminated.")
-            elif is_home_safe:
-                reasons.append(f"{home_team.name} has qualified. {away_team.name} (qualification chance: {p_away:.0f}%) is fighting for survival.")
-            elif is_away_safe:
-                reasons.append(f"{away_team.name} has qualified. {home_team.name} (qualification chance: {p_home:.0f}%) is fighting for survival.")
-            elif is_home_out:
-                reasons.append(f"{home_team.name} is eliminated. {away_team.name} (qualification chance: {p_away:.0f}%) must win to progress.")
-            elif is_away_out:
-                reasons.append(f"{away_team.name} is eliminated. {home_team.name} (qualification chance: {p_home:.0f}%) must win to progress.")
-            else:
-                # Both are fighting
-                if abs(p_home - p_away) <= 15.0:
-                    reasons.append(f"High stakes decider: Both teams are actively fighting for qualification (chances: {home_team.name} {p_home:.0f}%, {away_team.name} {p_away:.0f}%).")
-                else:
-                    reasons.append(f"Crucial battle: {home_team.name} ({p_home:.0f}% chance) and {away_team.name} ({p_away:.0f}% chance) fight for qualification spots.")
+        if fixture.stage != "Group Stage":
+            narrative_score = stage_score
+            reasons.append(f"High stakes: World Cup {fixture.stage} knockout match (winner takes all).")
         else:
-            # Fallback to standard baseline group stage stakes when simulation results are missing/stale
-            narrative_score = 60.0
+            # Dynamic stakes calculation for Group Stage based on qualification probabilities
+            probs = get_simulation_probabilities()
+            
+            from backend.database import TournamentTeam
+            tt = db.query(TournamentTeam).filter(
+                TournamentTeam.tournament_id == fixture.tournament_id,
+                TournamentTeam.team_id == home_team.id
+            ).first()
+            group_letter = tt.group_name if tt else ""
+            reasons.append(f"Crucial World Cup Group {group_letter} clash.")
+            
+            if home_team.name in probs and away_team.name in probs:
+                p_home = probs[home_team.name]
+                p_away = probs[away_team.name]
+                
+                # Calculate individual team qualification stakes (0 to 100)
+                # Closer to 50% means higher stakes (survival is on the line)
+                s_home = 100.0 - 2.0 * abs(p_home - 50.0)
+                s_away = 100.0 - 2.0 * abs(p_away - 50.0)
+                
+                # Combine home and away stakes: weighted towards the higher-stakes team
+                s_match = 0.7 * max(s_home, s_away) + 0.3 * min(s_home, s_away)
+                
+                # Scale to stage score (baseline is 10.0, max is 100.0)
+                baseline = 10.0
+                narrative_score = baseline + (100.0 - baseline) * (s_match / 100.0)
+                narrative_score = round(min(100.0, max(0.0, narrative_score)), 1)
+                
+                # Add detailed, context-specific stakes analysis reasons
+                is_home_safe = p_home >= 98.0
+                is_away_safe = p_away >= 98.0
+                is_home_out = p_home <= 2.0
+                is_away_out = p_away <= 2.0
+                
+                if is_home_safe and is_away_safe:
+                    reasons.append("Qualification settled: Both teams have already secured qualification to the knockout stage.")
+                elif is_home_out and is_away_out:
+                    reasons.append("Dead rubber: Both teams have already been eliminated from tournament progression.")
+                elif is_home_safe and is_away_out:
+                    reasons.append(f"Mixed stakes: {home_team.name} is already qualified, while {away_team.name} has been eliminated.")
+                elif is_away_safe and is_home_out:
+                    reasons.append(f"Mixed stakes: {away_team.name} is already qualified, while {home_team.name} has been eliminated.")
+                elif is_home_safe:
+                    reasons.append(f"{home_team.name} has qualified. {away_team.name} (qualification chance: {p_away:.0f}%) is fighting for survival.")
+                elif is_away_safe:
+                    reasons.append(f"{away_team.name} has qualified. {home_team.name} (qualification chance: {p_home:.0f}%) is fighting for survival.")
+                elif is_home_out:
+                    reasons.append(f"{home_team.name} is eliminated. {away_team.name} (qualification chance: {p_away:.0f}%) must win to progress.")
+                elif is_away_out:
+                    reasons.append(f"{away_team.name} is eliminated. {home_team.name} (qualification chance: {p_home:.0f}%) must win to progress.")
+                else:
+                    # Both are fighting
+                    if abs(p_home - p_away) <= 15.0:
+                        reasons.append(f"High stakes decider: Both teams are actively fighting for qualification (chances: {home_team.name} {p_home:.0f}%, {away_team.name} {p_away:.0f}%).")
+                    else:
+                        reasons.append(f"Crucial battle: {home_team.name} ({p_home:.0f}% chance) and {away_team.name} ({p_away:.0f}% chance) fight for qualification spots.")
+            else:
+                # Fallback to standard baseline group stage stakes when simulation results are missing/stale
+                narrative_score = 60.0
 
     # Apply Weights
     overall_score = (
@@ -201,6 +312,41 @@ def calculate_watchability(
         (form_score * weights["form"]) +
         (narrative_score * weights["narrative"])
     )
+    
+    # 5. High Scoring Teams Factor
+    # Calculate goals stats for both teams
+    home_finished_h = db.query(Fixture).filter(Fixture.home_team_id == home_team.id, Fixture.status == "Finished").all()
+    home_finished_a = db.query(Fixture).filter(Fixture.away_team_id == home_team.id, Fixture.status == "Finished").all()
+    home_goals = sum(g.home_score for g in home_finished_h) + sum(g.away_score for g in home_finished_a)
+    home_played = len(home_finished_h) + len(home_finished_a)
+    home_avg = home_goals / home_played if home_played > 0 else 0.0
+    home_high = (home_played >= 3 and home_avg >= 1.75) or (home_played > 0 and home_played < 3 and home_avg >= 2.0)
+
+    away_finished_h = db.query(Fixture).filter(Fixture.home_team_id == away_team.id, Fixture.status == "Finished").all()
+    away_finished_a = db.query(Fixture).filter(Fixture.away_team_id == away_team.id, Fixture.status == "Finished").all()
+    away_goals = sum(g.home_score for g in away_finished_h) + sum(g.away_score for g in away_finished_a)
+    away_played = len(away_finished_h) + len(away_finished_a)
+    away_avg = away_goals / away_played if away_played > 0 else 0.0
+    away_high = (away_played >= 3 and away_avg >= 1.75) or (away_played > 0 and away_played < 3 and away_avg >= 2.0)
+
+    if home_high and away_high:
+        overall_score += 7.0
+        reasons.insert(0, f"Goal Fest Alert: Both squads are highly prolific in attack (avg goals scored: {home_team.name} {home_avg:.2f}, {away_team.name} {away_avg:.2f}).")
+    elif home_high:
+        overall_score += 3.5
+        reasons.insert(0, f"High-octane attack: {home_team.name} is scoring an average of {home_avg:.2f} goals per match.")
+    elif away_high:
+        overall_score += 3.5
+        reasons.insert(0, f"High-octane attack: {away_team.name} is scoring an average of {away_avg:.2f} goals per match.")
+        
+    # 6. Derby / Rivalry Boost
+    derbies = get_derbies()
+    for d in derbies:
+        t1, t2 = d["teams"]
+        if (home_team.name == t1 and away_team.name == t2) or (home_team.name == t2 and away_team.name == t1):
+            overall_score += d.get("boost", 0.0)
+            reasons.insert(0, f"Local Rivalry: {d.get('name')} clash!")
+            break
     
     # Guarantee 0-100 range
     overall_score = round(min(100.0, max(0.0, overall_score)), 1)

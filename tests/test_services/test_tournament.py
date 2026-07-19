@@ -331,4 +331,61 @@ def test_propagate_knockout_fixtures(db_session):
     assert f_third.home_team_placeholder is None
 
 
+def test_db_driven_propagation(db_session):
+    from backend.database import Competition, Tournament, Team, Fixture, FixtureDependency
+    from backend.services.tournament import propagate_knockout_fixtures
+    
+    comp = Competition(name="DB Dependency Test", type="Cup", format_engine="league_phase_knockout")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2025/26", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+    
+    t_home = Team(name="Real Madrid Test", elo=1900)
+    t_away = Team(name="Man City Test", elo=1950)
+    db_session.add_all([t_home, t_away])
+    db_session.flush()
+    
+    f_source = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=t_home.id,
+        away_team_id=t_away.id,
+        stage="Knockout Play-off",
+        status="Finished",
+        home_score=2,
+        away_score=0,
+        winner_id=t_home.id,
+        date_utc=datetime.now()
+    )
+    f_target = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=None,
+        away_team_id=None,
+        home_team_placeholder="Winner Play-off",
+        stage="Round of 16",
+        status="Scheduled",
+        date_utc=datetime.now()
+    )
+    db_session.add_all([f_source, f_target])
+    db_session.flush()
+    
+    dep = FixtureDependency(
+        source_fixture_id=f_source.id,
+        target_fixture_id=f_target.id,
+        slot="home",
+        result_type="winner"
+    )
+    db_session.add(dep)
+    db_session.commit()
+    
+    propagate_knockout_fixtures(db_session)
+    db_session.commit()
+    db_session.refresh(f_target)
+    
+    assert f_target.home_team_id == t_home.id
+    assert f_target.home_team_placeholder is None
+
+
+
 

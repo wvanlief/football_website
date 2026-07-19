@@ -137,6 +137,11 @@ document.addEventListener('DOMContentLoaded', () => {
             badgeHtml = `<i class="fa-solid fa-shield-halved"></i> Active Participant`;
         }
 
+        let scoringBadge = '';
+        if (data.is_high_scoring) {
+            scoringBadge = `<span class="group-rank-badge high-scoring-badge" style="background: rgba(251, 191, 36, 0.15); border: 1px solid rgba(251, 191, 36, 0.4); color: #fbbf24; margin-top: 0.4rem; display: inline-flex; align-items: center; gap: 4px;"><i class="fa-solid fa-fire"></i> High-Scoring Attack (avg: ${data.avg_goals_scored.toFixed(2)})</span>`;
+        }
+
         teamHero.innerHTML = `
             <div class="country-hero-flag-bg" style="background-image: url('${getFlagUrl(data.name, 'w320')}');"></div>
             <div class="country-hero-content">
@@ -144,9 +149,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     <img src="${getFlagUrl(data.name, 'w80')}" class="hero-avatar-flag" alt="">
                     <div>
                         <h2>${data.name.toUpperCase()}</h2>
-                        <span class="group-rank-badge">
-                            ${badgeHtml}
-                        </span>
+                        <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                            <span class="group-rank-badge">
+                                ${badgeHtml}
+                            </span>
+                            ${scoringBadge}
+                        </div>
                     </div>
                 </div>
                 <div class="hero-elo-metric">

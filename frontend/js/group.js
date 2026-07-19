@@ -187,10 +187,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const standingsFootnote = document.querySelector('.standings-footnote');
         const tableTitle = document.querySelector('#group-standings-section h3');
         
-        if (formatEngine === 'league') {
+        if (formatEngine === 'league' || formatEngine === 'league_phase_knockout') {
             if (tabsRow) tabsRow.style.display = 'none';
             if (standingsFootnote) {
-                standingsFootnote.innerHTML = `<i class="fa-solid fa-info-circle"></i> Standings for ${competitionName}. Rankings determined by points, GD, GF, and ELO.`;
+                if (formatEngine === 'league_phase_knockout') {
+                    standingsFootnote.innerHTML = `<i class="fa-solid fa-info-circle"></i> League Phase for ${competitionName}. Top 8 auto-qualify for Round of 16. Positions 9–24 enter Play-offs.`;
+                } else {
+                    standingsFootnote.innerHTML = `<i class="fa-solid fa-info-circle"></i> Standings for ${competitionName}. Rankings determined by points, GD, GF, and ELO.`;
+                }
             }
             if (tableTitle) {
                 tableTitle.innerHTML = `<i class="fa-solid fa-table-list"></i> ${competitionName} Table`;
@@ -419,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const isPreSeason = standings.every(t => t.played === 0);
         let bannerEl = document.getElementById('preseason-banner');
-        if (formatEngine === 'league' && isPreSeason) {
+        if ((formatEngine === 'league' || formatEngine === 'league_phase_knockout') && isPreSeason) {
             if (!bannerEl) {
                 bannerEl = document.createElement('div');
                 bannerEl.id = 'preseason-banner';
@@ -452,6 +456,17 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (formatEngine === 'league') {
                 statusHtml = `<span class="text-muted">—</span>`;
+            } else if (formatEngine === 'league_phase_knockout') {
+                if (rank <= 8) {
+                    statusHtml = `<span class="qual-badge qualified" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981;"><i class="fa-solid fa-circle-check"></i> R16 Auto</span>`;
+                    qualifyClass = 'status-qualified';
+                } else if (rank <= 24) {
+                    statusHtml = `<span class="qual-badge playoff" style="background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.3); color: #3b82f6;"><i class="fa-solid fa-circle-right"></i> Playoff</span>`;
+                    qualifyClass = 'status-playoff';
+                } else {
+                    statusHtml = `<span class="qual-badge eliminated" style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444;"><i class="fa-solid fa-circle-xmark"></i> Eliminated</span>`;
+                    qualifyClass = 'status-eliminated';
+                }
             } else if (team.status === 'Qualified') {
                 statusHtml = `<span class="qual-badge qualified"><i class="fa-solid fa-circle-check"></i> Qualified</span>`;
                 qualifyClass = 'status-qualified';

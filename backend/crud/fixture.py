@@ -28,14 +28,14 @@ def get_recommended_fixtures(db: Session, tournament_id: int = None, min_score: 
         q = q.filter(Fixture.tournament_id.in_(active_ids))
     return q.all()
 
-def get_finished_group_stage_fixtures_for_teams(db: Session, team_names: list[str], tournament_id: int = None) -> list[Fixture]:
+def get_finished_group_stage_fixtures_for_teams(db: Session, team_names: list[str], tournament_id: int = None, stage: str = "Group Stage") -> list[Fixture]:
     HomeTeam = aliased(Team)
     AwayTeam = aliased(Team)
     q = db.query(Fixture).options(
         joinedload(Fixture.home_team),
         joinedload(Fixture.away_team)
     ).join(HomeTeam, Fixture.home_team_id == HomeTeam.id).join(AwayTeam, Fixture.away_team_id == AwayTeam.id).filter(
-        (Fixture.stage == "Group Stage") &
+        (Fixture.stage == stage) &
         (Fixture.status == "Finished") &
         (HomeTeam.name.in_(team_names)) &
         (AwayTeam.name.in_(team_names))

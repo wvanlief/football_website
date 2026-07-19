@@ -1,5 +1,5 @@
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from backend.schemas.team import TeamOut
 
 class OddsSchema(BaseModel):
@@ -30,8 +30,7 @@ class FixtureOut(BaseModel):
     watchability: WatchabilitySchema
     reasons: List[str] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class GroupedFixturesResponse(BaseModel):
     today: List[FixtureOut]
@@ -39,13 +38,10 @@ class GroupedFixturesResponse(BaseModel):
     this_week: List[FixtureOut]
     finished: List[FixtureOut]
 
-
 class CalendarTeamOut(BaseModel):
     name: str
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
 
 class CalendarFixtureOut(BaseModel):
     id: int
@@ -60,7 +56,4 @@ class CalendarFixtureOut(BaseModel):
     score: Optional[str] = None
     watchability_score: float
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)

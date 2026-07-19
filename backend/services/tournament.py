@@ -23,9 +23,10 @@ NEXT_ROUND_LOOKUP = {
 def propagate_knockout_fixtures(db: Session):
     """
     Scans finished knockout fixtures in the database and propagates winners/losers
-    to subsequent rounds.
+    to subsequent rounds using data-driven fixture_dependencies.
     """
     fixtures = db.query(Fixture).all()
+    fixtures_by_id = {f.id: f for f in fixtures}
     fixtures_by_api_id = {f.api_id: f for f in fixtures if f.api_id}
     
     modified_fixtures = set()
@@ -36,8 +37,8 @@ def propagate_knockout_fixtures(db: Session):
         updated = False
         iterations += 1
         
-        for api_id_str, f in fixtures_by_api_id.items():
-            if f.status != "Finished" or f.stage == "Group Stage":
+        for f in fixtures:
+            if f.status != "Finished" or f.stage == "Group Stage" or f.stage == "Regular Season" or f.stage == "League Phase":
                 continue
                 
             winner_id = f.winner_id
@@ -55,48 +56,76 @@ def propagate_knockout_fixtures(db: Session):
                 continue
                 
             loser_id = f.away_team_id if winner_id == f.home_team_id else f.home_team_id
-            if not loser_id:
-                continue
-                
-            try:
-                match_num = int(api_id_str)
-            except ValueError:
-                continue
-                
-            # 1. Standard next-round propagation
-            next_info = NEXT_ROUND_LOOKUP.get(match_num)
-            if next_info:
-                next_match_num, slot = next_info
-                next_fixture = fixtures_by_api_id.get(str(next_match_num))
-                if next_fixture:
-                    if slot == "home":
-                        if next_fixture.home_team_id != winner_id:
-                            next_fixture.home_team_id = winner_id
-                            next_fixture.home_team_placeholder = None
+            
+            # Try to query dependencies from DB first
+            from backend.database import FixtureDependency
+            dependencies = db.query(FixtureDependency).filter(FixtureDependency.source_fixture_id == f.id).all()
+            
+            if dependencies:
+                # DB-driven propagation
+                for dep in dependencies:
+                    target_fixture = fixtures_by_id.get(dep.target_fixture_id)
+                    if not target_fixture:
+                        continue
+                    prog_team_id = winner_id if dep.result_type == "winner" else loser_id
+                    if not prog_team_id:
+                        continue
+                        
+                    if dep.slot == "home":
+                        if target_fixture.home_team_id != prog_team_id:
+                            target_fixture.home_team_id = prog_team_id
+                            target_fixture.home_team_placeholder = None
                             updated = True
-                            modified_fixtures.add(next_fixture)
-                    elif slot == "away":
-                        if next_fixture.away_team_id != winner_id:
-                            next_fixture.away_team_id = winner_id
-                            next_fixture.away_team_placeholder = None
+                            modified_fixtures.add(target_fixture)
+                    elif dep.slot == "away":
+                        if target_fixture.away_team_id != prog_team_id:
+                            target_fixture.away_team_id = prog_team_id
+                            target_fixture.away_team_placeholder = None
                             updated = True
-                            modified_fixtures.add(next_fixture)
-                            
-            # 2. Third-place play-off (api_id 103) is populated by the losers of match 101 and 102
-            if match_num == 101:
-                third_fixture = fixtures_by_api_id.get("103")
-                if third_fixture and third_fixture.home_team_id != loser_id:
-                    third_fixture.home_team_id = loser_id
-                    third_fixture.home_team_placeholder = None
-                    updated = True
-                    modified_fixtures.add(third_fixture)
-            elif match_num == 102:
-                third_fixture = fixtures_by_api_id.get("103")
-                if third_fixture and third_fixture.away_team_id != loser_id:
-                    third_fixture.away_team_id = loser_id
-                    third_fixture.away_team_placeholder = None
-                    updated = True
-                    modified_fixtures.add(third_fixture)
+                            modified_fixtures.add(target_fixture)
+            else:
+                # Backwards compatibility fallback to NEXT_ROUND_LOOKUP for World Cup
+                if not f.api_id:
+                    continue
+                try:
+                    match_num = int(f.api_id)
+                except ValueError:
+                    continue
+                    
+                # 1. Standard next-round propagation
+                next_info = NEXT_ROUND_LOOKUP.get(match_num)
+                if next_info:
+                    next_match_num, slot = next_info
+                    next_fixture = fixtures_by_api_id.get(str(next_match_num))
+                    if next_fixture:
+                        if slot == "home":
+                            if next_fixture.home_team_id != winner_id:
+                                next_fixture.home_team_id = winner_id
+                                next_fixture.home_team_placeholder = None
+                                updated = True
+                                modified_fixtures.add(next_fixture)
+                        elif slot == "away":
+                            if next_fixture.away_team_id != winner_id:
+                                next_fixture.away_team_id = winner_id
+                                next_fixture.away_team_placeholder = None
+                                updated = True
+                                modified_fixtures.add(next_fixture)
+                                
+                # 2. Third-place play-off (api_id 103) is populated by the losers of match 101 and 102
+                if match_num == 101:
+                    third_fixture = fixtures_by_api_id.get("103")
+                    if third_fixture and third_fixture.home_team_id != loser_id:
+                        third_fixture.home_team_id = loser_id
+                        third_fixture.home_team_placeholder = None
+                        updated = True
+                        modified_fixtures.add(third_fixture)
+                elif match_num == 102:
+                    third_fixture = fixtures_by_api_id.get("103")
+                    if third_fixture and third_fixture.away_team_id != loser_id:
+                        third_fixture.away_team_id = loser_id
+                        third_fixture.away_team_placeholder = None
+                        updated = True
+                        modified_fixtures.add(third_fixture)
 
     if modified_fixtures:
         from backend.ingestor import calculate_default_odds
@@ -328,6 +357,16 @@ def calculate_standings(db: Session, group_letter: str, tournament_id: int = Non
         active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
         tournament_id = active_tourney.id if active_tourney else None
         
+    tourney = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    comp = tourney.competition if tourney else None
+    
+    stage = "Group Stage"
+    if comp:
+        if comp.format_engine == "league" or comp.type == "League":
+            stage = "Regular Season"
+        elif comp.format_engine == "league_phase_knockout":
+            stage = "League Phase"
+        
     if group_letter and group_letter.lower() == "standings":
         teams = crud_team.get_all_teams(db, tournament_id=tournament_id)
     else:
@@ -348,7 +387,7 @@ def calculate_standings(db: Session, group_letter: str, tournament_id: int = Non
         })
         
     team_names = [t.name for t in teams]
-    finished_fixtures = crud_fixture.get_finished_group_stage_fixtures_for_teams(db, team_names, tournament_id=tournament_id)
+    finished_fixtures = crud_fixture.get_finished_group_stage_fixtures_for_teams(db, team_names, tournament_id=tournament_id, stage=stage)
     
     standings_map = {s["name"]: s for s in standings}
 
@@ -457,6 +496,14 @@ def get_country_details(db: Session, country_name: str, tz_str: str, tournament_
     future_fixtures = crud_fixture.get_future_fixtures_for_country(db, country_name, tournament_id=tournament_id)
     future_fixtures.sort(key=lambda x: x.date_utc)
     
+    # Calculate goals stats
+    home_games = db.query(Fixture).filter(Fixture.home_team_id == team.id, Fixture.status == "Finished").all()
+    away_games = db.query(Fixture).filter(Fixture.away_team_id == team.id, Fixture.status == "Finished").all()
+    goals = sum(g.home_score for g in home_games) + sum(g.away_score for g in away_games)
+    played = len(home_games) + len(away_games)
+    avg_goals = goals / played if played > 0 else 0.0
+    is_high_scoring = (played >= 3 and avg_goals >= 1.75) or (played > 0 and played < 3 and avg_goals >= 2.0)
+    
     # Preload maps to avoid N+1 queries
     contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(
         PlayerContract.type == contract_type,
@@ -481,7 +528,9 @@ def get_country_details(db: Session, country_name: str, tz_str: str, tournament_
         "group_rank": rank,
         "form": form_results,
         "players": players_data,
-        "future_matches": future_matches_data
+        "future_matches": future_matches_data,
+        "is_high_scoring": is_high_scoring,
+        "avg_goals_scored": round(avg_goals, 2)
     }
 
 def calculate_points_needed_to_guarantee_top_2(db: Session, team_name: str, group_letter: str, tournament_id: int = None) -> int:

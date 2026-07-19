@@ -1,5 +1,5 @@
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from backend.schemas.team import TeamStanding
 from backend.schemas.fixture import FixtureOut
 from backend.schemas.player import PlayerOut
@@ -12,6 +12,8 @@ class CountryDetailsResponse(BaseModel):
     form: List[str]
     players: List[PlayerOut]
     future_matches: List[FixtureOut]
+    is_high_scoring: Optional[bool] = False
+    avg_goals_scored: Optional[float] = 0.0
 
 class GroupDetailsResponse(BaseModel):
     group_letter: str
@@ -75,19 +77,15 @@ class CountrySimpleOut(BaseModel):
     next_match_date: Optional[str] = None
     has_upcoming_game: Optional[bool] = False
 
-
 class ThirdPlacedTeamStanding(TeamStanding):
     group: str
-
 
 class TournamentSimpleOut(BaseModel):
     id: int
     season_name: str
     status: str
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
 
 class CompetitionSelectorOut(BaseModel):
     id: int
@@ -97,7 +95,4 @@ class CompetitionSelectorOut(BaseModel):
     badge: Optional[str] = "⚽"
     tournaments: List[TournamentSimpleOut]
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)

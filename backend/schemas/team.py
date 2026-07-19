@@ -1,5 +1,5 @@
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from backend.schemas.player import PlayerOut
 
 class TeamSimple(BaseModel):
@@ -8,8 +8,7 @@ class TeamSimple(BaseModel):
     form_score: float
     win_streak: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class TeamOut(TeamSimple):
     players: List[PlayerOut] = []
@@ -29,6 +28,4 @@ class TeamStanding(BaseModel):
     status: Optional[str] = "Active"
     points_needed_top_2: Optional[int] = None
 
-    class Config:
-        from_attributes = True
-
+    model_config = ConfigDict(from_attributes=True)
