@@ -1,43 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hot List | findfootball.games</title>
+    <title>Team Profile | findfootball.games</title>
     <link rel="icon" type="image/png" href="/icons8-soccer-ball-96.png">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/css/styles.css?v=1.0.4">
 </head>
-
 <body class="theme-flag">
     <div class="glow-bg"></div>
 
     <header class="app-header">
         <div class="header-container">
-            <a href="/" class="logo-area">
+            <a href="/" class="logo-area animate-logo">
                 <i class="fa-solid fa-trophy trophy-logo"></i>
                 <div class="logo-text">
                     <h1>FIND<span>FOOTBALL</span>.GAMES</h1>
                     <p>Watchability Index</p>
                 </div>
             </a>
-
+            
             <nav class="header-nav">
                 <a href="/" class="nav-link"><i class="fa-solid fa-house"></i> Home</a>
                 <a href="/group/A" class="nav-link"><i class="fa-solid fa-table-list"></i> Groups</a>
-                <a href="/recommended" class="nav-link active"><i class="fa-solid fa-fire"></i> Hot List</a>
+                <a href="/recommended" class="nav-link"><i class="fa-solid fa-fire"></i> Hot List</a>
                 <a href="/bracket" class="nav-link"><i class="fa-solid fa-sitemap"></i> Bracket</a>
                 <a href="/calendar" class="nav-link"><i class="fa-regular fa-calendar-days"></i> Calendar</a>
             </nav>
-
+            
             <div class="controls-area">
                 <div class="timezone-select-wrapper">
                     <i class="fa-solid fa-globe timezone-icon"></i>
@@ -48,35 +45,43 @@
                         <option value="Asia/Shanghai">Beijing</option>
                     </select>
                 </div>
-
-
             </div>
         </div>
     </header>
 
-
-
     <main class="app-main">
-        <!-- Hero Header -->
-        <section class="recommended-hero">
-            <h2>THE HOT LIST</h2>
-            <p>Only the absolute best matchups scoring 75% or higher on our Watchability Index.</p>
+        <!-- Dynamic Team Hero Banner -->
+        <section id="team-hero" class="country-hero-banner">
+            <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading profile...</div>
         </section>
 
-        <!-- View Toggle Buttons -->
-        <div class="recommended-toggle-bar">
-            <button id="toggle-schedule-btn" class="toggle-btn active">
-                <i class="fa-regular fa-calendar-days"></i> Chronological Schedule
-            </button>
-            <button id="toggle-leaderboard-btn" class="toggle-btn">
-                <i class="fa-solid fa-list-ol"></i> Watchability Leaderboard
-            </button>
-        </div>
+        <!-- Team Summary Info & Players Grid -->
+        <section id="team-dashboard" class="country-dashboard-grid" style="display: none;">
+            <!-- Form Card -->
+            <div class="dashboard-card glass form-card">
+                <h3><i class="fa-solid fa-chart-line"></i> Recent Form</h3>
+                <p class="desc-text">Last 5 matches:</p>
+                <div id="team-form-indicators" class="form-indicators-row">
+                    <!-- Dynamic form W-D-L dots -->
+                </div>
+            </div>
 
-        <!-- Dynamic Grid Container -->
-        <div id="recommended-container">
-            <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading hot picks...</div>
-        </div>
+            <!-- Spotlight Players Card -->
+            <div class="dashboard-card glass players-card">
+                <h3><i class="fa-solid fa-bolt"></i> Spotlight Form Players</h3>
+                <div id="spotlight-players-list" class="spotlight-players-container">
+                    <!-- Dynamic player form bars -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Future Matches Schedule -->
+        <section class="country-schedule-section">
+            <h2 class="section-title"><i class="fa-regular fa-calendar-days"></i> Upcoming Matches</h2>
+            <div id="team-matches-container" class="recommended-grid">
+                <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading schedule...</div>
+            </div>
+        </section>
     </main>
 
     <!-- Match Details Modal -->
@@ -98,7 +103,6 @@
 
     <!-- Custom JS -->
     <script src="/js/navigation.js?v=1.0.4"></script>
-    <script src="/js/recommended.js?v=1.0.3"></script>
+    <script src="/js/team.js?v=1.0.3"></script>
 </body>
-
 </html>

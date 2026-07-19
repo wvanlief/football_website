@@ -336,7 +336,10 @@ def calculate_standings(db: Session, group_letter: str, tournament_id: int = Non
         active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
         tournament_id = active_tourney.id if active_tourney else None
         
-    teams = crud_team.get_teams_by_group(db, group_letter, tournament_id=tournament_id)
+    if group_letter and group_letter.lower() == "standings":
+        teams = crud_team.get_all_teams(db, tournament_id=tournament_id)
+    else:
+        teams = crud_team.get_teams_by_group(db, group_letter, tournament_id=tournament_id)
     standings = []
     for t in teams:
         standings.append({
@@ -624,13 +627,14 @@ def get_all_third_placed_teams(db: Session, tournament_id: int = None) -> list:
     third_placed = []
     
     sim_data = None
-    file_path = os.path.join(os.path.dirname(__file__), "..", "data", "simulation_results.json")
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                sim_data = json.load(f)
-        except Exception:
-            pass
+    if tournament_id == 1:
+        file_path = os.path.join(os.path.dirname(__file__), "..", "data", "simulation_results.json")
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    sim_data = json.load(f)
+            except Exception:
+                pass
             
     team_probs = {}
     if sim_data and "probabilities" in sim_data:
@@ -676,20 +680,24 @@ def get_group_details(db: Session, group_letter: str, tz_str: str, tournament_id
         if tourney and tourney.competition:
             contract_type = "Country" if tourney.competition.type == "International" else "Club"
             
-    teams = crud_team.get_teams_by_group(db, group_letter, tournament_id=tournament_id)
+    if group_letter and group_letter.lower() == "standings":
+        teams = crud_team.get_all_teams(db, tournament_id=tournament_id)
+    else:
+        teams = crud_team.get_teams_by_group(db, group_letter, tournament_id=tournament_id)
     if not teams:
         return None
         
     standings = calculate_standings(db, group_letter, tournament_id=tournament_id)
     
     sim_data = None
-    file_path = os.path.join(os.path.dirname(__file__), "..", "data", "simulation_results.json")
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                sim_data = json.load(f)
-        except Exception:
-            pass
+    if tournament_id == 1:
+        file_path = os.path.join(os.path.dirname(__file__), "..", "data", "simulation_results.json")
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    sim_data = json.load(f)
+            except Exception:
+                pass
             
     team_probs = {}
     if sim_data and "probabilities" in sim_data:
@@ -710,7 +718,10 @@ def get_group_details(db: Session, group_letter: str, tz_str: str, tournament_id
             s["qualification_probability"] = None
             s["status"] = "Active"
             
-        s["points_needed_top_2"] = calculate_points_needed_to_guarantee_top_2(db, s["name"], group_letter, tournament_id=tournament_id)
+        if group_letter and group_letter.lower() == "standings":
+            s["points_needed_top_2"] = None
+        else:
+            s["points_needed_top_2"] = calculate_points_needed_to_guarantee_top_2(db, s["name"], group_letter, tournament_id=tournament_id)
         
     team_names = [t.name for t in teams]
     fixtures = crud_fixture.get_fixtures_for_group(db, team_names, tournament_id=tournament_id)

@@ -416,13 +416,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderStandings(standings) {
         standingsTbody.innerHTML = '';
+        
+        const isPreSeason = standings.every(t => t.played === 0);
+        let bannerEl = document.getElementById('preseason-banner');
+        if (formatEngine === 'league' && isPreSeason) {
+            if (!bannerEl) {
+                bannerEl = document.createElement('div');
+                bannerEl.id = 'preseason-banner';
+                bannerEl.className = 'alert-info-banner';
+                bannerEl.style.padding = '0.75rem 1rem';
+                bannerEl.style.marginBottom = '1rem';
+                bannerEl.style.borderRadius = '8px';
+                bannerEl.style.background = 'rgba(245, 158, 11, 0.1)';
+                bannerEl.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+                bannerEl.style.color = '#F59E0B';
+                bannerEl.style.fontSize = '0.9rem';
+                bannerEl.style.fontWeight = '500';
+                bannerEl.innerHTML = `<i class="fa-solid fa-info-circle" style="margin-right: 0.5rem;"></i> Season hasn't started yet — teams ranked by ELO rating`;
+                
+                const card = document.getElementById('group-standings-section');
+                const tableWrapper = card.querySelector('.table-wrapper');
+                card.insertBefore(bannerEl, tableWrapper);
+            }
+            // Sort by ELO preseason
+            standings.sort((a, b) => b.elo - a.elo);
+        } else if (bannerEl) {
+            bannerEl.remove();
+        }
+
         standings.forEach((team, index) => {
             const rank = index + 1;
             
             let statusHtml = '';
             let qualifyClass = '';
             
-            if (team.status === 'Qualified') {
+            if (formatEngine === 'league') {
+                statusHtml = `<span class="text-muted">—</span>`;
+            } else if (team.status === 'Qualified') {
                 statusHtml = `<span class="qual-badge qualified"><i class="fa-solid fa-circle-check"></i> Qualified</span>`;
                 qualifyClass = 'status-qualified';
             } else if (team.status === 'Eliminated') {

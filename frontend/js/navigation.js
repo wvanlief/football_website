@@ -1,7 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Find the controls-area and insert the competition select dropdown if it's missing
+    const path = window.location.pathname.replace(/\/$/, '') || '/';
+    const isMainPage = (path === '/' || path === '/recommended');
+
+    // 1. Find the controls-area and insert the competition select dropdown if it's missing (only on deep pages)
     const controlsArea = document.querySelector('.controls-area');
-    if (controlsArea && !document.getElementById('competition-select-wrapper')) {
+    if (controlsArea && !isMainPage && !document.getElementById('competition-select-wrapper')) {
         const wrapper = document.createElement('div');
         wrapper.id = 'competition-select-wrapper';
         wrapper.className = 'competition-select-wrapper';
@@ -21,48 +24,51 @@ document.addEventListener('DOMContentLoaded', () => {
     fetch('/api/competitions')
         .then(res => res.json())
         .then(competitions => {
-            if (!selectEl) return;
-            selectEl.innerHTML = '';
-            
             let selectedId = localStorage.getItem('findfootball-tournament-id');
             let activeTourney = null;
             
+            // Build a flat list of active tournaments
+            const activeTourneysList = [];
             competitions.forEach(comp => {
                 comp.tournaments.forEach(tourney => {
+                    if (tourney.status === 'Active') {
+                        tourney.competition = comp;
+                        activeTourneysList.push(tourney);
+                    }
+                });
+            });
+
+            // Populate selector if it exists
+            if (selectEl) {
+                selectEl.innerHTML = '';
+                activeTourneysList.forEach(tourney => {
+                    const comp = tourney.competition;
                     const option = document.createElement('option');
                     option.value = tourney.id;
                     option.textContent = `${comp.name} (${tourney.season_name})`;
                     option.setAttribute('data-engine', comp.format_engine);
                     option.setAttribute('data-name', comp.name);
                     selectEl.appendChild(option);
-                    
-                    if (String(tourney.id) === String(selectedId)) {
-                        activeTourney = tourney;
-                        activeTourney.competition = comp;
-                    }
-                    if (!activeTourney && tourney.status === 'Active') {
-                        activeTourney = tourney;
-                        activeTourney.competition = comp;
-                    }
                 });
-            });
+            }
             
-            // Default to the first option if none is selected/active
-            if (!activeTourney && selectEl.options.length > 0) {
-                const firstOption = selectEl.options[0];
-                selectedId = firstOption.value;
-                localStorage.setItem('findfootball-tournament-id', selectedId);
-                selectEl.value = selectedId;
-            } else if (activeTourney) {
+            // Find matching active tournament
+            if (selectedId) {
+                activeTourney = activeTourneysList.find(t => String(t.id) === String(selectedId));
+            }
+            if (!activeTourney && activeTourneysList.length > 0) {
+                activeTourney = activeTourneysList[0];
+            }
+            
+            if (activeTourney) {
                 selectedId = activeTourney.id;
                 localStorage.setItem('findfootball-tournament-id', selectedId);
-                selectEl.value = selectedId;
+                if (selectEl) selectEl.value = selectedId;
             }
             
             // Get format engine of selected tournament
-            const selectedOption = selectEl.options[selectEl.selectedIndex];
-            const engine = selectedOption ? selectedOption.getAttribute('data-engine') : 'group_knockout';
-            const compName = selectedOption ? selectedOption.getAttribute('data-name') : 'World Cup';
+            const engine = activeTourney ? activeTourney.competition.format_engine : 'group_knockout';
+            const compName = activeTourney ? activeTourney.competition.name : 'World Cup';
             
             // 3. Update the Nav Bar based on competition format engine
             const bracketLink = document.querySelector('a[href="/bracket"]');
@@ -85,28 +91,49 @@ document.addEventListener('DOMContentLoaded', () => {
             // 4. Update Header Subtitle text dynamically
             const subtitleEl = document.querySelector('.logo-text p');
             if (subtitleEl) {
-                subtitleEl.textContent = `${compName} Watchability Index`;
+                if (isMainPage) {
+                    subtitleEl.textContent = 'Watchability Index';
+                } else {
+                    subtitleEl.textContent = `${compName} Watchability Index`;
+                }
+            }
+
+            // 5. Update Document Title dynamically
+            if (!isMainPage) {
+                if (path.startsWith('/group/')) {
+                    const groupLetter = path.split('/').pop();
+                    if (groupLetter === 'standings') {
+                        document.title = `${compName} Standings | findfootball.games`;
+                    } else {
+                        document.title = `${compName} Group ${groupLetter.toUpperCase()} | findfootball.games`;
+                    }
+                } else if (path === '/bracket') {
+                    document.title = `${compName} Bracket | findfootball.games`;
+                } else if (path === '/calendar') {
+                    document.title = `${compName} Calendar | findfootball.games`;
+                }
             }
             
-            // 5. Handle change event
-            selectEl.addEventListener('change', () => {
-                const newId = selectEl.value;
-                localStorage.setItem('findfootball-tournament-id', newId);
-                
-                const path = window.location.pathname;
-                const selectedOpt = selectEl.options[selectEl.selectedIndex];
-                const newEngine = selectedOpt ? selectedOpt.getAttribute('data-engine') : '';
-                
-                if (newEngine === 'league' && path.startsWith('/group/')) {
-                    window.location.href = '/group/standings';
-                } else if (newEngine !== 'league' && path === '/group/standings') {
-                    window.location.href = '/group/A';
-                } else if (newEngine === 'league' && path === '/bracket') {
-                    window.location.href = '/';
-                } else {
-                    window.location.reload();
-                }
-            });
+            // 6. Handle change event
+            if (selectEl) {
+                selectEl.addEventListener('change', () => {
+                    const newId = selectEl.value;
+                    localStorage.setItem('findfootball-tournament-id', newId);
+                    
+                    const matchingTourney = activeTourneysList.find(t => String(t.id) === String(newId));
+                    const newEngine = matchingTourney ? matchingTourney.competition.format_engine : '';
+                    
+                    if (newEngine === 'league' && path.startsWith('/group/')) {
+                        window.location.href = '/group/standings';
+                    } else if (newEngine !== 'league' && path === '/group/standings') {
+                        window.location.href = '/group/A';
+                    } else if (newEngine === 'league' && path === '/bracket') {
+                        window.location.href = '/';
+                    } else {
+                        window.location.reload();
+                    }
+                });
+            }
         })
         .catch(err => console.error("Error loading competitions selector:", err));
 });
