@@ -684,30 +684,40 @@ def fetch_clubelo_ratings(date_str: str = None) -> dict[str, int]:
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     url = f"http://api.clubelo.com/{date_str}"
     print(f"Fetching ClubElo CSV from: {url}")
-    try:
-        content = fetch_url_with_retry(url).decode('utf-8')
-    except Exception as e:
-        print(f"Error fetching ClubElo ratings: {e}")
-        return {}
-        
-    ratings = {}
-    lines = content.split('\n')
-    if len(lines) < 2:
-        print("Warning: ClubElo response is empty or invalid.")
-        return ratings
-        
-    for line in lines[1:]: # skip header
-        if not line.strip():
-            continue
-        parts = line.split(',')
-        if len(parts) >= 5:
-            club_name = parts[1].strip()
-            elo_str = parts[4].strip()
-            try:
-                elo = int(float(elo_str))
-                ratings[club_name] = elo
-            except ValueError:
-                pass
+    
+    def _parse_csv(url_to_fetch: str) -> dict[str, int]:
+        try:
+            content = fetch_url_with_retry(url_to_fetch).decode('utf-8')
+        except Exception as e:
+            print(f"Error fetching ClubElo ratings from {url_to_fetch}: {e}")
+            return {}
+            
+        res = {}
+        lines = content.split('\n')
+        if len(lines) < 2:
+            return res
+            
+        for line in lines[1:]: # skip header
+            if not line.strip():
+                continue
+            parts = line.split(',')
+            if len(parts) >= 5:
+                club_name = parts[1].strip()
+                elo_str = parts[4].strip()
+                try:
+                    res[club_name] = int(float(elo_str))
+                except ValueError:
+                    pass
+        return res
+
+    ratings = _parse_csv(url)
+    if "Bayern" not in ratings or len(ratings) < 500:
+        print("Notice: Merging full ClubElo snapshot for complete coverage...")
+        fallback_ratings = _parse_csv("http://api.clubelo.com/2025-05-25")
+        for k, v in fallback_ratings.items():
+            if k not in ratings:
+                ratings[k] = v
+            
     return ratings
 
 
@@ -735,7 +745,7 @@ def fuzzy_match_team(team_name: str, clubelo_names: list[str]) -> tuple[str, flo
 
 
 def review_elo_matches(db: Session, output_path: str = "backend/data/elo_name_review.json"):
-    """Generates an ELO match review file comparing DB club teams with ClubElo database."""
+    """Generates an ELO match review file comparing DB club teams with ClubElo database, preserving prior user approvals."""
     # Find all clubs in DB that use clubelo ELO source
     teams = db.query(Team).filter(Team.team_type == "Club", Team.elo_source == "clubelo").all()
     if not teams:
@@ -746,26 +756,53 @@ def review_elo_matches(db: Session, output_path: str = "backend/data/elo_name_re
     if not clubelo_ratings:
         print("Failed to fetch ClubElo ratings.")
         return
-        
+
+    # Load existing mappings to preserve user-approved edits
+    existing_map = {}
+    if os.path.exists(output_path):
+        try:
+            with open(output_path, "r", encoding="utf-8") as f:
+                existing_list = json.load(f)
+                if isinstance(existing_list, list):
+                    for item in existing_list:
+                        api_name = item.get("api_football_name")
+                        if api_name:
+                            existing_map[api_name] = item
+        except Exception as e:
+            print(f"Warning: Could not parse existing review file {output_path}: {e}")
+
     clubelo_names = list(clubelo_ratings.keys())
     review_list = []
     
     for team in teams:
-        best_name, confidence = fuzzy_match_team(team.name, clubelo_names)
-        elo_val = clubelo_ratings.get(best_name, 1500)
-        status = "approved" if confidence >= 0.85 else "needs_review"
-        
-        review_list.append({
-            "api_football_name": team.name,
-            "clubelo_name": best_name,
-            "confidence": round(confidence, 2),
-            "elo": elo_val,
-            "status": status
-        })
+        # Check if already approved by user in existing file
+        prev_item = existing_map.get(team.name)
+        if prev_item and prev_item.get("status") == "approved":
+            c_name = prev_item.get("clubelo_name")
+            elo_val = clubelo_ratings.get(c_name, prev_item.get("elo", 1500))
+            review_list.append({
+                "api_football_name": team.name,
+                "clubelo_name": c_name,
+                "confidence": prev_item.get("confidence", 1.0),
+                "elo": elo_val,
+                "status": "approved"
+            })
+        else:
+            best_name, confidence = fuzzy_match_team(team.name, clubelo_names)
+            elo_val = clubelo_ratings.get(best_name, 1500)
+            status = "approved" if confidence >= 0.85 else "needs_review"
+            
+            review_list.append({
+                "api_football_name": team.name,
+                "clubelo_name": best_name,
+                "confidence": round(confidence, 2),
+                "elo": elo_val,
+                "status": status
+            })
         
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(review_list, f, indent=2)
+        json.dump(review_list, f, indent=2, ensure_ascii=False)
         
     print(f"Generated ELO review file: {output_path}")
     print("Please review the mapping in this file, fix any wrong mappings, and run apply-elo-matches.")
@@ -805,6 +842,42 @@ def apply_elo_matches(db: Session, file_path: str):
                 
     db.commit()
     print(f"Successfully applied ELO ratings to {count} teams.")
+
+    # Recalculate default odds and watchability scores for all fixtures with updated team ELOs
+    from backend.scoring import update_fixture_score
+    all_fixtures = db.query(Fixture).all()
+    print(f"Recalculating odds & watchability scores for {len(all_fixtures)} fixtures...")
+    for f in all_fixtures:
+        if f.home_team and f.away_team:
+            comp = f.tournament.competition if f.tournament else None
+            home_adv = comp.home_advantage_elo if (comp and comp.home_advantage_elo is not None) else 100
+            neutral = comp.neutral_venue if comp else False
+            
+            h_odds, d_odds, a_odds = calculate_default_odds(
+                f.home_team.elo or 1500, 
+                f.away_team.elo or 1500, 
+                neutral_venue=neutral, 
+                home_advantage=home_adv
+            )
+            
+            if f.latest_odds:
+                f.latest_odds.odds_home = h_odds
+                f.latest_odds.odds_draw = d_odds
+                f.latest_odds.odds_away = a_odds
+            else:
+                new_odds = FixtureOdds(
+                    fixture_id=f.id,
+                    recorded_at=f.date_utc,
+                    odds_home=h_odds,
+                    odds_draw=d_odds,
+                    odds_away=a_odds
+                )
+                db.add(new_odds)
+                
+            update_fixture_score(f, db)
+            
+    db.commit()
+    print("Successfully updated default odds and watchability scores across all fixtures.")
 
 
 def fetch_and_seed_teams(
