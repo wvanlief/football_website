@@ -78,7 +78,12 @@ def fetch_url_with_retry(
             # Retry on 5xx server errors or 429 Too Many Requests
             if e.code in (429, 500, 502, 503, 504):
                 last_error = e
-                print(f"HTTP error {e.code} fetching {url} (attempt {attempt}/{retries}). Retrying in {delay}s...")
+                wait_time = 30.0 if e.code == 429 else delay
+                print(f"HTTP error {e.code} fetching {url} (attempt {attempt}/{retries}). Retrying in {wait_time}s...")
+                if attempt < retries:
+                    time.sleep(wait_time)
+                    delay *= backoff_factor
+                continue
             else:
                 # Fail immediately for other 4xx errors (e.g. 404, 403, 400)
                 print(f"HTTP error {e.code} fetching {url}. Failing immediately.")

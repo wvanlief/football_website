@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -866,53 +867,58 @@ def fetch_and_seed_teams(
         db.flush()
         
         # Fetch squad players to select 3 spotlight players (1 GK, 1 MID, 1 FWD)
-        try:
-            print(f"Fetching squad for {name}...")
-            squad_res = call_football_api("players/squads", {"team": api_team_id})
-            squad_data = squad_res.get("response", [])
-            if squad_data and isinstance(squad_data, list):
-                players_list = squad_data[0].get("players", [])
-                gks = [p for p in players_list if p.get("position") == "Goalkeeper"]
-                mids = [p for p in players_list if p.get("position") == "Midfielder"]
-                fwds = [p for p in players_list if p.get("position") == "Attacker" or p.get("position") == "Forward"]
-                
-                spotlights = []
-                for p_group in (gks, mids, fwds):
-                    if p_group:
-                        p_group_sorted = sorted(p_group, key=lambda x: x.get("age") or 0, reverse=True)
-                        spotlights.append(p_group_sorted[0])
-                        
-                for p in spotlights:
-                    p_name = p.get("name")
-                    p_pos = p.get("position")
-                    if p_pos == "Attacker":
-                        p_pos = "Forward"
-                        
-                    db_player = db.query(Player).filter(Player.name == p_name, Player.position == p_pos).first()
-                    if not db_player:
-                        db_player = Player(
-                            name=p_name,
-                            position=p_pos,
-                            form_score=75.0
-                        )
-                        db.add(db_player)
-                        db.flush()
-                        
-                    contract = db.query(PlayerContract).filter(
-                        PlayerContract.player_id == db_player.id,
-                        PlayerContract.team_id == db_team.id,
-                        PlayerContract.type == team_type
-                    ).first()
-                    if not contract:
-                        contract = PlayerContract(
-                            player_id=db_player.id,
-                            team_id=db_team.id,
-                            type=team_type,
-                            is_active=True
-                        )
-                        db.add(contract)
-        except Exception as squad_err:
-            print(f"Warning: Failed to fetch squad for {name}: {squad_err}")
+        existing_contracts = db.query(PlayerContract).filter(PlayerContract.team_id == db_team.id).first()
+        if existing_contracts:
+            print(f"Squad already populated for {name}, skipping squad API call.")
+        else:
+            try:
+                print(f"Fetching squad for {name}...")
+                squad_res = call_football_api("players/squads", {"team": api_team_id})
+                time.sleep(6.0)  # Throttling to respect API-Football 10 req/min free tier rate limit
+                squad_data = squad_res.get("response", [])
+                if squad_data and isinstance(squad_data, list):
+                    players_list = squad_data[0].get("players", [])
+                    gks = [p for p in players_list if p.get("position") == "Goalkeeper"]
+                    mids = [p for p in players_list if p.get("position") == "Midfielder"]
+                    fwds = [p for p in players_list if p.get("position") == "Attacker" or p.get("position") == "Forward"]
+                    
+                    spotlights = []
+                    for p_group in (gks, mids, fwds):
+                        if p_group:
+                            p_group_sorted = sorted(p_group, key=lambda x: x.get("age") or 0, reverse=True)
+                            spotlights.append(p_group_sorted[0])
+                            
+                    for p in spotlights:
+                        p_name = p.get("name")
+                        p_pos = p.get("position")
+                        if p_pos == "Attacker":
+                            p_pos = "Forward"
+                            
+                        db_player = db.query(Player).filter(Player.name == p_name, Player.position == p_pos).first()
+                        if not db_player:
+                            db_player = Player(
+                                name=p_name,
+                                position=p_pos,
+                                form_score=75.0
+                            )
+                            db.add(db_player)
+                            db.flush()
+                            
+                        contract = db.query(PlayerContract).filter(
+                            PlayerContract.player_id == db_player.id,
+                            PlayerContract.team_id == db_team.id,
+                            PlayerContract.type == team_type
+                        ).first()
+                        if not contract:
+                            contract = PlayerContract(
+                                player_id=db_player.id,
+                                team_id=db_team.id,
+                                type=team_type,
+                                is_active=True
+                            )
+                            db.add(contract)
+            except Exception as squad_err:
+                print(f"Warning: Failed to fetch squad for {name}: {squad_err}")
             
     db.commit()
     print(f"Successfully seeded teams and spotlights for league={api_league_id}.")

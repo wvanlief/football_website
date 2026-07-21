@@ -72,23 +72,26 @@ graph TD
 
 ### Phase 2: Premier League (PL) Pilot Seeding (Days 2–3)
 * **Goal**: Populate a reference domestic league (Competition ID 39) for 2025/26 and 2026/27.
+* **Resilience & Idempotency**: Squad fetching checks existing DB entries before hitting API-Football; if interrupted, running `fetch-teams` again skips already ingested teams and consumes zero extra API calls.
 * **Actions**:
   1. Fetch teams and their 3-player squad spotlights:
      ```bash
-     python -m backend.ingestor fetch-teams --league=39 --season=2026
+     railway run python -m backend.ingestor fetch-teams --league=39 --season=2026
      ```
-  2. Generate fuzzy ELO mapping review file:
+  2. Run fuzzy ELO matching with **Auto-Approval Threshold ($\ge 90\%$)**:
      ```bash
-     python -m backend.ingestor review-elo-matches --file=backend/data/elo_name_review.json
+     railway run python -m backend.ingestor review-elo-matches --file=backend/data/elo_name_review.json
      ```
-  3. *Manual Check*: Open `backend/data/elo_name_review.json`, verify club mappings (e.g., matching "Manchester United" to ClubElo's "Man United"), change statuses to `approved`, and apply:
+     - Matches with $\ge 90\%$ string similarity auto-approve and apply immediately.
+     - Only low-confidence or ambiguous matches ($< 90\%$) are written to `backend/data/elo_name_review.json` as `"pending"` for manual review.
+  3. Apply approved mappings:
      ```bash
-     python -m backend.ingestor apply-elo-matches --file=backend/data/elo_name_review.json
+     railway run python -m backend.ingestor apply-elo-matches --file=backend/data/elo_name_review.json
      ```
   4. Seed schedules for both active seasons:
      ```bash
-     python -m backend.ingestor seed-competition --league=39 --season=2025 --comp-name="Premier League" --comp-type="League" --format-engine="league"
-     python -m backend.ingestor seed-competition --league=39 --season=2026 --comp-name="Premier League" --comp-type="League" --format-engine="league"
+     railway run python -m backend.ingestor seed-competition --league=39 --season=2025 --comp-name="Premier League" --comp-type="League" --format-engine="league"
+     railway run python -m backend.ingestor seed-competition --league=39 --season=2026 --comp-name="Premier League" --comp-type="League" --format-engine="league"
      ```
 * **Connection & Integrity Check**:
   - Verify that the `TournamentTeam` cache contains correct fields (`points`, `goals_for`, `wins`, etc.).
@@ -100,9 +103,9 @@ graph TD
 ### Phase 3: Staggered Major Domestic Leagues (Days 4–7)
 * **Goal**: Ingest La Liga (140), Bundesliga (78), Serie A (135), and Ligue 1 (61) without exceeding daily rate limits.
 * **Staggering Schedule**:
-  - **Day 4**: Fetch teams and spotlights for **La Liga** (21 requests). Run ELO mapping.
-  - **Day 5**: Fetch teams and spotlights for **Bundesliga** (19 requests) & **Ligue 1** (19 requests). Run ELO mappings.
-  - **Day 6**: Fetch teams and spotlights for **Serie A** (21 requests). Run ELO mapping.
+  - **Day 4**: Fetch teams and spotlights for **La Liga** (21 requests). Auto-approve ELO mappings $\ge 90\%$.
+  - **Day 5**: Fetch teams and spotlights for **Bundesliga** (19 requests) & **Ligue 1** (19 requests). Auto-approve ELO mappings $\ge 90\%$.
+  - **Day 6**: Fetch teams and spotlights for **Serie A** (21 requests). Auto-approve ELO mappings $\ge 90\%$.
   - **Day 7**: Seed fixtures for all four leagues (4 calls to `seed-competition` = 4 requests total).
 * **Connection & Integrity Check**:
   - Verify that clubs with identical names from different countries do not conflict (e.g., Barcelona in Spain vs. Barcelona in Ecuador).
@@ -133,10 +136,15 @@ graph TD
 ---
 
 ### Phase 6: Live Updater & Odds Sync Activation (Day 12+)
-* **Goal**: Transition from batch seeding to live scheduling.
-* **Actions**:
-  1. Configure cron job or updater service to check active match windows.
-  2. Enable The Odds API key for active sport keys (e.g., `soccer_epl`, `soccer_la_liga`).
+* **Goal**: Transition from batch seeding to production cron scheduling.
+* **Execution Architecture (Railway Services)**:
+  - **`backend-updater-cron`** (runs every few minutes): Executes lightweight live score polling (`python -m backend.services.updater --live`) and checks for 2-hour pre-kickoff odds updates for active matchday windows.
+  - **`admin-update-cron`** (runs periodically): Executes results sync, ClubElo updates, standings recalculation, and scheduled Odds API batches (`python -m backend.services.updater`).
+* **Hybrid Odds Refresh Schedule (The Odds API)**:
+  - **Friday Afternoon**: Domestic top 5 leagues refresh (5 requests/week = ~22 requests/month).
+  - **Tuesday Afternoon**: European club cups refresh (3 requests/week = ~9 requests/month).
+  - **2 Hours Pre-Kickoff Window**: Pre-game line updates (~61 requests/month across all competitions).
+  - **Total Consumption**: **~92–100 requests/month** (Leaves an 80% safety buffer out of the 500 free tier quota).
 * **Connection & Integrity Check**:
   - Verify that the update engine skips ELO/Odds sync for leagues with no matches within the 24-hour window.
 
