@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.schemas.tournament import CombinedBracketResponse
-from backend.services.tournament import simulate_bracket, run_monte_carlo_simulation
+from backend.services.simulation import simulate_bracket, run_monte_carlo_simulation
 
 router = APIRouter(prefix="/api/bracket", tags=["Bracket"])
 

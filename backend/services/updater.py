@@ -18,7 +18,8 @@ from backend.ingestor import (
     normalize_team_name, calculate_default_odds, update_odds_from_api,
     call_football_api, fetch_clubelo_ratings
 )
-from backend.services.tournament import run_monte_carlo_simulation, propagate_knockout_fixtures
+from backend.services.tournament import propagate_knockout_fixtures
+from backend.services.simulation import run_monte_carlo_simulation
 
 STAGE_MAPPING = {
     "group": "Group Stage",
@@ -215,9 +216,9 @@ def recalculate_team_streaks(db: Session):
 
 from backend.utils import fetch_json_with_retry
 
-def fetch_json(url: str) -> list:
+def fetch_json(url: str, use_cache: bool = True) -> list:
     """Helper to fetch JSON content from a URL."""
-    return fetch_json_with_retry(url)
+    return fetch_json_with_retry(url, use_cache=use_cache)
 
 def map_api_football_round_to_type_key(round_str: str) -> str:
     if not round_str:
@@ -239,7 +240,7 @@ def map_api_football_round_to_type_key(round_str: str) -> str:
         return "final"
     return "group"
 
-def fetch_games_with_fallback() -> tuple[list, bool]:
+def fetch_games_with_fallback(use_cache: bool = True) -> tuple[list, bool]:
     """
     Fetches games list. Returns a tuple: (fetched_matches_list, is_fallback_used).
     Attempts to fetch from primary URL first, and if it fails or returns no matches,
@@ -248,7 +249,7 @@ def fetch_games_with_fallback() -> tuple[list, bool]:
     primary_url = "https://worldcup26.ir/get/games"
     try:
         print("Attempting to fetch games from primary live scoring API...")
-        res = fetch_json(primary_url)
+        res = fetch_json(primary_url, use_cache=use_cache)
         if res:
             games = res.get("games") if isinstance(res, dict) else res
             if games and len(games) > 0:
@@ -270,7 +271,7 @@ def fetch_games_with_fallback() -> tuple[list, bool]:
     }
     try:
         print("Attempting to fetch games from fallback API (API-Sports)...")
-        res = fetch_json_with_retry(fallback_url, headers=headers)
+        res = fetch_json_with_retry(fallback_url, headers=headers, use_cache=use_cache)
         if isinstance(res, dict) and "response" in res:
             fixtures = res["response"]
             if fixtures:
@@ -799,7 +800,7 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
 
             fetched_matches = []
             try:
-                fetched_matches, _ = fetch_games_with_fallback()
+                fetched_matches, _ = fetch_games_with_fallback(use_cache=False)
             except Exception as e:
                 print(f"Error fetching live scores: {e}")
                 continue
@@ -908,7 +909,7 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
             url = "https://api.football-data.org/v4/matches"
             headers = {"X-Auth-Token": api_key}
             try:
-                res = fetch_json_with_retry(url, headers=headers)
+                res = fetch_json_with_retry(url, headers=headers, use_cache=False)
             except Exception as e:
                 print(f"Error fetching live scores from Football-Data.org: {e}")
                 continue

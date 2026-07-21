@@ -266,6 +266,57 @@ def update_odds_from_api(fixtures: list, db: Session, sport_key: str = "soccer_f
     except Exception as e:
         print(f"Error fetching/updating odds from The Odds API: {e}")
 
+NATIONAL_TEAM_ISO_CODES = {
+    "Spain": "ESP",
+    "Argentina": "ARG",
+    "France": "FRA",
+    "England": "ENG",
+    "Brazil": "BRA",
+    "Portugal": "PRT",
+    "Colombia": "COL",
+    "Netherlands": "NLD",
+    "Germany": "DEU",
+    "Norway": "NOR",
+    "Japan": "JPN",
+    "Turkey": "TUR",
+    "Uruguay": "URY",
+    "Switzerland": "CHE",
+    "Senegal": "SEN",
+    "Mexico": "MEX",
+    "USA": "USA",
+    "Canada": "CAN",
+    "Morocco": "MAR",
+    "Algeria": "DZA",
+    "Croatia": "HRV",
+    "Ecuador": "ECU",
+    "Austria": "AUT",
+    "Paraguay": "PRY",
+    "South Korea": "KOR",
+    "Australia": "AUS",
+    "Scotland": "SCO",
+    "Iran": "IRN",
+    "Uzbekistan": "UZB",
+    "Qatar": "QAT",
+    "South Africa": "ZAF",
+    "Haiti": "HTI",
+    "Curaçao": "CUW",
+    "Cape Verde": "CPV",
+    "Panama": "PAN",
+    "Ghana": "GHA",
+    "New Zealand": "NZL",
+    "Jordan": "JOR",
+    "Czechia": "CZE",
+    "Bosnia and Herzegovina": "BIH",
+    "Côte d'Ivoire": "CIV",
+    "Tunisia": "TUN",
+    "Poland": "POL",
+    "Belgium": "BEL",
+    "Egypt": "EGY",
+    "Saudi Arabia": "SAU",
+    "Iraq": "IRQ",
+    "Jamaica": "JAM",
+}
+
 def seed_database(db: Session):
     """
     Seeds database using actual World Cup 2026 schedules from GitHub, falling back to mock fixtures if offline.
@@ -338,9 +389,10 @@ def seed_database(db: Session):
             elif elo > 1850:
                 win_streak = 2
                 
+            country_code = NATIONAL_TEAM_ISO_CODES.get(name) or name[:3].upper()
             db_team = Team(
                 name=name,
-                country_code=None,
+                country_code=country_code,
                 elo=elo,
                 form_score=round(form_score, 1),
                 win_streak=win_streak,
@@ -377,9 +429,10 @@ def seed_database(db: Session):
                 form_score = min(95.0, max(45.0, 50.0 + (elo - 1500) * 0.05))
                 win_streak = 4 if elo > 2000 else (2 if elo > 1850 else 0)
                 
+                country_code = NATIONAL_TEAM_ISO_CODES.get(name) or name[:3].upper()
                 db_team = Team(
                     name=name,
-                    country_code=None,
+                    country_code=country_code,
                     elo=elo,
                     form_score=round(form_score, 1),
                     win_streak=win_streak,
@@ -589,8 +642,12 @@ def seed_database(db: Session):
     db.commit()
     
     # Recalculate team streaks based on seeded finished fixtures
-    from backend.services.updater import recalculate_team_streaks
+    from backend.services.updater import recalculate_team_streaks, recalculate_tournament_team_standings
     recalculate_team_streaks(db)
+    
+    # Recalculate standings cache
+    recalculate_tournament_team_standings(db, tourney.id)
+    db.commit()
 
     print("Database seeding completed. Triggering tournament Monte Carlo simulation...")
     from backend.services.tournament import run_monte_carlo_simulation
@@ -1050,6 +1107,9 @@ def seed_competition(
         db.flush()
         update_fixture_score(fixture, db)
         
+    # Recalculate standings cache
+    from backend.services.updater import recalculate_tournament_team_standings
+    recalculate_tournament_team_standings(db, tourney.id)
     db.commit()
     print(f"Successfully seeded competition {competition_name} for season {season}.")
 
