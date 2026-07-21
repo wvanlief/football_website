@@ -1,47 +1,5 @@
 [
   {
-    "api_football_name": "Manchester United",
-    "clubelo_name": "Man United",
-    "confidence": 0.74,
-    "elo": 1915,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Newcastle",
-    "clubelo_name": "Newcastle",
-    "confidence": 1.0,
-    "elo": 1837,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Bournemouth",
-    "clubelo_name": "Bournemouth",
-    "confidence": 1.0,
-    "elo": 1871,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Fulham",
-    "clubelo_name": "Fulham",
-    "confidence": 1.0,
-    "elo": 1813,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Liverpool",
-    "clubelo_name": "Liverpool",
-    "confidence": 1.0,
-    "elo": 1910,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Arsenal",
-    "clubelo_name": "Arsenal",
-    "confidence": 1.0,
-    "elo": 2063,
-    "status": "approved"
-  },
-  {
     "api_football_name": "Everton",
     "clubelo_name": "Everton",
     "confidence": 1.0,
@@ -109,13 +67,55 @@
     "clubelo_name": "Hull",
     "confidence": 0.62,
     "elo": 1532,
-    "status": "needs_review"
+    "status": "approved"
   },
   {
-    "api_football_name": "Nottingham Forest",
-    "clubelo_name": "Forest",
-    "confidence": 0.59,
-    "elo": 1670,
+    "api_football_name": "Manchester United",
+    "clubelo_name": "Man United",
+    "confidence": 0.74,
+    "elo": 1915,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Newcastle",
+    "clubelo_name": "Newcastle",
+    "confidence": 1.0,
+    "elo": 1837,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Bournemouth",
+    "clubelo_name": "Bournemouth",
+    "confidence": 1.0,
+    "elo": 1871,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Fulham",
+    "clubelo_name": "Fulham",
+    "confidence": 1.0,
+    "elo": 1813,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Liverpool",
+    "clubelo_name": "Liverpool",
+    "confidence": 1.0,
+    "elo": 1910,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Arsenal",
+    "clubelo_name": "Arsenal",
+    "confidence": 1.0,
+    "elo": 2063,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Deportivo La Coruna",
+    "clubelo_name": "Deportivo",
+    "confidence": 0.60,
+    "elo": 1500,
     "status": "approved"
   },
   {
@@ -137,6 +137,167 @@
     "clubelo_name": "Coventry",
     "confidence": 1.0,
     "elo": 1661,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Wolves",
+    "clubelo_name": "Wolves",
+    "confidence": 1.0,
+    "elo": 1679,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Burnley",
+    "clubelo_name": "Burnley",
+    "confidence": 1.0,
+    "elo": 1666,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "West Ham",
+    "clubelo_name": "West Ham",
+    "confidence": 1.0,
+    "elo": 1768,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Nottingham Forest",
+    "clubelo_name": "Forest",
+    "confidence": 0.59,
+    "elo": 1670,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Barcelona",
+    "clubelo_name": "Barcelona",
+    "confidence": 1.0,
+    "elo": 1951,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Atletico Madrid",
+    "clubelo_name": "Atletico",
+    "confidence": 0.7,
+    "elo": 1827,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Athletic Club",
+    "clubelo_name": "Bilbao",
+    "confidence": 0.71,
+    "elo": 1795,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Valencia",
+    "clubelo_name": "Valencia",
+    "confidence": 1.0,
+    "elo": 1697,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Villarreal",
+    "clubelo_name": "Villarreal",
+    "confidence": 1.0,
+    "elo": 1759,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Malaga",
+    "clubelo_name": "Malaga",
+    "confidence": 1.0,
+    "elo": 1568,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Sevilla",
+    "clubelo_name": "Sevilla",
+    "confidence": 1.0,
+    "elo": 1625,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Celta Vigo",
+    "clubelo_name": "Celta",
+    "confidence": 0.67,
+    "elo": 1700,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Levante",
+    "clubelo_name": "Levante",
+    "confidence": 1.0,
+    "elo": 1638,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Espanyol",
+    "clubelo_name": "Espanyol",
+    "confidence": 1.0,
+    "elo": 1629,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Real Madrid",
+    "clubelo_name": "Real Madrid",
+    "confidence": 1.0,
+    "elo": 1922,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Alaves",
+    "clubelo_name": "Alaves",
+    "confidence": 1.0,
+    "elo": 1634,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Real Betis",
+    "clubelo_name": "Betis",
+    "confidence": 0.67,
+    "elo": 1747,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Getafe",
+    "clubelo_name": "Getafe",
+    "confidence": 1.0,
+    "elo": 1664,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Real Sociedad",
+    "clubelo_name": "Sociedad",
+    "confidence": 0.85,
+    "elo": 1765,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Osasuna",
+    "clubelo_name": "Osasuna",
+    "confidence": 1.0,
+    "elo": 1650,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Rayo Vallecano",
+    "clubelo_name": "Rayo Vallecano",
+    "confidence": 1.0,
+    "elo": 1707,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Elche",
+    "clubelo_name": "Elche",
+    "confidence": 1.0,
+    "elo": 1623,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Racing Santander",
+    "clubelo_name": "Santander",
+    "confidence": 0.72,
+    "elo": 1581,
     "status": "approved"
   }
 ]
