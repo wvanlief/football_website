@@ -2,7 +2,7 @@ import os
 import json
 from datetime import datetime
 from backend.database import Team, Fixture, Competition, Tournament, TournamentTeam
-from backend.services.tournament import run_monte_carlo_simulation, simulate_bracket
+from backend.services.simulation import run_monte_carlo_simulation, simulate_bracket
 
 def test_monte_carlo_simulation(db_session):
     comp = Competition(name="World Cup", type="International")

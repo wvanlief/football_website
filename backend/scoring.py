@@ -162,7 +162,7 @@ def calculate_watchability(
     is_league = comp and (comp.format_engine == "league" or comp.type == "League")
     
     if is_league:
-        from backend.services.tournament import calculate_standings
+        from backend.services.standings import calculate_standings
         
         # Calculate dynamic standings to get rank and team points
         standings = calculate_standings(db, "standings", tournament_id=fixture.tournament_id)

@@ -10,7 +10,7 @@ def test_fetch_url_success():
         mock_response.read.return_value = b"success content"
         mock_urlopen.return_value.__enter__.return_value = mock_response
         
-        content = fetch_url_with_retry("https://example.com/api", retries=3, backoff_factor=0.01)
+        content = fetch_url_with_retry("https://example.com/api", retries=3, backoff_factor=0.01, use_cache=False)
         assert content == b"success content"
         mock_urlopen.assert_called_once()
 
@@ -27,7 +27,7 @@ def test_fetch_url_retry_and_succeed():
         ]
         mock_urlopen.return_value = mock_enter
         
-        content = fetch_url_with_retry("https://example.com/api", retries=3, backoff_factor=0.01)
+        content = fetch_url_with_retry("https://example.com/api", retries=3, backoff_factor=0.01, use_cache=False)
         assert content == b'{"status": "ok"}'
         assert mock_urlopen.call_count == 2
 
@@ -38,7 +38,7 @@ def test_fetch_url_persistent_failure():
         mock_urlopen.return_value = mock_enter
         
         with pytest.raises(urllib.error.URLError):
-            fetch_url_with_retry("https://example.com/api", retries=3, backoff_factor=0.01)
+            fetch_url_with_retry("https://example.com/api", retries=3, backoff_factor=0.01, use_cache=False)
         assert mock_urlopen.call_count == 3
 
 def test_fetch_url_non_retryable_http_error():
@@ -51,7 +51,7 @@ def test_fetch_url_non_retryable_http_error():
         mock_urlopen.return_value = mock_enter
         
         with pytest.raises(urllib.error.HTTPError) as exc_info:
-            fetch_url_with_retry("https://example.com/api", retries=3, backoff_factor=0.01)
+            fetch_url_with_retry("https://example.com/api", retries=3, backoff_factor=0.01, use_cache=False)
         assert exc_info.value.code == 404
         assert mock_urlopen.call_count == 1
 
@@ -67,7 +67,7 @@ def test_fetch_url_retryable_http_error():
         mock_enter.__enter__.side_effect = [http_err_503, mock_response]
         mock_urlopen.return_value = mock_enter
         
-        content = fetch_url_with_retry("https://example.com/api", retries=3, backoff_factor=0.01)
+        content = fetch_url_with_retry("https://example.com/api", retries=3, backoff_factor=0.01, use_cache=False)
         assert content == b"ok"
         assert mock_urlopen.call_count == 2
 
@@ -77,5 +77,5 @@ def test_fetch_json_success():
         mock_response.read.return_value = b'{"key": "value"}'
         mock_urlopen.return_value.__enter__.return_value = mock_response
         
-        data = fetch_json_with_retry("https://example.com/api", retries=2, backoff_factor=0.01)
+        data = fetch_json_with_retry("https://example.com/api", retries=2, backoff_factor=0.01, use_cache=False)
         assert data == {"key": "value"}

@@ -20,6 +20,8 @@ from backend.ingestor import (
 )
 from backend.services.tournament import propagate_knockout_fixtures
 from backend.services.simulation import run_monte_carlo_simulation
+from backend.services.standings import recalculate_tournament_team_standings
+
 
 STAGE_MAPPING = {
     "group": "Group Stage",
@@ -54,61 +56,7 @@ STADIUM_TIMEZONES = {
     "16": "America/Los_Angeles",
 }
 
-def recalculate_tournament_team_standings(db: Session, tournament_id: int):
-    """
-    Recalculates and updates the TournamentTeam standings cache for all teams in a tournament
-    based on finished fixtures.
-    """
-    tt_records = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all()
-    if not tt_records:
-        return
-        
-    tt_map = {tt.team_id: tt for tt in tt_records}
-    
-    # Reset columns
-    for tt in tt_records:
-        tt.points = 0
-        tt.wins = 0
-        tt.draws = 0
-        tt.losses = 0
-        tt.goals_for = 0
-        tt.goals_against = 0
-        
-    finished_fixtures = db.query(Fixture).filter(
-        Fixture.tournament_id == tournament_id,
-        Fixture.status == "Finished",
-        Fixture.home_team_id.isnot(None),
-        Fixture.away_team_id.isnot(None)
-    ).all()
-    
-    for f in finished_fixtures:
-        home_tt = tt_map.get(f.home_team_id)
-        away_tt = tt_map.get(f.away_team_id)
-        if not home_tt or not away_tt:
-            continue
-            
-        home_score = f.home_score if f.home_score is not None else 0
-        away_score = f.away_score if f.away_score is not None else 0
-        
-        home_tt.goals_for += home_score
-        home_tt.goals_against += away_score
-        away_tt.goals_for += away_score
-        away_tt.goals_against += home_score
-        
-        is_league = home_tt.tournament.competition.format_engine == "league"
-        is_group_stage = f.stage == "Group Stage"
-        
-        if is_league or is_group_stage:
-            home_tt.wins += 1 if home_score > away_score else 0
-            home_tt.losses += 1 if home_score < away_score else 0
-            home_tt.draws += 1 if home_score == away_score else 0
-            home_tt.points += 3 if home_score > away_score else (1 if home_score == away_score else 0)
-            
-            away_tt.wins += 1 if away_score > home_score else 0
-            away_tt.losses += 1 if away_score < home_score else 0
-            away_tt.draws += 1 if away_score == home_score else 0
-            away_tt.points += 3 if away_score > home_score else (1 if away_score == home_score else 0)
-    db.flush()
+
 
 
 def parse_match_date(date_str: str, stadium_id: str) -> datetime:
@@ -166,52 +114,7 @@ def update_team_streaks_and_form(home_team: Team, away_team: Team, outcome: floa
     home_team.form_score = round(min(95.0, max(45.0, 50.0 + (home_team.elo - 1500) * 0.05)), 1)
     away_team.form_score = round(min(95.0, max(45.0, 50.0 + (away_team.elo - 1500) * 0.05)), 1)
 
-def recalculate_team_streaks(db: Session):
-    """
-    Recalculates win/draw/loss streaks for all teams based on finished fixtures in chronological order.
-    # TODO: Recalculating all finished fixtures crosses tournament boundaries.
-    # Consider whether streaks should be tournament-scoped or global in a future iteration.
-    """
 
-    teams = db.query(Team).all()
-    for team in teams:
-        team.win_streak = 0
-        team.draw_streak = 0
-        team.loss_streak = 0
-    db.flush()
-
-    finished_fixtures = db.query(Fixture).filter(Fixture.status == "Finished").order_by(Fixture.date_utc.asc()).all()
-    for f in finished_fixtures:
-        home_team = f.home_team
-        away_team = f.away_team
-        if not home_team or not away_team:
-            continue
-            
-        if f.home_score > f.away_score:
-            home_team.win_streak += 1
-            home_team.draw_streak = 0
-            home_team.loss_streak = 0
-            
-            away_team.loss_streak += 1
-            away_team.win_streak = 0
-            away_team.draw_streak = 0
-        elif f.home_score < f.away_score:
-            away_team.win_streak += 1
-            away_team.draw_streak = 0
-            away_team.loss_streak = 0
-            
-            home_team.loss_streak += 1
-            home_team.win_streak = 0
-            home_team.draw_streak = 0
-        else: # Draw
-            home_team.draw_streak += 1
-            home_team.win_streak = 0
-            home_team.loss_streak = 0
-            
-            away_team.draw_streak += 1
-            away_team.win_streak = 0
-            away_team.loss_streak = 0
-    db.flush()
 
 
 from backend.utils import fetch_json_with_retry

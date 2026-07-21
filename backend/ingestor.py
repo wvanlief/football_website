@@ -11,6 +11,10 @@ from backend.database import (
 )
 from backend.scoring import update_fixture_score
 from backend.utils import fetch_url_with_retry, fetch_json_with_retry
+from backend.services.ingestion import CacheAdapter, NameNormalizer, COUNTRY_ISO_MAP
+
+NATIONAL_TEAM_ISO_CODES = COUNTRY_ISO_MAP
+
 
 # Load environment variables
 load_dotenv()
@@ -641,12 +645,9 @@ def seed_database(db: Session):
         
     db.commit()
     
-    # Recalculate team streaks based on seeded finished fixtures
-    from backend.services.updater import recalculate_team_streaks, recalculate_tournament_team_standings
-    recalculate_team_streaks(db)
-    
-    # Recalculate standings cache
-    recalculate_tournament_team_standings(db, tourney.id)
+    # Recalculate team streaks and standings cache based on seeded finished fixtures
+    from backend.services.standings import recalculate_standings
+    recalculate_standings(db, tourney.id)
     db.commit()
 
     print("Database seeding completed. Triggering tournament Monte Carlo simulation...")
@@ -1107,9 +1108,9 @@ def seed_competition(
         db.flush()
         update_fixture_score(fixture, db)
         
-    # Recalculate standings cache
-    from backend.services.updater import recalculate_tournament_team_standings
-    recalculate_tournament_team_standings(db, tourney.id)
+    # Recalculate standings cache and team streaks
+    from backend.services.standings import recalculate_standings
+    recalculate_standings(db, tourney.id)
     db.commit()
     print(f"Successfully seeded competition {competition_name} for season {season}.")
 

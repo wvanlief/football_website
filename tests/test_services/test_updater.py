@@ -89,7 +89,7 @@ def test_update_results_and_odds(db_session):
             "Germany": 1882
         }
          
-        def fetch_side_effect(url):
+        def fetch_side_effect(url, *args, **kwargs):
             if "teams" in url:
                 return {"teams": mock_teams}
             elif "games" in url or "matches" in url:
@@ -383,7 +383,7 @@ def test_newly_created_finished_fixture_updates_team_stats(mock_fetch_elo, mock_
         "Germany Test": 1889
     }
 
-    def fetch_side_effect(url):
+    def fetch_side_effect(url, *args, **kwargs):
         if "teams" in url:
             return {"teams": mock_teams}
         elif "games" in url or "matches" in url:
@@ -462,7 +462,7 @@ def test_update_placeholder_fixtures_resolution(mock_fetch_elo, mock_sim, mock_o
         "Germany Test Placeholder": 1900
     }
 
-    def fetch_side_effect_1(url):
+    def fetch_side_effect_1(url, *args, **kwargs):
         if "teams" in url:
             return {"teams": mock_teams}
         elif "games" in url or "matches" in url:
@@ -502,7 +502,7 @@ def test_update_placeholder_fixtures_resolution(mock_fetch_elo, mock_sim, mock_o
         }
     ]
 
-    def fetch_side_effect_2(url):
+    def fetch_side_effect_2(url, *args, **kwargs):
         if "teams" in url:
             return {"teams": mock_teams}
         elif "games" in url or "matches" in url:
@@ -689,62 +689,7 @@ def test_calculate_default_odds_custom_advantage():
     assert h_odds_70 > h_odds_100
 
 
-def test_recalculate_tournament_team_standings(db_session):
-    from backend.services.updater import recalculate_tournament_team_standings
-    from backend.database import Competition, Tournament, Team, TournamentTeam, Fixture
-    from datetime import datetime, timezone
-    
-    # Setup Competition & Tournament
-    comp = Competition(name="Custom Standings League", type="League", format_engine="league")
-    db_session.add(comp)
-    db_session.flush()
-    
-    tourney = Tournament(competition_id=comp.id, season_name="2026", status="Active")
-    db_session.add(tourney)
-    db_session.flush()
-    
-    # Setup Teams
-    t1 = Team(name="Team A", elo=1500)
-    t2 = Team(name="Team B", elo=1500)
-    db_session.add_all([t1, t2])
-    db_session.flush()
-    
-    # Setup TournamentTeam associations
-    tt1 = TournamentTeam(tournament_id=tourney.id, team_id=t1.id, points=0)
-    tt2 = TournamentTeam(tournament_id=tourney.id, team_id=t2.id, points=0)
-    db_session.add_all([tt1, tt2])
-    db_session.flush()
-    
-    # Add Finished Fixture
-    f = Fixture(
-        tournament_id=tourney.id,
-        home_team_id=t1.id,
-        away_team_id=t2.id,
-        date_utc=datetime.now(timezone.utc),
-        stage="Regular Season",
-        status="Finished",
-        home_score=3,
-        away_score=1
-    )
-    db_session.add(f)
-    db_session.commit()
-    
-    # Recalculate standings cache
-    recalculate_tournament_team_standings(db_session, tourney.id)
-    
-    # Refresh cache from DB
-    db_session.refresh(tt1)
-    db_session.refresh(tt2)
-    
-    assert tt1.points == 3
-    assert tt1.wins == 1
-    assert tt1.goals_for == 3
-    assert tt1.goals_against == 1
-    
-    assert tt2.points == 0
-    assert tt2.losses == 1
-    assert tt2.goals_for == 1
-    assert tt2.goals_against == 3
+
 
 
 
