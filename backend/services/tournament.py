@@ -41,17 +41,50 @@ def propagate_knockout_fixtures(db: Session):
             if f.status != "Finished" or f.stage == "Group Stage" or f.stage == "Regular Season" or f.stage == "League Phase":
                 continue
                 
+            if f.leg_number == 1:
+                # Two-legged ties only propagate after leg 2 is played
+                leg2 = db.query(Fixture).filter(
+                    Fixture.tournament_id == f.tournament_id,
+                    Fixture.stage == f.stage,
+                    Fixture.leg_number == 2,
+                    ((Fixture.home_team_id == f.away_team_id) & (Fixture.away_team_id == f.home_team_id)) |
+                    ((Fixture.home_team_id == f.home_team_id) & (Fixture.away_team_id == f.away_team_id))
+                ).first()
+                if leg2:
+                    continue
+
             winner_id = f.winner_id
             if not winner_id:
-                if f.home_score is not None and f.away_score is not None:
-                    if f.home_score > f.away_score:
-                        winner_id = f.home_team_id
-                    elif f.home_score < f.away_score:
-                        winner_id = f.away_team_id
-                    else:
-                        if f.home_penalty_score is not None and f.away_penalty_score is not None:
-                            winner_id = f.home_team_id if f.home_penalty_score > f.away_penalty_score else f.away_team_id
-                            
+                if f.leg_number == 2:
+                    # Find corresponding leg 1 fixture: opposite teams, leg 1, same tournament and stage
+                    leg1 = db.query(Fixture).filter(
+                        Fixture.tournament_id == f.tournament_id,
+                        Fixture.stage == f.stage,
+                        Fixture.home_team_id == f.away_team_id,
+                        Fixture.away_team_id == f.home_team_id,
+                        Fixture.leg_number == 1
+                    ).first()
+                    if leg1 and leg1.home_score is not None and leg1.away_score is not None and f.home_score is not None and f.away_score is not None:
+                        agg_home = f.home_score + leg1.away_score
+                        agg_away = f.away_score + leg1.home_score
+                        if agg_home > agg_away:
+                            winner_id = f.home_team_id
+                        elif agg_home < agg_away:
+                            winner_id = f.away_team_id
+                        else:
+                            if f.home_penalty_score is not None and f.away_penalty_score is not None:
+                                winner_id = f.home_team_id if f.home_penalty_score > f.away_penalty_score else f.away_team_id
+                else:
+                    # Single-leg tie winner determination
+                    if f.home_score is not None and f.away_score is not None:
+                        if f.home_score > f.away_score:
+                            winner_id = f.home_team_id
+                        elif f.home_score < f.away_score:
+                            winner_id = f.away_team_id
+                        else:
+                            if f.home_penalty_score is not None and f.away_penalty_score is not None:
+                                winner_id = f.home_team_id if f.home_penalty_score > f.away_penalty_score else f.away_team_id
+                                
             if not winner_id:
                 continue
                 
@@ -1542,5 +1575,60 @@ def get_fixture_details_by_id(db: Session, fixture_id: int, tz_str: str) -> dict
     if not f:
         return None
     return enrich_fixture(f, db, target_tz)
+
+
+def evaluate_nations_league_promotions(db: Session, tournament_id: int):
+    """
+    Evaluates completed groups in the UEFA Nations League and updates promoted/relegated
+    statuses on TournamentTeam models, and prints/logs the outcomes.
+    """
+    from backend.database import TournamentTeam, Tournament
+    
+    tourney = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tourney or not tourney.competition or tourney.competition.format_engine != "nations_league":
+        return
+
+    # Find all groups/divisions
+    tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all()
+    # Group teams by division and group_name
+    groups_map = {}
+    for tt in tts:
+        if tt.division and tt.group_name:
+            key = f"{tt.division}{tt.group_name}"
+            if key not in groups_map:
+                groups_map[key] = []
+            groups_map[key].append(tt)
+
+    for group_key, group_tts in groups_map.items():
+        # Get standings for this specific group
+        standings = calculate_standings(db, group_key, tournament_id=tournament_id)
+        
+        # Check if group is fully finished
+        team_names = [tt.team.name for tt in group_tts]
+        from backend.crud.fixture import get_fixtures_for_group
+        group_fixtures = get_fixtures_for_group(db, team_names, tournament_id=tournament_id)
+        
+        is_completed = len(group_fixtures) > 0 and all(f.status == "Finished" for f in group_fixtures)
+        
+        if is_completed:
+            tt_by_name = {tt.team.name: tt for tt in group_tts}
+            div = group_key[0] # 'A', 'B', 'C', 'D'
+            
+            for index, standing in enumerate(standings):
+                team_name = standing["name"]
+                rank = index + 1
+                tt = tt_by_name[team_name]
+                
+                # Reset first
+                tt.promoted = False
+                tt.relegated = False
+                
+                if rank == 1:
+                    if div != 'A':
+                        tt.promoted = True
+                elif rank == 4:
+                    if div != 'D':
+                        tt.relegated = True
+            db.commit()
 
 

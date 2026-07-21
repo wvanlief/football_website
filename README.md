@@ -94,5 +94,17 @@ python -m backend.ingestor seed-competition --league=39 --season=2026 --comp-nam
 ```
 
 ### 3. Seeding Remote Database (e.g. Railway PostgreSQL)
-To seed a remote database, configure `DATABASE_URL` in your `.env` file (e.g., `DATABASE_URL=postgresql://user:pass@host:port/dbname`) and execute the same seeder commands locally. The Python scripts will load the connection string from `.env` and apply all migrations and seed data directly to the remote instance.
+
+> [!WARNING]
+> Do not run ingestion/seeding scripts locally against the remote database over the internet. The network latency per query will cause the process to take several hours.
+
+To seed the production/remote database, use the Railway CLI to execute the commands directly in the same cloud datacenter environment:
+```bash
+# 1. Run migrations in the cloud container
+railway run python -m alembic upgrade head
+
+# 2. Run ingestion seeds directly on Railway
+railway run python -m backend.ingestor fetch-teams --league=39 --season=2026
+railway run python -m backend.ingestor seed-competition --league=39 --season=2026 --comp-name="Premier League" --comp-type="League" --format-engine="league"
+```
 

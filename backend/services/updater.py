@@ -703,8 +703,11 @@ def update_results_and_odds(db: Session) -> dict:
     for tourney in tournaments:
         try:
             recalculate_tournament_team_standings(db, tourney.id)
+            if tourney.competition and tourney.competition.format_engine == "nations_league":
+                from backend.services.tournament import evaluate_nations_league_promotions
+                evaluate_nations_league_promotions(db, tourney.id)
         except Exception as e:
-            print(f"Warning: Failed to recalculate standings for tournament {tourney.id}: {e}")
+            print(f"Warning: Failed to recalculate standings/promotions for tournament {tourney.id}: {e}")
     db.commit()
 
 
@@ -989,6 +992,9 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
             for tourney in tournaments:
                 try:
                     recalculate_tournament_team_standings(db, tourney.id)
+                    if tourney.competition and tourney.competition.format_engine == "nations_league":
+                        from backend.services.tournament import evaluate_nations_league_promotions
+                        evaluate_nations_league_promotions(db, tourney.id)
                 except Exception as e:
                     pass
             db.commit()

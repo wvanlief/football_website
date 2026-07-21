@@ -34,3 +34,4 @@
  - fade disqualified countries
  - Make sure the tournament stakes are taken into account and correct
 - High scoring teams (watchability algorithm, reasons, and team profile badge)
+- Phase 8: Domestic Cups & Nations League (2-legged ties aggregate propagation, division sub-navigation, Nations League promotion/relegation evaluation)

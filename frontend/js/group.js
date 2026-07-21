@@ -17,7 +17,169 @@ document.addEventListener('DOMContentLoaded', () => {
         "Democratic Republic of the Congo": "cd"
     };
 
+    const CLUB_BADGES = {
+        // Spain
+        "Real Madrid": "https://media.api-sports.io/football/teams/541.png",
+        "FC Barcelona": "https://media.api-sports.io/football/teams/529.png",
+        "Barcelona": "https://media.api-sports.io/football/teams/529.png",
+        "Atletico Madrid": "https://media.api-sports.io/football/teams/530.png",
+        "Atlético Madrid": "https://media.api-sports.io/football/teams/530.png",
+        "Athletic Club": "https://media.api-sports.io/football/teams/531.png",
+        "Athletic Bilbao": "https://media.api-sports.io/football/teams/531.png",
+        "Villarreal": "https://media.api-sports.io/football/teams/533.png",
+        "Villarreal CF": "https://media.api-sports.io/football/teams/533.png",
+        "Real Sociedad": "https://media.api-sports.io/football/teams/548.png",
+        "Sevilla": "https://media.api-sports.io/football/teams/536.png",
+        "Girona": "https://media.api-sports.io/football/teams/547.png",
+        "Real Betis": "https://media.api-sports.io/football/teams/543.png",
+        "Valencia": "https://media.api-sports.io/football/teams/532.png",
+        "Osasuna": "https://media.api-sports.io/football/teams/727.png",
+        "Celta Vigo": "https://media.api-sports.io/football/teams/538.png",
+        "Rayo Vallecano": "https://media.api-sports.io/football/teams/728.png",
+        "Getafe": "https://media.api-sports.io/football/teams/546.png",
+        "Mallorca": "https://media.api-sports.io/football/teams/798.png",
+        "Las Palmas": "https://media.api-sports.io/football/teams/534.png",
+        "Alaves": "https://media.api-sports.io/football/teams/542.png",
+
+        // England
+        "Manchester City": "https://media.api-sports.io/football/teams/50.png",
+        "Man City": "https://media.api-sports.io/football/teams/50.png",
+        "Arsenal": "https://media.api-sports.io/football/teams/42.png",
+        "Liverpool": "https://media.api-sports.io/football/teams/40.png",
+        "Aston Villa": "https://media.api-sports.io/football/teams/66.png",
+        "Tottenham Hotspur": "https://media.api-sports.io/football/teams/47.png",
+        "Tottenham": "https://media.api-sports.io/football/teams/47.png",
+        "Chelsea": "https://media.api-sports.io/football/teams/49.png",
+        "Manchester United": "https://media.api-sports.io/football/teams/33.png",
+        "Man United": "https://media.api-sports.io/football/teams/33.png",
+        "Newcastle": "https://media.api-sports.io/football/teams/34.png",
+        "Newcastle United": "https://media.api-sports.io/football/teams/34.png",
+        "West Ham": "https://media.api-sports.io/football/teams/48.png",
+        "West Ham United": "https://media.api-sports.io/football/teams/48.png",
+        "Brighton": "https://media.api-sports.io/football/teams/51.png",
+        "Wolverhampton": "https://media.api-sports.io/football/teams/39.png",
+        "Fulham": "https://media.api-sports.io/football/teams/45.png",
+        "Bournemouth": "https://media.api-sports.io/football/teams/35.png",
+        "Crystal Palace": "https://media.api-sports.io/football/teams/52.png",
+        "Everton": "https://media.api-sports.io/football/teams/46.png",
+        "Brentford": "https://media.api-sports.io/football/teams/55.png",
+        "Nottingham Forest": "https://media.api-sports.io/football/teams/65.png",
+
+        // France
+        "Paris Saint-Germain": "https://media.api-sports.io/football/teams/85.png",
+        "PSG": "https://media.api-sports.io/football/teams/85.png",
+        "Marseille": "https://media.api-sports.io/football/teams/81.png",
+        "Olympique de Marseille": "https://media.api-sports.io/football/teams/81.png",
+        "OM": "https://media.api-sports.io/football/teams/81.png",
+        "Monaco": "https://media.api-sports.io/football/teams/91.png",
+        "AS Monaco": "https://media.api-sports.io/football/teams/91.png",
+        "Lille": "https://media.api-sports.io/football/teams/79.png",
+        "LOSC Lille": "https://media.api-sports.io/football/teams/79.png",
+        "Lyon": "https://media.api-sports.io/football/teams/80.png",
+        "Olympique Lyonnais": "https://media.api-sports.io/football/teams/80.png",
+        "Nice": "https://media.api-sports.io/football/teams/84.png",
+        "Lens": "https://media.api-sports.io/football/teams/116.png",
+        "Brest": "https://media.api-sports.io/football/teams/1063.png",
+        "Rennes": "https://media.api-sports.io/football/teams/94.png",
+
+        // Germany
+        "Bayern Munchen": "https://media.api-sports.io/football/teams/157.png",
+        "Bayern Munich": "https://media.api-sports.io/football/teams/157.png",
+        "Borussia Dortmund": "https://media.api-sports.io/football/teams/165.png",
+        "Dortmund": "https://media.api-sports.io/football/teams/165.png",
+        "Bayer Leverkusen": "https://media.api-sports.io/football/teams/168.png",
+        "Leverkusen": "https://media.api-sports.io/football/teams/168.png",
+        "RB Leipzig": "https://media.api-sports.io/football/teams/173.png",
+        "Leipzig": "https://media.api-sports.io/football/teams/173.png",
+        "Eintracht Frankfurt": "https://media.api-sports.io/football/teams/169.png",
+        "Frankfurt": "https://media.api-sports.io/football/teams/169.png",
+        "Stuttgart": "https://media.api-sports.io/football/teams/172.png",
+        "VfB Stuttgart": "https://media.api-sports.io/football/teams/172.png",
+        "Wolfsburg": "https://media.api-sports.io/football/teams/161.png",
+        "Gladbach": "https://media.api-sports.io/football/teams/163.png",
+        "Hoffenheim": "https://media.api-sports.io/football/teams/167.png",
+        "Freiburg": "https://media.api-sports.io/football/teams/160.png",
+        "Werder Bremen": "https://media.api-sports.io/football/teams/162.png",
+
+        // Italy
+        "Inter": "https://media.api-sports.io/football/teams/505.png",
+        "Inter Milan": "https://media.api-sports.io/football/teams/505.png",
+        "AC Milan": "https://media.api-sports.io/football/teams/489.png",
+        "Milan": "https://media.api-sports.io/football/teams/489.png",
+        "Juventus": "https://media.api-sports.io/football/teams/496.png",
+        "Atalanta": "https://media.api-sports.io/football/teams/499.png",
+        "Bologna": "https://media.api-sports.io/football/teams/500.png",
+        "Roma": "https://media.api-sports.io/football/teams/497.png",
+        "AS Roma": "https://media.api-sports.io/football/teams/497.png",
+        "Lazio": "https://media.api-sports.io/football/teams/487.png",
+        "SS Lazio": "https://media.api-sports.io/football/teams/487.png",
+        "Napoli": "https://media.api-sports.io/football/teams/492.png",
+        "Fiorentina": "https://media.api-sports.io/football/teams/502.png",
+        "Torino": "https://media.api-sports.io/football/teams/503.png",
+
+        // Other European Clubs
+        "PSV Eindhoven": "https://media.api-sports.io/football/teams/197.png",
+        "PSV": "https://media.api-sports.io/football/teams/197.png",
+        "Feyenoord": "https://media.api-sports.io/football/teams/610.png",
+        "Ajax": "https://media.api-sports.io/football/teams/194.png",
+        "Sporting CP": "https://media.api-sports.io/football/teams/498.png",
+        "Benfica": "https://media.api-sports.io/football/teams/495.png",
+        "Porto": "https://media.api-sports.io/football/teams/503.png",
+        "Celtic": "https://media.api-sports.io/football/teams/247.png",
+        "Rangers": "https://media.api-sports.io/football/teams/257.png",
+        "Club Brugge": "https://media.api-sports.io/football/teams/569.png",
+        "Anderlecht": "https://media.api-sports.io/football/teams/564.png",
+        "Bodo/Glimt": "https://media.api-sports.io/football/teams/1038.png",
+        "Bodø/Glimt": "https://media.api-sports.io/football/teams/1038.png",
+        "Copenhagen": "https://media.api-sports.io/football/teams/400.png",
+        "FC Copenhagen": "https://media.api-sports.io/football/teams/400.png",
+        "Galatasaray": "https://media.api-sports.io/football/teams/645.png",
+        "Fenerbahce": "https://media.api-sports.io/football/teams/611.png",
+        "Besiktas": "https://media.api-sports.io/football/teams/562.png",
+        "Shakhtar Donetsk": "https://media.api-sports.io/football/teams/550.png",
+        "Red Star Belgrade": "https://media.api-sports.io/football/teams/598.png",
+        "Sparta Praha": "https://media.api-sports.io/football/teams/549.png",
+        "Slavia Praha": "https://media.api-sports.io/football/teams/553.png",
+        "Sturm Graz": "https://media.api-sports.io/football/teams/2020.png",
+        "RB Salzburg": "https://media.api-sports.io/football/teams/571.png",
+        "Red Bull Salzburg": "https://media.api-sports.io/football/teams/571.png",
+        "Young Boys": "https://media.api-sports.io/football/teams/565.png",
+        "Dinamo Zagreb": "https://media.api-sports.io/football/teams/631.png",
+        "Midtjylland": "https://media.api-sports.io/football/teams/398.png",
+        "PAOK": "https://media.api-sports.io/football/teams/616.png",
+        "Malmo FF": "https://media.api-sports.io/football/teams/377.png",
+        "Qarabag": "https://media.api-sports.io/football/teams/636.png"
+    };
+
+    // Pre-build normalized lookup map for fuzzy matching
+    const NORMALIZED_CLUB_BADGES = {};
+    Object.keys(CLUB_BADGES).forEach(key => {
+        const normKey = key.toLowerCase().replace(/[\s\-_'’\/\.]/g, '');
+        NORMALIZED_CLUB_BADGES[normKey] = CLUB_BADGES[key];
+    });
+
     function getFlagUrl(countryName, size = 'w40') {
+        if (!countryName) return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgd2lkdGg9JzI0JyBoZWlnaHQ9JzI0Jz48Y2lyY2xlIGN4PScxMicgY3k9JzEyJyByPScxMCcgZmlsbD0nIzY2NicvPjwvc3ZnPg==';
+        
+        // 1. Exact match
+        if (CLUB_BADGES[countryName]) {
+            return CLUB_BADGES[countryName];
+        }
+        
+        // 2. Normalized fuzzy match (handles "Athletic Club", "Tottenham Hotspur", "Marseille", "Villarreal")
+        const normName = countryName.toLowerCase().replace(/[\s\-_'’\/\.]/g, '');
+        if (NORMALIZED_CLUB_BADGES[normName]) {
+            return NORMALIZED_CLUB_BADGES[normName];
+        }
+
+        // 3. Substring match
+        for (const key in CLUB_BADGES) {
+            const normKey = key.toLowerCase().replace(/[\s\-_'’\/\.]/g, '');
+            if (normName.includes(normKey) || normKey.includes(normName)) {
+                return CLUB_BADGES[key];
+            }
+        }
+
         const code = COUNTRY_FLAGS[countryName];
         if (code) {
             return `https://flagcdn.com/${size}/${code}.png`;
@@ -51,6 +213,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedTimezone = 'local';
     let resolvedTimezone = 'UTC';
     let activeView = localStorage.getItem('findfootball-group-view') || 'schedule'; // 'schedule' or 'leaderboard'
+    let formatEngine = 'group_knockout';
+    let competitionName = 'World Cup';
 
     // Initialize Page
     selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
@@ -106,15 +270,104 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function renderNationsLeagueTabs() {
+        if (!groupTabsNav) return;
+        
+        let activeDiv = 'A';
+        let activeNum = '1';
+        if (activeGroup.length >= 2) {
+            activeDiv = activeGroup[0];
+            activeNum = activeGroup.slice(1);
+        } else if (['A', 'B', 'C', 'D'].includes(activeGroup)) {
+            activeDiv = activeGroup;
+            activeNum = '1';
+            activeGroup = `${activeDiv}${activeNum}`;
+        } else {
+            activeGroup = 'A1';
+        }
+
+        groupTabsNav.innerHTML = `
+            <button class="group-tab-btn ${activeDiv === 'A' ? 'active' : ''}" data-div="A">League A</button>
+            <button class="group-tab-btn ${activeDiv === 'B' ? 'active' : ''}" data-div="B">League B</button>
+            <button class="group-tab-btn ${activeDiv === 'C' ? 'active' : ''}" data-div="C">League C</button>
+            <button class="group-tab-btn ${activeDiv === 'D' ? 'active' : ''}" data-div="D">League D</button>
+        `;
+
+        let subTabsNav = document.getElementById('sub-group-tabs-nav');
+        if (!subTabsNav) {
+            subTabsNav = document.createElement('div');
+            subTabsNav.id = 'sub-group-tabs-nav';
+            subTabsNav.style.display = 'flex';
+            subTabsNav.style.gap = '0.5rem';
+            subTabsNav.style.marginTop = '0.75rem';
+            groupTabsNav.parentNode.appendChild(subTabsNav);
+        }
+        
+        const numGroups = activeDiv === 'D' ? 2 : 4;
+        let subTabsHtml = '';
+        for (let i = 1; i <= numGroups; i++) {
+            subTabsHtml += `
+                <button class="group-tab-btn ${activeNum === String(i) ? 'active' : ''}" data-num="${i}" style="padding: 0.35rem 0.75rem; font-size: 0.85rem; border-radius: 6px;">
+                    Group ${i}
+                </button>
+            `;
+        }
+        subTabsNav.innerHTML = subTabsHtml;
+
+        groupTabsNav.querySelectorAll('[data-div]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const div = btn.getAttribute('data-div');
+                switchToGroup(`${div}1`);
+            });
+        });
+
+        subTabsNav.querySelectorAll('[data-num]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const num = btn.getAttribute('data-num');
+                switchToGroup(`${activeDiv}${num}`);
+            });
+        });
+    }
+
+    function restoreStandardTabs() {
+        const subTabsNav = document.getElementById('sub-group-tabs-nav');
+        if (subTabsNav) subTabsNav.remove();
+        
+        if (!groupTabsNav) return;
+        if (groupTabsNav.querySelector('[data-group="A"]') && groupTabsNav.querySelector('[data-group="L"]')) {
+            return;
+        }
+        
+        let html = '';
+        for (let i = 65; i <= 76; i++) {
+            const letter = String.fromCharCode(i);
+            html += `<button class="group-tab-btn" data-group="${letter}">Group ${letter}</button>\n`;
+        }
+        html += `<button class="group-tab-btn thirds-tab" data-group="thirds"><i class="fa-solid fa-award"></i> Best 3rd</button>`;
+        groupTabsNav.innerHTML = html;
+
+        groupTabsNav.querySelectorAll('.group-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = btn.getAttribute('data-group');
+                switchToGroup(target);
+            });
+        });
+    }
+
     function updateTabsUI() {
         if (!groupTabsNav) return;
-        groupTabsNav.querySelectorAll('.group-tab-btn').forEach(btn => {
-            if (btn.getAttribute('data-group') === activeGroup) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        });
+        if (formatEngine === 'nations_league') {
+            renderNationsLeagueTabs();
+        } else {
+            restoreStandardTabs();
+            groupTabsNav.querySelectorAll('.group-tab-btn').forEach(btn => {
+                if (btn.getAttribute('data-group') === activeGroup) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
     }
 
     function switchToGroup(groupName, pushState = true) {
@@ -136,8 +389,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             fetchThirdsDetails();
         } else {
-            document.title = `Group ${activeGroup} Standings | findfootball.games`;
-            document.getElementById('group-title-header').innerText = `GROUP ${activeGroup}`;
+            if (formatEngine === 'nations_league' && activeGroup.length >= 2) {
+                const div = activeGroup[0];
+                const num = activeGroup.slice(1);
+                document.title = `League ${div} Group ${num} Standings | findfootball.games`;
+                document.getElementById('group-title-header').innerText = `LEAGUE ${div} GROUP ${num}`;
+            } else {
+                document.title = `Group ${activeGroup} Standings | findfootball.games`;
+                document.getElementById('group-title-header').innerText = `GROUP ${activeGroup}`;
+            }
             document.getElementById('group-standings-section').style.display = 'block';
             document.getElementById('thirds-standings-section').style.display = 'none';
             
@@ -163,8 +423,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize tabs UI initial state
     updateTabsUI();
 
-    let formatEngine = 'group_knockout';
-    let competitionName = 'World Cup';
+    formatEngine = 'group_knockout';
+    competitionName = 'World Cup';
 
     // Resolve timezone and trigger fetch
     resolveAndTimezoneFetch();
@@ -192,6 +452,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             console.error("Error fetching format engine in group.js", e);
         }
+
+        updateTabsUI();
 
         if (toggleMatrixBtn) {
             if (formatEngine === 'league_phase_knockout') {
@@ -223,6 +485,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 tableTitle.innerHTML = `<i class="fa-solid fa-table-list"></i> ${competitionName} Table`;
             }
             activeGroup = 'STANDINGS';
+        } else if (formatEngine === 'nations_league') {
+            if (tabsRow) tabsRow.style.display = 'block';
+            if (standingsFootnote) {
+                standingsFootnote.innerHTML = `<i class="fa-solid fa-info-circle"></i> UEFA Nations League. Group winners qualify for Finals (League A) or promotion. Bottom teams are relegated.`;
+            }
+            if (tableTitle) {
+                tableTitle.innerHTML = `<i class="fa-solid fa-table-list"></i> Group Table`;
+            }
         } else {
             if (tabsRow) tabsRow.style.display = 'block';
             if (standingsFootnote) {
@@ -340,9 +610,11 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.className = `standing-row ${qualifyClass}`;
             tr.innerHTML = `
                 <td class="col-pos font-weight-bold">${rank}</td>
-                <td class="col-team clickable-team-row" data-name="${team.name}">
-                    <img src="${getFlagUrl(team.name)}" class="table-team-flag" alt="">
-                    <span class="table-team-name">${team.name}</span>
+                <td class="col-team">
+                    <div class="clickable-team-row" data-name="${team.name}">
+                        <img src="${getFlagUrl(team.name)}" class="table-team-flag" alt="${team.name}">
+                        <span class="table-team-name">${team.name}</span>
+                    </div>
                 </td>
                 <td class="col-stat font-weight-bold" style="color: var(--text-secondary);">Group ${team.group}</td>
                 <td class="col-stat">${team.played}</td>
@@ -525,9 +797,11 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.className = `standing-row ${qualifyClass}`;
             tr.innerHTML = `
                 <td class="col-pos font-weight-bold">${rank}</td>
-                <td class="col-team clickable-team-row" data-name="${team.name}">
-                    <img src="${getFlagUrl(team.name)}" class="table-team-flag" alt="">
-                    <span class="table-team-name">${team.name}</span>
+                <td class="col-team">
+                    <div class="clickable-team-row" data-name="${team.name}">
+                        <img src="${getFlagUrl(team.name)}" class="table-team-flag" alt="${team.name}">
+                        <span class="table-team-name">${team.name}</span>
+                    </div>
                 </td>
                 <td class="col-stat">${team.played}</td>
                 <td class="col-stat">${team.won}</td>
@@ -666,19 +940,23 @@ document.addEventListener('DOMContentLoaded', () => {
         cornerTh.style.backdropFilter = 'blur(12px)';
         cornerTh.style.borderBottom = '1px solid rgba(255, 255, 255, 0.1)';
         cornerTh.style.borderRight = '1px solid rgba(255, 255, 255, 0.1)';
-        cornerTh.style.padding = '0.75rem';
-        cornerTh.innerHTML = `<span style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase;">Home \\ Away</span>`;
+        cornerTh.style.padding = '0.4rem 0.5rem';
+        cornerTh.innerHTML = `<span style="font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase;">H \\ A</span>`;
         headerTr.appendChild(cornerTh);
 
         teams.forEach(team => {
             const th = document.createElement('th');
-            th.style.padding = '0.75rem';
+            th.style.padding = '0.4rem 0.5rem';
             th.style.borderBottom = '1px solid rgba(255, 255, 255, 0.1)';
             th.style.fontWeight = '600';
-            th.style.minWidth = '55px';
+            th.style.minWidth = '32px';
             th.style.color = 'var(--text-secondary)';
             th.title = team;
-            th.innerHTML = `<div style="font-size: 0.75rem; writing-mode: vertical-lr; transform: rotate(180deg); margin: 0 auto; letter-spacing: 1px;">${getAbbreviation(team)}</div>`;
+            th.innerHTML = `
+                <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
+                    <img src="${getFlagUrl(team)}" style="width: 20px; height: 20px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));" alt="${team}">
+                </div>
+            `;
             headerTr.appendChild(th);
         });
         thead.appendChild(headerTr);
@@ -697,21 +975,19 @@ document.addEventListener('DOMContentLoaded', () => {
             rowHeader.style.background = 'var(--bg-glass-card, rgba(30, 41, 59, 0.8))';
             rowHeader.style.backdropFilter = 'blur(12px)';
             rowHeader.style.borderRight = '1px solid rgba(255, 255, 255, 0.1)';
-            rowHeader.style.padding = '0.75rem 1rem';
-            rowHeader.style.textAlign = 'left';
-            rowHeader.style.fontWeight = '500';
-            rowHeader.style.whiteSpace = 'nowrap';
+            rowHeader.style.padding = '0.4rem 0.5rem';
+            rowHeader.style.textAlign = 'center';
+            rowHeader.title = homeTeam;
             rowHeader.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <img src="${getFlagUrl(homeTeam)}" style="width: 18px; height: 12px; object-fit: cover; border-radius: 2px;" alt="">
-                    <span>${homeTeam}</span>
+                <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
+                    <img src="${getFlagUrl(homeTeam)}" style="width: 20px; height: 20px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));" alt="${homeTeam}">
                 </div>
             `;
             tr.appendChild(rowHeader);
 
             teams.forEach((awayTeam) => {
                 const td = document.createElement('td');
-                td.style.padding = '0.75rem';
+                td.style.padding = '0.4rem 0.5rem';
                 td.style.position = 'relative';
                 
                 if (homeTeam === awayTeam) {
