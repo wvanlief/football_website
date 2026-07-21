@@ -91,7 +91,7 @@ class CompetitionSelectorOut(BaseModel):
     id: int
     name: str
     type: str
-    format_engine: str
+    format_engine: Optional[str] = "group_knockout"
     badge: Optional[str] = "⚽"
     tournaments: List[TournamentSimpleOut]
 
