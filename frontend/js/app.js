@@ -19,13 +19,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getFlagUrl(target, size = 'w40') {
         if (!target) return '/static/badges/default.png';
+        let url = null;
         if (typeof target === 'object') {
-            if (target.logo_url) return target.logo_url;
-            target = target.name || target.team;
+            url = target.logo_url;
+            if (!url) target = target.name || target.team;
         }
         if (typeof target === 'string') {
             const code = COUNTRY_FLAGS[target];
             if (code) return `https://flagcdn.com/${size}/${code}.png`;
+        }
+        if (url) {
+            if (url.startsWith('/static/badges/') && !url.endsWith('default.png')) {
+                const matchId = url.match(/\/static\/badges\/(\d+)\.png/);
+                if (matchId) {
+                    return `https://media.api-sports.io/football/teams/${matchId[1]}.png`;
+                }
+            }
+            return url;
         }
         return '/static/badges/default.png';
     }

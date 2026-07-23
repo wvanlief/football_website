@@ -72,11 +72,13 @@ class Team(Base):
 
     @property
     def badge_url(self) -> str:
-        if self.logo_url:
+        if self.logo_url and self.logo_url.startswith("http"):
             return self.logo_url
         if self.api_id:
-            return f"/static/badges/{self.api_id}.png"
-        if self.country_code:
+            return f"https://media.api-sports.io/football/teams/{self.api_id}.png"
+        if self.logo_url:
+            return self.logo_url
+        if self.country_code and len(self.country_code) == 2:
             return f"https://flagcdn.com/w80/{self.country_code.lower()}.png"
         return "/static/badges/default.png"
 
