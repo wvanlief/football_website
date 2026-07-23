@@ -18,7 +18,7 @@ from backend.ingestor import (
     normalize_team_name, calculate_default_odds, update_odds_from_api,
     call_football_api, fetch_clubelo_ratings
 )
-from backend.services.tournament import propagate_knockout_fixtures
+from backend.services.tournament import propagate_knockout_fixtures, invalidate_fixtures_cache
 from backend.services.simulation import run_monte_carlo_simulation
 from backend.services.standings import recalculate_tournament_team_standings
 

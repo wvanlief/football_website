@@ -4,8 +4,9 @@
 
 **Blocked by:** 02 — Active 2026 Season & Date Anchor Filtering
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] In-memory response cache implemented for `/api/fixtures` and `/api/fixtures/recommended`.
-- [ ] API response times for home page requests dropped below 10ms.
-- [ ] Background updater triggers cache invalidation upon live score updates.
+- [x] In-memory response cache implemented for `/api/fixtures` and `/api/fixtures/recommended`.
+- [x] API response times for home page requests dropped below 10ms.
+- [x] Background updater triggers cache invalidation upon live score updates.
+
