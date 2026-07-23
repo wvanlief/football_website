@@ -642,12 +642,6 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000, tournam
                 enrich_match_details(m_third, f)
                 
         # Enrich Final match
-        m_final = representative_bracket.get("final")
-        if m_final:
-            f = fixture_lookup.get("104")
-            if f:
-                enrich_match_details(m_final, f)
-            
     result = {
         "bracket": representative_bracket,
         "probabilities": probabilities,
@@ -655,12 +649,58 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000, tournam
         "num_simulations": num_simulations
     }
     
-    # Save to file
-    file_dir = os.path.join(os.path.dirname(__file__), "..", "data")
-    os.makedirs(file_dir, exist_ok=True)
-    file_path = os.path.join(file_dir, "simulation_results.json")
-    
-    with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2)
-        
+    # Save to file if default World Cup
+    if tournament_id is None or tournament_id == 1:
+        file_dir = os.path.join(os.path.dirname(__file__), "..", "data")
+        os.makedirs(file_dir, exist_ok=True)
+        file_path = os.path.join(file_dir, "simulation_results.json")
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2)
+            
     return result
+
+
+def get_tournament_bracket_tree(db: Session, tournament_id: int) -> dict:
+    """
+    Builds a dynamic knockout bracket tree for cup tournaments directly from DB fixtures.
+    """
+    tourney = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tourney:
+        return {"bracket": {}, "probabilities": []}
+        
+    fixtures = db.query(Fixture).filter(Fixture.tournament_id == tournament_id).all()
+    stages = {}
+    
+    for f in fixtures:
+        if f.stage in ("Group Stage", "Regular Season", "League Phase"):
+            continue
+            
+        stage_key = f.stage.lower().replace(" ", "_").replace("-", "_")
+        stages.setdefault(stage_key, []).append({
+            "match_num": f.id,
+            "date": f.date_utc.isoformat() if f.date_utc else None,
+            "matchup_status": "official" if f.status == "Finished" else ("scheduled" if f.home_team_id else "predicted"),
+            "stage": f.stage,
+            "team1": {
+                "name": f.home_team.name if f.home_team else (f.home_team_placeholder or "TBD"),
+                "elo": f.home_team.elo if f.home_team else 1500,
+                "logo_url": f.home_team.badge_url if f.home_team else "/static/badges/default.png",
+                "is_predicted": f.home_team_id is None
+            },
+            "team2": {
+                "name": f.away_team.name if f.away_team else (f.away_team_placeholder or "TBD"),
+                "elo": f.away_team.elo if f.away_team else 1500,
+                "logo_url": f.away_team.badge_url if f.away_team else "/static/badges/default.png",
+                "is_predicted": f.away_team_id is None
+            },
+            "home_score": f.home_score,
+            "away_score": f.away_score,
+            "winner": f.home_team.name if (f.winner_id and f.home_team and f.winner_id == f.home_team_id) else (f.away_team.name if (f.winner_id and f.away_team and f.winner_id == f.away_team_id) else None)
+        })
+        
+    return {
+        "bracket": stages,
+        "probabilities": [],
+        "last_updated": datetime.now(timezone.utc).isoformat(),
+        "num_simulations": 1
+    }

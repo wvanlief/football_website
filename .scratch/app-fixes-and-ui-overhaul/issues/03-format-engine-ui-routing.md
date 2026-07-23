@@ -4,9 +4,10 @@
 
 **Blocked by:** 02 — Active 2026 Season & Date Anchor Filtering
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] Navigation bar dynamically inspects `format_engine` and updates active links.
-- [ ] Domestic leagues (`league`) render single 20-team standings and disable the bracket tab.
-- [ ] European club cups (`league_phase_knockout`) render 36-team flat tables with qualification zone styling (Top 8, 9-24, 25-36) and filter out pre-season qualifying games.
-- [ ] Knockout cups (`cup`) route directly to bracket trees and hide group standings tabs.
+- [x] Navigation bar dynamically inspects `format_engine` and updates active links.
+- [x] Domestic leagues (`league`) render single 20-team standings and disable the bracket tab.
+- [x] European club cups (`league_phase_knockout`) render 36-team flat tables with qualification zone styling (Top 8, 9-24, 25-36) and filter out pre-season qualifying games.
+- [x] Knockout cups (`cup`) route directly to bracket trees and hide group standings tabs.
+

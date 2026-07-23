@@ -56,12 +56,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             localStorage.setItem('findfootball-tournament-id', tourney.id);
                             
                             const newEngine = comp.format_engine;
-                            if (newEngine === 'league' && path.startsWith('/group/')) {
+                            if ((newEngine === 'league' || newEngine === 'league_phase_knockout') && path.startsWith('/group/') && path !== '/group/standings') {
                                 window.location.href = '/group/standings';
-                            } else if (newEngine !== 'league' && path === '/group/standings') {
+                            } else if (newEngine === 'cup') {
+                                window.location.href = '/bracket';
+                            } else if (newEngine === 'group_knockout' && path === '/group/standings') {
                                 window.location.href = '/group/A';
                             } else if (newEngine === 'league' && path === '/bracket') {
-                                window.location.href = '/';
+                                window.location.href = '/group/standings';
                             } else {
                                 window.location.reload();
                             }
@@ -82,12 +84,24 @@ document.addEventListener('DOMContentLoaded', () => {
             if (engine === 'league') {
                 if (bracketLink) bracketLink.style.display = 'none';
                 if (groupsLink) {
+                    groupsLink.style.display = 'inline-block';
                     groupsLink.innerHTML = '<i class="fa-solid fa-table-list"></i> Standings';
                     groupsLink.setAttribute('href', '/group/standings');
                 }
+            } else if (engine === 'league_phase_knockout') {
+                if (bracketLink) bracketLink.style.display = 'inline-block';
+                if (groupsLink) {
+                    groupsLink.style.display = 'inline-block';
+                    groupsLink.innerHTML = '<i class="fa-solid fa-table-list"></i> Standings';
+                    groupsLink.setAttribute('href', '/group/standings');
+                }
+            } else if (engine === 'cup') {
+                if (groupsLink) groupsLink.style.display = 'none';
+                if (bracketLink) bracketLink.style.display = 'inline-block';
             } else {
                 if (bracketLink) bracketLink.style.display = 'inline-block';
                 if (groupsLink) {
+                    groupsLink.style.display = 'inline-block';
                     groupsLink.innerHTML = '<i class="fa-solid fa-table-list"></i> Groups';
                     groupsLink.setAttribute('href', '/group/A');
                 }

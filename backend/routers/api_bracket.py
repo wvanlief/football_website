@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.schemas.tournament import CombinedBracketResponse
-from backend.services.simulation import simulate_bracket, run_monte_carlo_simulation
+from backend.services.simulation import simulate_bracket, run_monte_carlo_simulation, get_tournament_bracket_tree
 
 router = APIRouter(prefix="/api/bracket", tags=["Bracket"])
 
@@ -13,8 +13,10 @@ def get_bracket(
     db: Session = Depends(get_db)
 ):
     """
-    Simulates the tournament and returns the cached bracket and win probabilities.
+    Returns bracket data. For non-World Cup tournaments, returns dynamic knockout tree fixtures.
     """
+    if tournament_id is not None and tournament_id != 1:
+        return get_tournament_bracket_tree(db, tournament_id=tournament_id)
     return simulate_bracket(db, tournament_id=tournament_id)
 
 @router.post("/simulate", response_model=CombinedBracketResponse)
