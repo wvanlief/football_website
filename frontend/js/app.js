@@ -19,25 +19,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getFlagUrl(target, size = 'w40') {
         if (!target) return '/static/badges/default.png';
+        let teamName = null;
         let url = null;
         if (typeof target === 'object') {
             url = target.logo_url;
-            if (!url) target = target.name || target.team;
+            teamName = target.name || target.team;
+        } else if (typeof target === 'string') {
+            teamName = target;
         }
-        if (typeof target === 'string') {
-            const code = COUNTRY_FLAGS[target];
-            if (code) return `https://flagcdn.com/${size}/${code}.png`;
-        }
-        if (url) {
-            if (url.startsWith('/static/badges/') && !url.endsWith('default.png')) {
-                const matchId = url.match(/\/static\/badges\/(\d+)\.png/);
-                if (matchId) {
-                    return `https://media.api-sports.io/football/teams/${matchId[1]}.png`;
-                }
-            }
+
+        if (url && url.startsWith('http')) {
             return url;
         }
-        return '/static/badges/default.png';
+        if (url && url.startsWith('/static/badges/') && !url.endsWith('default.png')) {
+            const matchId = url.match(/\/static\/badges\/(\d+)\.png/);
+            if (matchId) {
+                return `https://media.api-sports.io/football/teams/${matchId[1]}.png`;
+            }
+        }
+        if (teamName) {
+            const code = COUNTRY_FLAGS[teamName];
+            if (code) return `https://flagcdn.com/${size}/${code}.png`;
+        }
+        return (url && !url.endsWith('default.png')) ? url : '/static/badges/default.png';
     }
 
     // DOM Elements
@@ -159,7 +163,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fetch and Load Fixtures
 
     async function fetchFixtures() {
-        const cachedSession = sessionStorage.getItem('findfootball-cached-fixtures');
+        const cacheKey = 'findfootball-cached-fixtures-v3';
+        const cachedSession = sessionStorage.getItem(cacheKey);
         if (cachedSession) {
             try {
                 activeFixtures = JSON.parse(cachedSession);
@@ -185,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`/api/fixtures?tz=${encodeURIComponent(resolvedTimezone)}`);
             const data = await res.json();
             activeFixtures = data;
-            sessionStorage.setItem('findfootball-cached-fixtures', JSON.stringify(data));
+            sessionStorage.setItem(cacheKey, JSON.stringify(data));
             renderAllColumns();
         } catch (err) {
             console.error("Failed to load fixtures", err);
