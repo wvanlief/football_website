@@ -17,42 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
         "Democratic Republic of the Congo": "cd"
     };
 
-    const CLUB_BADGES = {
-        // Spain
-        "Real Madrid": "https://media.api-sports.io/football/teams/541.png",
-        "FC Barcelona": "https://media.api-sports.io/football/teams/529.png",
-        "Barcelona": "https://media.api-sports.io/football/teams/529.png",
-        "Atletico Madrid": "https://media.api-sports.io/football/teams/530.png",
-        "Atlético Madrid": "https://media.api-sports.io/football/teams/530.png",
-        "Athletic Club": "https://media.api-sports.io/football/teams/531.png",
-        "Athletic Bilbao": "https://media.api-sports.io/football/teams/531.png",
-        "Villarreal": "https://media.api-sports.io/football/teams/533.png",
-        "Villarreal CF": "https://media.api-sports.io/football/teams/533.png",
-        "Real Sociedad": "https://media.api-sports.io/football/teams/548.png",
-        "Sevilla": "https://media.api-sports.io/football/teams/536.png",
-        "Girona": "https://media.api-sports.io/football/teams/547.png",
-        "Real Betis": "https://media.api-sports.io/football/teams/543.png",
-        "Valencia": "https://media.api-sports.io/football/teams/532.png",
-        "Osasuna": "https://media.api-sports.io/football/teams/727.png",
-        "Celta Vigo": "https://media.api-sports.io/football/teams/538.png",
-        "Rayo Vallecano": "https://media.api-sports.io/football/teams/728.png",
-        "Getafe": "https://media.api-sports.io/football/teams/546.png",
-        "Mallorca": "https://media.api-sports.io/football/teams/798.png",
-        "Las Palmas": "https://media.api-sports.io/football/teams/534.png",
-        "Alaves": "https://media.api-sports.io/football/teams/542.png",
-
-        // England
-        "Manchester City": "https://media.api-sports.io/football/teams/50.png",
-        "Man City": "https://media.api-sports.io/football/teams/50.png",
-        "Arsenal": "https://media.api-sports.io/football/teams/42.png",
-        "Liverpool": "https://media.api-sports.io/football/teams/40.png",
-        "Aston Villa": "https://media.api-sports.io/football/teams/66.png",
-        "Tottenham Hotspur": "https://media.api-sports.io/football/teams/47.png",
-        "Tottenham": "https://media.api-sports.io/football/teams/47.png",
-        "Chelsea": "https://media.api-sports.io/football/teams/49.png",
-        "Manchester United": "https://media.api-sports.io/football/teams/33.png",
-        "Man United": "https://media.api-sports.io/football/teams/33.png",
-        "Newcastle": "https://media.api-sports.io/football/teams/34.png",
     function getFlagUrl(target, size = 'w40') {
         if (!target) return '/static/badges/default.png';
         if (typeof target === 'object') {
