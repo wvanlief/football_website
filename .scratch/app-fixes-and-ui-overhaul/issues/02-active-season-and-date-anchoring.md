@@ -4,9 +4,10 @@
 
 **Blocked by:** 01 — Local Badge Asset Caching & Dynamic Logo Delivery
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] All database queries for active tournaments filter strictly for `season_name == "2026"`.
-- [ ] Hot list and recommended match endpoints anchor dynamically to current `today` dates.
-- [ ] Off-season banner renders cleanly when no matches occur in the current calendar week.
-- [ ] No past 2025 resolved fixtures pollute current 2026 recommendation queues.
+- [x] All database queries for active tournaments filter strictly for `season_name == "2026"`.
+- [x] Hot list and recommended match endpoints anchor dynamically to current `today` dates.
+- [x] Off-season banner renders cleanly when no matches occur in the current calendar week.
+- [x] No past 2025 resolved fixtures pollute current 2026 recommendation queues.
+

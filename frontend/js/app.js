@@ -362,6 +362,24 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderAllColumns() {
         if (!activeFixtures) return;
         
+        let noticeBanner = document.getElementById('offseason-notice-banner');
+        if (activeFixtures.is_offseason && activeFixtures.offseason_notice) {
+            if (!noticeBanner) {
+                noticeBanner = document.createElement('div');
+                noticeBanner.id = 'offseason-notice-banner';
+                noticeBanner.className = 'glass';
+                noticeBanner.style.cssText = 'padding: 12px 20px; margin-bottom: 1rem; border: 1px solid rgba(251, 191, 36, 0.4); background: rgba(251, 191, 36, 0.1); border-radius: 12px; color: #fbbf24; font-weight: 600; display: flex; align-items: center; gap: 10px;';
+                const triptychContainer = document.querySelector('.triptych-container');
+                if (triptychContainer) {
+                    triptychContainer.parentNode.insertBefore(noticeBanner, triptychContainer);
+                }
+            }
+            noticeBanner.innerHTML = `<i class="fa-solid fa-umbrella-beach"></i> <span>${activeFixtures.offseason_notice}</span>`;
+            noticeBanner.style.display = 'flex';
+        } else if (noticeBanner) {
+            noticeBanner.style.display = 'none';
+        }
+        
         const filterFn = (match) => {
             if (activeCompFilter === 'all' || activeCompFilter === 'upcoming') {
                 return true;

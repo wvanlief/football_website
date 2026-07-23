@@ -327,6 +327,7 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
     tomorrow_fixtures = []
     week_fixtures = []
     finished_fixtures = []
+    scheduled_fixtures = []
     
     today_date = datetime.now(target_tz).date()
     tomorrow_date = today_date + timedelta(days=1)
@@ -345,6 +346,8 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
             finished_fixtures.append(fixture_data)
             continue
             
+        scheduled_fixtures.append((match_date, fixture_data))
+        
         if match_date == today_date:
             today_fixtures.append(fixture_data)
         elif match_date == tomorrow_date:
@@ -352,6 +355,22 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
         elif tomorrow_date < match_date <= max_date:
             week_fixtures.append(fixture_data)
             
+    is_offseason = False
+    offseason_notice = None
+    
+    # Off-season date anchor: If no upcoming matches in the next 8 days, find the earliest upcoming matchday
+    if not today_fixtures and not tomorrow_fixtures and not week_fixtures and scheduled_fixtures:
+        scheduled_fixtures.sort(key=lambda x: x[0])
+        earliest_date = scheduled_fixtures[0][0]
+        matchday_end = earliest_date + timedelta(days=3)
+        
+        upcoming_block = [data for m_date, data in scheduled_fixtures if earliest_date <= m_date <= matchday_end]
+        upcoming_block.sort(key=lambda x: x["watchability"]["overall"], reverse=True)
+        week_fixtures = upcoming_block
+        is_offseason = True
+        formatted_start = earliest_date.strftime("%B %d, %Y")
+        offseason_notice = f"Off-Season: Showing upcoming Gameweek 1 blockbusters starting {formatted_start}"
+        
     today_fixtures.sort(key=lambda x: x["date"])
     tomorrow_fixtures.sort(key=lambda x: x["date"])
     week_fixtures.sort(key=lambda x: x["watchability"]["overall"], reverse=True)
@@ -361,7 +380,9 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
         "today": today_fixtures,
         "tomorrow": tomorrow_fixtures,
         "this_week": week_fixtures[:5],
-        "finished": finished_fixtures
+        "finished": finished_fixtures,
+        "is_offseason": is_offseason,
+        "offseason_notice": offseason_notice
     }
 
 def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None, min_score: float = 75.0) -> list:
