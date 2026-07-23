@@ -52,6 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let cachedMatches = [];
     let currentYear = 2026;
     let currentMonth = 5; // June (0-indexed)
+    let highWatchabilityOnly = false;
 
     // Initialize Page
     selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
@@ -62,6 +63,18 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('findfootball-timezone', selectedTimezone);
             resolveAndTimezoneFetch();
             showToast(`Timezone set to ${timezoneSelect.options[timezoneSelect.selectedIndex].text}!`);
+        });
+    }
+
+    const filterBtn = document.getElementById('toggle-watchability-filter');
+    if (filterBtn) {
+        filterBtn.addEventListener('click', () => {
+            highWatchabilityOnly = !highWatchabilityOnly;
+            filterBtn.classList.toggle('active', highWatchabilityOnly);
+            filterBtn.innerHTML = highWatchabilityOnly
+                ? '<i class="fa-solid fa-fire text-warning"></i> Showing High Watchability (≥75%)'
+                : '<i class="fa-solid fa-filter"></i> Show High Watchability Only (≥75%)';
+            renderCalendar();
         });
     }
 
@@ -338,7 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
             matchesContainer.className = 'calendar-day-matches';
             
             const dateKey = `${day.year}-${String(day.month + 1).padStart(2, '0')}-${String(day.dayNumber).padStart(2, '0')}`;
-            const dayMatches = matchesByDateKey[dateKey] || [];
+            const dayMatches = (matchesByDateKey[dateKey] || []).filter(match => !highWatchabilityOnly || match.watchability_score >= 75);
             
             dayMatches.forEach(match => {
                 const compactMatch = document.createElement('div');
@@ -359,9 +372,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 compactMatch.innerHTML = `
                     <div class="compact-matchup">
-                        <img src="${getFlagUrl(match.home_team.name)}" class="compact-flag" alt="${match.home_team.name}">
+                        <img src="${getFlagUrl(match.home_team)}" class="compact-flag" alt="${match.home_team.name}">
                         ${statusHtml}
-                        <img src="${getFlagUrl(match.away_team.name)}" class="compact-flag" alt="${match.away_team.name}">
+                        <img src="${getFlagUrl(match.away_team)}" class="compact-flag" alt="${match.away_team.name}">
                     </div>
                 `;
                 

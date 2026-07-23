@@ -42,6 +42,7 @@ class GroupedFixturesResponse(BaseModel):
 
 class CalendarTeamOut(BaseModel):
     name: str
+    logo_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

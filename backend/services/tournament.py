@@ -746,10 +746,12 @@ def get_calendar_fixtures(db: Session, tz_str: str, tournament_id: int = None, s
         calendar_data.append({
             "id": f.id,
             "home_team": {
-                "name": f.home_team.name if f.home_team else resolve_placeholder_name(db, f.home_team_placeholder, f.tournament_id)
+                "name": f.home_team.name if f.home_team else resolve_placeholder_name(db, f.home_team_placeholder, f.tournament_id),
+                "logo_url": f.home_team.badge_url if f.home_team else "/static/badges/default.png"
             },
             "away_team": {
-                "name": f.away_team.name if f.away_team else resolve_placeholder_name(db, f.away_team_placeholder, f.tournament_id)
+                "name": f.away_team.name if f.away_team else resolve_placeholder_name(db, f.away_team_placeholder, f.tournament_id),
+                "logo_url": f.away_team.badge_url if f.away_team else "/static/badges/default.png"
             },
             "date": f.date_utc.isoformat(),
             "formatted_time": dt_tz.strftime("%H:%M"),

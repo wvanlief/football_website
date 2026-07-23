@@ -4,9 +4,9 @@
 
 **Blocked by:** 01 — Local Badge Asset Caching & Dynamic Logo Delivery, 03 — Format Engine UI Routing & Standings Adaptability
 
-**Status:** ready-for-agent
+**Status:** closed
 
-- [ ] Competition selector redesigned into clean categories (Top 5 Leagues, European Cups, Domestic/International Cups).
-- [ ] Calendar view segmented by Gameweek/Weekly blocks with team crest images.
-- [ ] High-Watchability filter toggle added to calendar view.
-- [ ] Search container pseudo-element styling fixed, removing red dot artifacts.
+- [x] Competition switcher group tabs ("Top Leagues", "European Cups", "Tournaments & Cups").
+- [x] Red dot artifact in upper right of search wrapper removed.
+- [x] Team crest icons render cleanly alongside team names in Calendar view.
+- [x] High Watchability filter toggle (≥75%) allows users to hide low-watchability fixtures in Calendar view.
