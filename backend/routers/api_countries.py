@@ -95,6 +95,7 @@ def get_all_countries(
             CountrySimpleOut(
                 name=t.name,
                 elo=t.elo,
+                logo_url=t.badge_url,
                 group_name=team_group_map.get(t.id),
                 competition_name=t_info.get("competition_name"),
                 competition_badge=t_info.get("competition_badge"),

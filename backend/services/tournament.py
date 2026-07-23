@@ -542,6 +542,7 @@ def get_country_details(db: Session, country_name: str, tz_str: str, tournament_
     return {
         "name": team.name,
         "elo": team.elo,
+        "logo_url": team.badge_url,
         "group_name": group_name,
         "group_rank": rank,
         "form": form_results,

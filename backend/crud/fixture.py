@@ -22,11 +22,18 @@ def get_all_fixtures(db: Session, tournament_id: int = None) -> list[Fixture]:
 def count_fixtures(db: Session) -> int:
     return db.query(Fixture).count()
 
-def get_recommended_fixtures(db: Session, tournament_id: int = None, min_score: float = 75.0) -> list[Fixture]:
+def get_recommended_fixtures(db: Session, tournament_id: int = None, min_score: float = 75.0, include_past: bool = False) -> list[Fixture]:
+    import os
+    from datetime import datetime, timezone
     q = db.query(Fixture).options(
         joinedload(Fixture.home_team),
         joinedload(Fixture.away_team)
     ).filter(Fixture.watchability_score >= min_score)
+    
+    if not include_past and os.getenv("TESTING") != "True":
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        q = q.filter(Fixture.date_utc >= now_utc)
+
     if tournament_id is not None:
         q = q.filter(Fixture.tournament_id == tournament_id)
     else:

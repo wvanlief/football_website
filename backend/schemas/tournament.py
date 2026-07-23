@@ -7,6 +7,7 @@ from backend.schemas.player import PlayerOut
 class CountryDetailsResponse(BaseModel):
     name: str
     elo: int
+    logo_url: Optional[str] = None
     group_name: Optional[str] = None
     group_rank: int
     form: List[str]
@@ -70,6 +71,7 @@ class CombinedBracketResponse(BaseModel):
 class CountrySimpleOut(BaseModel):
     name: str
     elo: int
+    logo_url: Optional[str] = None
     group_name: Optional[str] = None
     competition_name: Optional[str] = None
     competition_badge: Optional[str] = None
