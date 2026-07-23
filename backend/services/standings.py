@@ -147,7 +147,8 @@ def calculate_standings(db: Session, group_letter: str, tournament_id: int = Non
             "goals_against": 0,
             "goal_difference": 0,
             "points": 0,
-            "elo": t.elo
+            "elo": t.elo,
+            "logo_url": t.badge_url
         })
         
     team_names = [t.name for t in teams]

@@ -17,12 +17,17 @@ document.addEventListener('DOMContentLoaded', () => {
         "Democratic Republic of the Congo": "cd"
     };
 
-    function getFlagUrl(countryName, size = 'w40') {
-        const code = COUNTRY_FLAGS[countryName];
-        if (code) {
-            return `https://flagcdn.com/${size}/${code}.png`;
+    function getFlagUrl(target, size = 'w40') {
+        if (!target) return '/static/badges/default.png';
+        if (typeof target === 'object') {
+            if (target.logo_url) return target.logo_url;
+            target = target.name || target.team;
         }
-        return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgd2lkdGg9JzI0JyBoZWlnaHQ9JzI0Jz48Y2lyY2xlIGN4PScxMicgY3k9JzEyJyByPScxMCcgZmlsbD0nIzY2NicvPjwvc3ZnPg==';
+        if (typeof target === 'string') {
+            const code = COUNTRY_FLAGS[target];
+            if (code) return `https://flagcdn.com/${size}/${code}.png`;
+        }
+        return '/static/badges/default.png';
     }
 
     // Parse Team name from URL path
@@ -143,10 +148,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         teamHero.innerHTML = `
-            <div class="country-hero-flag-bg" style="background-image: url('${getFlagUrl(data.name, 'w320')}');"></div>
+            <div class="country-hero-flag-bg" style="background-image: url('${getFlagUrl(data, 'w320')}');"></div>
             <div class="country-hero-content">
                 <div class="country-hero-header">
-                    <img src="${getFlagUrl(data.name, 'w80')}" class="hero-avatar-flag" alt="">
+                    <img src="${getFlagUrl(data, 'w80')}" class="hero-avatar-flag" alt="">
                     <div>
                         <h2>${data.name.toUpperCase()}</h2>
                         <div style="display: flex; flex-direction: column; align-items: flex-start;">

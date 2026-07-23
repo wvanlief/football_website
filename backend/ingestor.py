@@ -1198,9 +1198,65 @@ if __name__ == "__main__":
     import argparse
     from backend.database import SessionLocal
     
+def download_and_cache_badges(db: Session):
+    """
+    Downloads and caches team badge PNGs locally in backend/static/badges/{api_id}.png
+    and updates team.logo_url in the database.
+    """
+    os.makedirs(os.path.join("backend", "static", "badges"), exist_ok=True)
+    teams = db.query(Team).all()
+    print(f"Caching badges for {len(teams)} teams...")
+    
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    updated_count = 0
+    
+    for team in teams:
+        if team.api_id:
+            local_path = os.path.join("backend", "static", "badges", f"{team.api_id}.png")
+            url_path = f"/static/badges/{team.api_id}.png"
+            
+            if not os.path.exists(local_path):
+                img_url = f"https://media.api-sports.io/football/teams/{team.api_id}.png"
+                try:
+                    import ssl
+                    ssl_ctx = ssl._create_unverified_context()
+                    req = urllib.request.Request(img_url, headers=headers)
+                    with urllib.request.urlopen(req, context=ssl_ctx, timeout=10) as resp:
+                        if resp.status == 200:
+                            with open(local_path, "wb") as f:
+                                f.write(resp.read())
+                            print(f"Downloaded badge for {team.name} ({team.api_id})")
+                except Exception as e:
+                    print(f"Could not download badge for {team.name}: {e}")
+            
+            if os.path.exists(local_path):
+                team.logo_url = url_path
+                updated_count += 1
+            else:
+                team.logo_url = f"https://media.api-sports.io/football/teams/{team.api_id}.png"
+                updated_count += 1
+        elif team.team_type == "National" and team.country_code:
+            code = team.country_code.lower()
+            if code == "eng": code = "gb-eng"
+            elif code == "sco": code = "gb-sct"
+            elif code == "wal": code = "gb-wls"
+            elif code == "nir": code = "gb-nir"
+            team.logo_url = f"https://flagcdn.com/w80/{code}.png"
+            updated_count += 1
+        else:
+            team.logo_url = "/static/badges/default.png"
+            
+    db.commit()
+    print(f"Successfully updated logo_url for {updated_count} teams.")
+
+
+if __name__ == "__main__":
+    import argparse
+    from backend.database import SessionLocal
+    
     parser = argparse.ArgumentParser(description="findfootball.games Database Ingestion and Seeding CLI")
     parser.add_argument("command", nargs="?", default="seed-wc", 
-                        choices=["seed-wc", "fetch-teams", "review-elo-matches", "apply-elo-matches", "seed-competition"],
+                        choices=["seed-wc", "fetch-teams", "review-elo-matches", "apply-elo-matches", "seed-competition", "cache-badges"],
                         help="Seeding command to run")
     parser.add_argument("--league", type=int, help="API-Football league ID")
     parser.add_argument("--season", type=int, help="API-Football season year")
@@ -1228,6 +1284,8 @@ if __name__ == "__main__":
             review_elo_matches(db, output_path=args.file)
         elif args.command == "apply-elo-matches":
             apply_elo_matches(db, file_path=args.file)
+        elif args.command == "cache-badges":
+            download_and_cache_badges(db)
         elif args.command == "seed-competition":
             if not args.league or not args.season or not args.comp_name:
                 print("Error: --league, --season, and --comp-name are required for seed-competition.")
@@ -1247,3 +1305,4 @@ if __name__ == "__main__":
 
     finally:
         db.close()
+

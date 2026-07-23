@@ -63,9 +63,12 @@ app.add_middleware(
 )
 
 # Mount static assets
+os.makedirs("backend/static/badges", exist_ok=True)
+app.mount("/static", StaticFiles(directory="backend/static"), name="static")
 app.mount("/css", StaticFiles(directory="frontend/css"), name="css")
 app.mount("/js", StaticFiles(directory="frontend/js"), name="js")
 app.mount("/themes", StaticFiles(directory="frontend/themes"), name="themes")
+
 
 # Include Routers
 app.include_router(pages_router)

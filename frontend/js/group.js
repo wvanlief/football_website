@@ -158,33 +158,20 @@ document.addEventListener('DOMContentLoaded', () => {
         NORMALIZED_CLUB_BADGES[normKey] = CLUB_BADGES[key];
     });
 
-    function getFlagUrl(countryName, size = 'w40') {
-        if (!countryName) return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgd2lkdGg9JzI0JyBoZWlnaHQ9JzI0Jz48Y2lyY2xlIGN4PScxMicgY3k9JzEyJyByPScxMCcgZmlsbD0nIzY2NicvPjwvc3ZnPg==';
-        
-        // 1. Exact match
-        if (CLUB_BADGES[countryName]) {
-            return CLUB_BADGES[countryName];
+    function getFlagUrl(target, size = 'w40') {
+        if (!target) return '/static/badges/default.png';
+        if (typeof target === 'object') {
+            if (target.logo_url) return target.logo_url;
+            target = target.name || target.team;
         }
-        
-        // 2. Normalized fuzzy match (handles "Athletic Club", "Tottenham Hotspur", "Marseille", "Villarreal")
-        const normName = countryName.toLowerCase().replace(/[\s\-_'’\/\.]/g, '');
-        if (NORMALIZED_CLUB_BADGES[normName]) {
-            return NORMALIZED_CLUB_BADGES[normName];
+        if (typeof target === 'string') {
+            if (CLUB_BADGES[target]) return CLUB_BADGES[target];
+            const normName = target.toLowerCase().replace(/[\s\-_'’\/\.]/g, '');
+            if (NORMALIZED_CLUB_BADGES[normName]) return NORMALIZED_CLUB_BADGES[normName];
+            const code = COUNTRY_FLAGS[target];
+            if (code) return `https://flagcdn.com/${size}/${code}.png`;
         }
-
-        // 3. Substring match
-        for (const key in CLUB_BADGES) {
-            const normKey = key.toLowerCase().replace(/[\s\-_'’\/\.]/g, '');
-            if (normName.includes(normKey) || normKey.includes(normName)) {
-                return CLUB_BADGES[key];
-            }
-        }
-
-        const code = COUNTRY_FLAGS[countryName];
-        if (code) {
-            return `https://flagcdn.com/${size}/${code}.png`;
-        }
-        return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgd2lkdGg9JzI0JyBoZWlnaHQ9JzI0Jz48Y2lyY2xlIGN4PScxMicgY3k9JzEyJyByPScxMCcgZmlsbD0nIzY2NicvPjwvc3ZnPg==';
+        return '/static/badges/default.png';
     }
 
     // Parse Group letter from URL path
@@ -612,7 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="col-pos font-weight-bold">${rank}</td>
                 <td class="col-team">
                     <div class="clickable-team-row" data-name="${team.name}">
-                        <img src="${getFlagUrl(team.name)}" class="table-team-flag" alt="${team.name}">
+                        <img src="${getFlagUrl(team)}" class="table-team-flag" alt="${team.name}">
                         <span class="table-team-name">${team.name}</span>
                     </div>
                 </td>
@@ -799,7 +786,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td class="col-pos font-weight-bold">${rank}</td>
                 <td class="col-team">
                     <div class="clickable-team-row" data-name="${team.name}">
-                        <img src="${getFlagUrl(team.name)}" class="table-team-flag" alt="${team.name}">
+                        <img src="${getFlagUrl(team)}" class="table-team-flag" alt="${team.name}">
                         <span class="table-team-name">${team.name}</span>
                     </div>
                 </td>

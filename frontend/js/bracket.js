@@ -17,12 +17,17 @@ document.addEventListener('DOMContentLoaded', () => {
         "Democratic Republic of the Congo": "cd"
     };
 
-    function getFlagUrl(countryName, size = 'w40') {
-        const code = COUNTRY_FLAGS[countryName];
-        if (code) {
-            return `https://flagcdn.com/${size}/${code}.png`;
+    function getFlagUrl(target, size = 'w40') {
+        if (!target) return '/static/badges/default.png';
+        if (typeof target === 'object') {
+            if (target.logo_url) return target.logo_url;
+            target = target.name || target.team;
         }
-        return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgd2lkdGg9JzI0JyBoZWlnaHQ9JzI0Jz48Y2lyY2xlIGN4PScxMicgY3k9JzEyJyByPScxMCcgZmlsbD0nIzY2NicvPjwvc3ZnPg==';
+        if (typeof target === 'string') {
+            const code = COUNTRY_FLAGS[target];
+            if (code) return `https://flagcdn.com/${size}/${code}.png`;
+        }
+        return '/static/badges/default.png';
     }
 
     // DOM Elements

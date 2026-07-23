@@ -61,6 +61,7 @@ class Team(Base):
     team_type = Column(String, default="National")    # "National" | "Club"
     elo_source = Column(String, default="eloratings") # "eloratings" | "clubelo" | "manual"
     api_id = Column(Integer, nullable=True, unique=True, index=True) # API-Football team ID
+    logo_url = Column(String, nullable=True) # Custom or cached logo URL
     
     # ELO & Form cache (stored on team for fast lookup)
     elo = Column(Integer, default=1500)
@@ -68,6 +69,17 @@ class Team(Base):
     win_streak = Column(Integer, default=0)
     draw_streak = Column(Integer, default=0)
     loss_streak = Column(Integer, default=0)
+
+    @property
+    def badge_url(self) -> str:
+        if self.logo_url:
+            return self.logo_url
+        if self.api_id:
+            return f"/static/badges/{self.api_id}.png"
+        if self.country_code:
+            return f"https://flagcdn.com/w80/{self.country_code.lower()}.png"
+        return "/static/badges/default.png"
+
 
     contracts = relationship("PlayerContract", back_populates="team", cascade="all, delete-orphan")
     tournament_teams = relationship("TournamentTeam", back_populates="team", cascade="all, delete-orphan")
