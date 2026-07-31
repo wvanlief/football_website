@@ -142,25 +142,13 @@ def seed_database(db: Session):
         print(f"Failed to fetch live Elo ratings: {e}. Falling back to hardcoded dictionary.")
         live_elo = ELO_RATINGS
 
-    fetched_teams = []
-    try:
-        print("Fetching team definitions from API...")
-        teams_url = "https://worldcup26.ir/get/teams"
-        res_teams = fetch_json_with_retry(teams_url)
-        fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else res_teams
-        print(f"Fetched {len(fetched_teams)} team definitions.")
-    except Exception as e:
-        print(f"Failed to fetch team definitions: {e}. Seeding using fallback groups.")
-
-    if fetched_teams:
-        for t in fetched_teams:
-            name = normalizer.normalize(t.get("name_en", ""))
-            group = t.get("groups", "")
-            
+    id_counter = 1
+    for group, teams_list in GROUPS.items():
+        for name in teams_list:
             elo = live_elo.get(name, 1700)
             form_score = min(95.0, max(45.0, 50.0 + (elo - 1500) * 0.05))
             win_streak = 4 if elo > 2000 else (2 if elo > 1850 else 0)
-                
+            
             country_code = NATIONAL_TEAM_ISO_CODES.get(name) or name[:3].upper()
             db_team = Team(
                 name=name,
@@ -189,45 +177,8 @@ def seed_database(db: Session):
             )
             db.add(db_elo_hist)
             
-            team_map[t["id"]] = name
-    else:
-        id_counter = 1
-        for group, teams_list in GROUPS.items():
-            for name in teams_list:
-                elo = live_elo.get(name, 1700)
-                form_score = min(95.0, max(45.0, 50.0 + (elo - 1500) * 0.05))
-                win_streak = 4 if elo > 2000 else (2 if elo > 1850 else 0)
-                
-                country_code = NATIONAL_TEAM_ISO_CODES.get(name) or name[:3].upper()
-                db_team = Team(
-                    name=name,
-                    country_code=country_code,
-                    elo=elo,
-                    form_score=round(form_score, 1),
-                    win_streak=win_streak,
-                    draw_streak=0,
-                    loss_streak=0
-                )
-                db.add(db_team)
-                db.flush()
-                
-                db_tourney_team = TournamentTeam(
-                    tournament_id=tourney.id,
-                    team_id=db_team.id,
-                    group_name=group,
-                    tournament_status="Active"
-                )
-                db.add(db_tourney_team)
-                
-                db_elo_hist = EloHistory(
-                    team_id=db_team.id,
-                    recorded_at=datetime.now(timezone.utc),
-                    elo_rating=elo
-                )
-                db.add(db_elo_hist)
-                
-                team_map[str(id_counter)] = name
-                id_counter += 1
+            team_map[str(id_counter)] = name
+            id_counter += 1
                 
     db.commit()
 
@@ -257,14 +208,17 @@ def seed_database(db: Session):
     db.commit()
 
     fetched_matches = []
-    try:
-        print("Fetching official schedule from API...")
-        matches_url = "https://worldcup26.ir/get/games"
-        res_matches = fetch_json_with_retry(matches_url)
-        fetched_matches = res_matches.get("games") if isinstance(res_matches, dict) else res_matches
-        print(f"Successfully fetched {len(fetched_matches)} matches.")
-    except Exception as e:
-        print(f"Failed to fetch matches: {e}. Seeding fallback schedule.")
+    api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
+    if api_key:
+        try:
+            print("Fetching official schedule from API-Football...")
+            res = call_football_api("fixtures", {"league": 1, "season": 2026})
+            if isinstance(res, dict) and "response" in res:
+                fetched_matches = res["response"]
+                print(f"Successfully fetched {len(fetched_matches)} matches from API-Football.")
+        except Exception as e:
+            print(f"Failed to fetch matches from API-Football: {e}. Seeding fallback schedule.")
+
 
     fixtures_to_save = []
     

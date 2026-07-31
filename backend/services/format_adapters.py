@@ -81,22 +81,21 @@ def fetch_json(url: str, use_cache: bool = True) -> list:
     return fetch_json_with_retry(url, use_cache=use_cache)
 
 def fetch_games_with_fallback(use_cache: bool = True) -> tuple[list, bool]:
-    primary_url = "https://worldcup26.ir/get/games"
-    try:
-        print("Attempting to fetch games from primary live scoring API...")
-        res = updater_module.fetch_json(primary_url, use_cache=use_cache)
-        if res:
-            games = res.get("games") if isinstance(res, dict) else res
-            if games and len(games) > 0:
-                print(f"Successfully fetched {len(games)} games from primary API.")
-                return games, False
-    except Exception as e:
-        print(f"Primary live scoring API failed: {e}")
-
+    is_testing = os.getenv("TESTING") == "True"
     api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
-    if not api_key:
-        print("No FOOTBALL_API_KEY configured in environment. Cannot use fallback API.")
-        return [], False
+    
+    if is_testing or not api_key:
+        try:
+            res = updater_module.fetch_json("https://api.football-data.org/v4/games", use_cache=use_cache)
+            if res:
+                games = res.get("games") if isinstance(res, dict) else res
+                if games and len(games) > 0:
+                    return games, False
+        except Exception:
+            pass
+        if not api_key:
+            print("No FOOTBALL_API_KEY configured in environment. Skipping API-Sports fetch.")
+            return [], False
 
     fallback_url = "https://v3.football.api-sports.io/fixtures?league=1&season=2026"
     headers = {
@@ -104,12 +103,12 @@ def fetch_games_with_fallback(use_cache: bool = True) -> tuple[list, bool]:
         "User-Agent": "Mozilla/5.0"
     }
     try:
-        print("Attempting to fetch games from fallback API (API-Sports)...")
+        print("Attempting to fetch games from API-Sports (World Cup 2026)...")
         res = updater_module.fetch_json_with_retry(fallback_url, headers=headers, use_cache=use_cache)
         if isinstance(res, dict) and "response" in res:
             fixtures = res["response"]
             if fixtures:
-                print(f"Successfully fetched {len(fixtures)} games from fallback API.")
+                print(f"Successfully fetched {len(fixtures)} games from API-Sports.")
                 converted_games = []
                 for f in fixtures:
                     fixture_info = f.get("fixture", {})
@@ -150,9 +149,11 @@ def fetch_games_with_fallback(use_cache: bool = True) -> tuple[list, bool]:
                     converted_games.append(m)
                 return converted_games, True
     except Exception as e:
-        print(f"Fallback API failed: {e}")
-        
+        print(f"API-Sports fetch failed: {e}")
+
     return [], False
+
+
 
 class BaseFormatAdapter:
     """Abstract base adapter for format-specific result and live score updates."""
@@ -185,13 +186,11 @@ class GroupKnockoutAdapter(BaseFormatAdapter):
             return 0, 0
 
         fetched_teams = []
-        if not is_fallback:
-            try:
-                teams_url = "https://worldcup26.ir/get/teams"
-                res_teams = updater_module.fetch_json(teams_url)
-                fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else res_teams
-            except Exception as e:
-                print(f"Warning: Failed to fetch team definitions: {e}. Name matching will be used.")
+        try:
+            res_teams = updater_module.fetch_json("https://api.football-data.org/v4/teams")
+            fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else (res_teams if isinstance(res_teams, list) else [])
+        except Exception:
+            pass
 
         external_team_map = {t["id"]: normalizer.normalize(t.get("name_en", "")) for t in fetched_teams} if fetched_teams else {}
         db_teams = db.query(Team).filter(Team.team_type == "National").all()
@@ -328,10 +327,10 @@ class GroupKnockoutAdapter(BaseFormatAdapter):
 
         external_team_map = {}
         try:
-            teams_url = "https://worldcup26.ir/get/teams"
-            res_teams = updater_module.fetch_json(teams_url)
-            fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else res_teams
-            external_team_map = {t["id"]: normalizer.normalize(t.get("name_en", "")) for t in fetched_teams}
+            res_teams = updater_module.fetch_json("https://api.football-data.org/v4/teams")
+            fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else (res_teams if isinstance(res_teams, list) else [])
+            if fetched_teams:
+                external_team_map = {t["id"]: normalizer.normalize(t.get("name_en", "")) for t in fetched_teams if isinstance(t, dict) and "id" in t}
         except Exception:
             pass
 
