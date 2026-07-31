@@ -214,11 +214,42 @@ def seed_database(db: Session):
             print("Fetching official schedule from API-Football...")
             res = call_football_api("fixtures", {"league": 1, "season": 2026})
             if isinstance(res, dict) and "response" in res:
-                fetched_matches = res["response"]
+                raw_fixtures = res["response"]
+                for f in raw_fixtures:
+                    fixture_info = f.get("fixture", {})
+                    teams_info = f.get("teams", {})
+                    goals_info = f.get("goals", {})
+                    league_info = f.get("league", {})
+                    
+                    status_short = fixture_info.get("status", {}).get("short", "")
+                    finished = "TRUE" if status_short in ("FT", "AET", "PEN") else "FALSE"
+                    
+                    api_date = fixture_info.get("date")
+                    dt_utc_val = None
+                    if api_date:
+                        try:
+                            dt_utc_val = datetime.fromisoformat(api_date.replace('Z', '+00:00'))
+                        except Exception as date_err:
+                            print(f"Error parsing date {api_date}: {date_err}")
+                    
+                    round_str = league_info.get("round", "")
+                    
+                    m = {
+                        "id": str(fixture_info.get("id")),
+                        "home_team_name": normalizer.normalize(teams_info.get("home", {}).get("name", "")),
+                        "away_team_name": normalizer.normalize(teams_info.get("away", {}).get("name", "")),
+                        "home_team_id": None,
+                        "away_team_id": None,
+                        "type": round_str,
+                        "finished": finished,
+                        "home_score": str(goals_info.get("home")) if goals_info.get("home") is not None else None,
+                        "away_score": str(goals_info.get("away")) if goals_info.get("away") is not None else None,
+                        "dt_utc": dt_utc_val,
+                    }
+                    fetched_matches.append(m)
                 print(f"Successfully fetched {len(fetched_matches)} matches from API-Football.")
         except Exception as e:
             print(f"Failed to fetch matches from API-Football: {e}. Seeding fallback schedule.")
-
 
     fixtures_to_save = []
     
@@ -231,8 +262,8 @@ def seed_database(db: Session):
         }
         
         for m in fetched_matches:
-            h_team = team_map.get(m["home_team_id"])
-            a_team = team_map.get(m["away_team_id"])
+            h_team = m.get("home_team_name") or team_map.get(m.get("home_team_id"))
+            a_team = m.get("away_team_name") or team_map.get(m.get("away_team_id"))
             
             home_id = db_teams_by_name.get(h_team) if h_team else None
             away_id = db_teams_by_name.get(a_team) if a_team else None
@@ -240,29 +271,20 @@ def seed_database(db: Session):
             home_placeholder = m.get("home_team_label") if not home_id else None
             away_placeholder = m.get("away_team_label") if not away_id else None
             
-            date_str = m["local_date"]
-            try:
-                stadium_timezones = {
-                    "1": "America/Mexico_City", "2": "America/Mexico_City", "3": "America/Monterrey",
-                    "4": "America/Chicago", "5": "America/Chicago", "6": "America/Chicago",
-                    "7": "America/New_York", "8": "America/New_York", "9": "America/New_York",
-                    "10": "America/New_York", "11": "America/New_York", "12": "America/Toronto",
-                    "13": "America/Vancouver", "14": "America/Los_Angeles", "15": "America/Los_Angeles",
-                    "16": "America/Los_Angeles",
-                }
-                dt_naive = datetime.strptime(date_str, "%m/%d/%Y %H:%M")
-                tz_name = stadium_timezones.get(str(m.get("stadium_id")), "America/New_York")
-                dt_localized = dt_naive.replace(tzinfo=ZoneInfo(tz_name))
-                dt_utc = dt_localized.astimezone(timezone.utc)
-            except Exception:
+            dt_utc = m.get("dt_utc")
+            if not dt_utc:
+                date_str = m.get("local_date") or ""
                 try:
-                    dt = datetime.strptime(date_str, "%m/%d/%Y %H:%M")
-                    dt_utc = dt.replace(tzinfo=timezone.utc)
-                except ValueError:
+                    dt_naive = datetime.strptime(date_str, "%m/%d/%Y %H:%M")
+                    dt_utc = dt_naive.replace(tzinfo=timezone.utc)
+                except Exception:
                     dt_utc = datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc)
                 
-            stage = stage_mapping.get(m["type"], "Group Stage")
-            status = "Finished" if m["finished"] == "TRUE" else "Scheduled"
+            raw_stage = m.get("type", "Group Stage")
+            stage = stage_mapping.get(raw_stage, raw_stage)
+            if "Group" in str(stage):
+                stage = "Group Stage"
+            status = "Finished" if m.get("finished") == "TRUE" else "Scheduled"
             
             h_elo = live_elo.get(h_team, 1700) if h_team else 1700
             a_elo = live_elo.get(a_team, 1700) if a_team else 1700
@@ -274,15 +296,19 @@ def seed_database(db: Session):
                 away_team_id=away_id,
                 home_team_placeholder=home_placeholder,
                 away_team_placeholder=away_placeholder,
-                api_id=str(m["id"]),
+                api_id=str(m.get("id")),
                 date_utc=dt_utc,
                 stage=stage,
                 status=status
             )
             if status == "Finished" and m.get("home_score") is not None and m.get("away_score") is not None:
-                settle_result(fixture, int(m["home_score"]), int(m["away_score"]))
+                try:
+                    settle_result(fixture, int(m["home_score"]), int(m["away_score"]))
+                except Exception:
+                    pass
             db.add(fixture)
             db.flush()
+
             
             init_odds = FixtureOdds(
                 fixture_id=fixture.id,
