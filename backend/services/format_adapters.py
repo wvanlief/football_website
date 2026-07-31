@@ -6,12 +6,18 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from backend.database import Team, Fixture, Tournament, Competition, FixtureOdds, EloHistory
+from backend.utils import fetch_json_with_retry
 from backend.services.ingestion import NameNormalizer
 from backend.services.odds import calculate_default_odds
 from backend.services.settling import settle_result
+from backend.services.elo import fetch_clubelo_ratings
+from backend.services.seeder import call_football_api
 from backend.scoring import update_fixture_score
-import backend.ingestor as ingestor_module
-import backend.services.updater as updater_module
+
+def fetch_json(url: str, use_cache: bool = True):
+    return fetch_json_with_retry(url, use_cache=use_cache)
+
+
 
 STAGE_MAPPING = {
     "group": "Group Stage",
@@ -81,6 +87,7 @@ def fetch_json(url: str, use_cache: bool = True) -> list:
     return fetch_json_with_retry(url, use_cache=use_cache)
 
 def fetch_games_with_fallback(use_cache: bool = True) -> tuple[list, bool]:
+    import backend.services.updater as updater_module
     is_testing = os.getenv("TESTING") == "True"
     api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
     
@@ -105,6 +112,8 @@ def fetch_games_with_fallback(use_cache: bool = True) -> tuple[list, bool]:
     try:
         print("Attempting to fetch games from API-Sports (World Cup 2026)...")
         res = updater_module.fetch_json_with_retry(fallback_url, headers=headers, use_cache=use_cache)
+
+
         if isinstance(res, dict) and "response" in res:
             fixtures = res["response"]
             if fixtures:
@@ -187,10 +196,13 @@ class GroupKnockoutAdapter(BaseFormatAdapter):
 
         fetched_teams = []
         try:
+            import backend.services.updater as updater_module
             res_teams = updater_module.fetch_json("https://api.football-data.org/v4/teams")
             fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else (res_teams if isinstance(res_teams, list) else [])
         except Exception:
             pass
+
+
 
         external_team_map = {t["id"]: normalizer.normalize(t.get("name_en", "")) for t in fetched_teams} if fetched_teams else {}
         db_teams = db.query(Team).filter(Team.team_type == "National").all()
@@ -294,7 +306,9 @@ class GroupKnockoutAdapter(BaseFormatAdapter):
         
         try:
             print("Syncing Elo ratings from eloratings.net...")
+            import backend.ingestor as ingestor_module
             live_elo = ingestor_module.fetch_current_elo_ratings()
+
             teams_updated = 0
             for team in db_teams:
                 fetched_elo = live_elo.get(team.name)
@@ -327,12 +341,15 @@ class GroupKnockoutAdapter(BaseFormatAdapter):
 
         external_team_map = {}
         try:
+            import backend.services.updater as updater_module
             res_teams = updater_module.fetch_json("https://api.football-data.org/v4/teams")
             fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else (res_teams if isinstance(res_teams, list) else [])
             if fetched_teams:
                 external_team_map = {t["id"]: normalizer.normalize(t.get("name_en", "")) for t in fetched_teams if isinstance(t, dict) and "id" in t}
         except Exception:
             pass
+
+
 
         db_teams = db.query(Team).filter(Team.team_type == "National").all()
         db_teams_by_name = {team.name: team for team in db_teams}
@@ -407,10 +424,13 @@ class LeagueFormatAdapter(BaseFormatAdapter):
             
         print(f"Fetching fixtures from API-Football for league={league_id}, season={api_season}...")
         try:
+            import backend.services.updater as updater_module
             res = updater_module.call_football_api("fixtures", {"league": league_id, "season": api_season})
         except Exception as e:
             print(f"Error calling football API for league fixtures: {e}")
             return 0, 0
+
+
             
         if not isinstance(res, dict) or "response" not in res:
             print(f"Invalid API response for league fixtures: {res}")
@@ -505,8 +525,11 @@ class LeagueFormatAdapter(BaseFormatAdapter):
             last_club_sync = db.query(EloHistory).join(Team).filter(Team.elo_source == "clubelo").order_by(EloHistory.recorded_at.desc()).first()
             if not last_club_sync or last_club_sync.recorded_at.date() < now_time.date():
                 print("Syncing Elo ratings from ClubElo...")
+                import backend.services.updater as updater_module
                 club_ratings = updater_module.fetch_clubelo_ratings()
                 if club_ratings:
+
+
                     review_path = "backend/data/elo_name_review.json"
                     if os.path.exists(review_path):
                         with open(review_path, "r", encoding="utf-8") as f:
@@ -545,10 +568,13 @@ class LeagueFormatAdapter(BaseFormatAdapter):
         url = "https://api.football-data.org/v4/matches"
         headers = {"X-Auth-Token": api_key}
         try:
+            import backend.services.updater as updater_module
             res = updater_module.fetch_json_with_retry(url, headers=headers, use_cache=False)
         except Exception as e:
             print(f"Error fetching live scores from Football-Data.org: {e}")
             return 0, 0
+
+
             
         api_matches = res.get("matches", [])
         print(f"Football-Data.org returned {len(api_matches)} matches today.")
