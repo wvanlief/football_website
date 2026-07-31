@@ -489,10 +489,13 @@ def fetch_and_seed_teams(
         if api_team_id:
             db_team = db.query(Team).filter(Team.api_id == api_team_id).first()
         if not db_team:
-            db_team = db.query(Team).filter(Team.name == name, Team.country_code == country_code).first()
+            db_team = db.query(Team).filter(Team.name == name).first()
             
         if db_team:
             db_team.api_id = api_team_id
+            if country_code:
+                db_team.country_code = country_code
+
             db_team.team_type = team_type
             db_team.elo_source = elo_source
             print(f"Updated existing team: {name} (api_id={api_team_id})")
