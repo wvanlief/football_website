@@ -8,17 +8,10 @@ load_dotenv()
 
 from backend.database import Team, Fixture, Tournament, Competition, SessionLocal
 from backend.scoring import update_fixture_score
-<<<<<<< HEAD
 from backend.services.ingestion import NameNormalizer
-from backend.services.odds import update_odds_from_api
-from backend.services.tournament import propagate_knockout_fixtures
-=======
-from backend.ingestor import (
-    normalize_team_name, calculate_default_odds, update_odds_from_api,
-    call_football_api, fetch_clubelo_ratings
-)
+from backend.services.odds import update_odds_from_api, calculate_default_odds
 from backend.services.tournament import propagate_knockout_fixtures, invalidate_fixtures_cache
->>>>>>> bfbf20897de19e2c41ca06bb3fe974746e437493
+
 from backend.services.simulation import run_monte_carlo_simulation
 from backend.services.standings import recalculate_tournament_team_standings
 from backend.services.format_adapters import (

@@ -8,8 +8,11 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 import argparse
-from backend.database import SessionLocal
+import urllib.request
+from sqlalchemy.orm import Session
+from backend.database import SessionLocal, Team
 from backend.services.ingestion import NameNormalizer, COUNTRY_ISO_MAP
+
 
 # Re-exports for backward compatibility
 from backend.services.odds import (
@@ -40,12 +43,6 @@ def normalize_team_name(name: str) -> str:
     """Standardizes team name by stripping whitespace and mapping known alias variants."""
     return NameNormalizer().normalize(name)
 
-if __name__ == "__main__":
-<<<<<<< HEAD
-=======
-    import argparse
-    from backend.database import SessionLocal
-    
 def download_and_cache_badges(db: Session):
     """
     Downloads and caches team badge PNGs locally in backend/static/badges/{api_id}.png
@@ -78,11 +75,9 @@ def download_and_cache_badges(db: Session):
                     print(f"Could not download badge for {team.name}: {e}")
             
             if os.path.exists(local_path):
-                team.logo_url = url_path
-                updated_count += 1
-            else:
-                team.logo_url = f"https://media.api-sports.io/football/teams/{team.api_id}.png"
-                updated_count += 1
+                if team.logo_url != url_path:
+                    team.logo_url = url_path
+                    updated_count += 1
         elif team.team_type == "National" and team.country_code:
             code = team.country_code.lower()
             if code == "eng": code = "gb-eng"
@@ -98,12 +93,13 @@ def download_and_cache_badges(db: Session):
     print(f"Successfully updated logo_url for {updated_count} teams.")
 
 
+
 if __name__ == "__main__":
     import argparse
     from backend.database import SessionLocal
     
->>>>>>> bfbf20897de19e2c41ca06bb3fe974746e437493
     parser = argparse.ArgumentParser(description="findfootball.games Database Ingestion and Seeding CLI")
+
     parser.add_argument("command", nargs="?", default="seed-wc", 
                         choices=["seed-wc", "fetch-teams", "review-elo-matches", "apply-elo-matches", "seed-competition", "cache-badges"],
                         help="Seeding command to run")
