@@ -369,6 +369,61 @@ def seed_database(db: Session):
 
     print("Database seeding and simulation completed.")
 
+def seed_all_default_competitions(db: Session) -> dict:
+    """Seeds all default competitions (FIFA World Cup, Copa del Rey, Nations League, Premier League, Champions League, La Liga)."""
+    results = {}
+    print("--- Starting Full Multi-Competition Database Seeding ---")
+    
+    # 1. FIFA World Cup 2026
+    try:
+        seed_database(db)
+        results["FIFA World Cup"] = "Seeded successfully"
+    except Exception as e:
+        results["FIFA World Cup"] = f"Error: {e}"
+        
+    # 2. Copa del Rey & UEFA Nations League
+    try:
+        from backend.seed_phase8 import seed_phase8_data
+        seed_phase8_data()
+        results["Phase 8 (Copa del Rey & Nations League)"] = "Seeded successfully"
+    except Exception as e:
+        results["Phase 8"] = f"Error: {e}"
+        
+    # 3. Premier League, UEFA Champions League, La Liga
+    api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
+    if api_key:
+        leagues_to_seed = [
+            ("Premier League", "League", "league", 39, "2025/26", 2025, 3, 100),
+            ("UEFA Champions League", "Cup", "group_knockout", 2, "2025/26", 2025, 0, 80),
+            ("La Liga", "League", "league", 140, "2025/26", 2025, 3, 120),
+        ]
+        for name, comp_type, format_eng, league_id, season_str, api_season, releg_spots, home_adv in leagues_to_seed:
+            try:
+                print(f"Seeding competition: {name}...")
+                fetch_and_seed_teams(db, api_league_id=league_id, api_season=api_season)
+                seed_competition(
+                    db=db,
+                    competition_name=name,
+                    competition_type=comp_type,
+                    format_engine=format_eng,
+                    season=season_str,
+                    api_league_id=league_id,
+                    api_season=api_season,
+                    relegation_spots=releg_spots,
+                    home_advantage_elo=home_adv
+                )
+                results[name] = "Seeded successfully"
+            except Exception as e:
+                print(f"Error seeding {name}: {e}")
+                results[name] = f"Error: {e}"
+    else:
+        print("FOOTBALL_API_KEY not found. Skipping API-Football league seeding.")
+        results["Leagues"] = "Skipped (No FOOTBALL_API_KEY)"
+
+    print("--- Full Database Seeding Completed ---")
+    return results
+
+
 
 def fetch_and_seed_teams(
     db: Session,

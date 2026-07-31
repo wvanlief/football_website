@@ -64,4 +64,22 @@ def trigger_live_update(force: bool = False, db: Session = Depends(get_db)):
             detail=f"Live update task failed: {str(e)}"
         )
 
+@router.post("/seed-all", dependencies=[Depends(verify_admin_token)])
+def trigger_seed_all(db: Session = Depends(get_db)):
+    """
+    Secured endpoint to trigger full database seeding across all major competitions (World Cup, Premier League, Champions League, La Liga, Copa del Rey, Nations League).
+    """
+    try:
+        from backend.services.seeder import seed_all_default_competitions
+        details = seed_all_default_competitions(db)
+        return {"status": "success", "message": "All default competitions seeded successfully.", "details": details}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Seeding task failed: {str(e)}"
+        )
+
+
 
