@@ -21,15 +21,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!target) return '/static/badges/default.png';
         let teamName = null;
         let url = null;
+        let apiId = null;
         if (typeof target === 'object') {
             url = target.logo_url;
             teamName = target.name || target.team;
+            apiId = target.api_id;
         } else if (typeof target === 'string') {
             teamName = target;
         }
 
         if (url && url.startsWith('http')) {
             return url;
+        }
+        if (apiId) {
+            return `https://media.api-sports.io/football/teams/${apiId}.png`;
         }
         if (url && url.startsWith('/static/badges/') && !url.endsWith('default.png')) {
             const matchId = url.match(/\/static\/badges\/(\d+)\.png/);
@@ -43,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return (url && !url.endsWith('default.png')) ? url : '/static/badges/default.png';
     }
+
 
     // DOM Elements
 
@@ -163,8 +169,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fetch and Load Fixtures
 
     async function fetchFixtures() {
-        const cacheKey = 'findfootball-cached-fixtures-v3';
+        const cacheKey = 'findfootball-cached-fixtures-v5';
         const cachedSession = sessionStorage.getItem(cacheKey);
+
         if (cachedSession) {
             try {
                 activeFixtures = JSON.parse(cachedSession);
