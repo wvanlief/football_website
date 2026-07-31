@@ -22,19 +22,24 @@ async def lifespan(app: FastAPI):
     # Initialize database on startup safely within context manager
     init_db()
     
-    # Seed database on startup if empty, unless we are in testing mode
+    # Seed database asynchronously in background after server starts
     if os.getenv("TESTING") != "True":
-        db = next(get_db())
-        try:
-            from backend.services.seeder import seed_all_default_competitions
-            seed_all_default_competitions(db)
-        except Exception as e:
-            print(f"Startup seeding notice: {e}")
-        finally:
-
-
-            db.close()
+        import asyncio
+        def run_background_seed():
+            db = next(get_db())
+            try:
+                from backend.services.seeder import seed_all_default_competitions
+                seed_all_default_competitions(db)
+            except Exception as e:
+                print(f"Background seeding notice: {e}")
+            finally:
+                db.close()
+                
+        loop = asyncio.get_running_loop()
+        loop.run_in_executor(None, run_background_seed)
+        
     yield
+
 
 app = FastAPI(
     title="Football Match Watchability Index",
