@@ -37,9 +37,12 @@ class GroupedFixturesResponse(BaseModel):
     tomorrow: List[FixtureOut]
     this_week: List[FixtureOut]
     finished: List[FixtureOut]
+    is_offseason: Optional[bool] = False
+    offseason_notice: Optional[str] = None
 
 class CalendarTeamOut(BaseModel):
     name: str
+    logo_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

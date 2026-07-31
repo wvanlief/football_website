@@ -17,174 +17,31 @@ document.addEventListener('DOMContentLoaded', () => {
         "Democratic Republic of the Congo": "cd"
     };
 
-    const CLUB_BADGES = {
-        // Spain
-        "Real Madrid": "https://media.api-sports.io/football/teams/541.png",
-        "FC Barcelona": "https://media.api-sports.io/football/teams/529.png",
-        "Barcelona": "https://media.api-sports.io/football/teams/529.png",
-        "Atletico Madrid": "https://media.api-sports.io/football/teams/530.png",
-        "Atlético Madrid": "https://media.api-sports.io/football/teams/530.png",
-        "Athletic Club": "https://media.api-sports.io/football/teams/531.png",
-        "Athletic Bilbao": "https://media.api-sports.io/football/teams/531.png",
-        "Villarreal": "https://media.api-sports.io/football/teams/533.png",
-        "Villarreal CF": "https://media.api-sports.io/football/teams/533.png",
-        "Real Sociedad": "https://media.api-sports.io/football/teams/548.png",
-        "Sevilla": "https://media.api-sports.io/football/teams/536.png",
-        "Girona": "https://media.api-sports.io/football/teams/547.png",
-        "Real Betis": "https://media.api-sports.io/football/teams/543.png",
-        "Valencia": "https://media.api-sports.io/football/teams/532.png",
-        "Osasuna": "https://media.api-sports.io/football/teams/727.png",
-        "Celta Vigo": "https://media.api-sports.io/football/teams/538.png",
-        "Rayo Vallecano": "https://media.api-sports.io/football/teams/728.png",
-        "Getafe": "https://media.api-sports.io/football/teams/546.png",
-        "Mallorca": "https://media.api-sports.io/football/teams/798.png",
-        "Las Palmas": "https://media.api-sports.io/football/teams/534.png",
-        "Alaves": "https://media.api-sports.io/football/teams/542.png",
-
-        // England
-        "Manchester City": "https://media.api-sports.io/football/teams/50.png",
-        "Man City": "https://media.api-sports.io/football/teams/50.png",
-        "Arsenal": "https://media.api-sports.io/football/teams/42.png",
-        "Liverpool": "https://media.api-sports.io/football/teams/40.png",
-        "Aston Villa": "https://media.api-sports.io/football/teams/66.png",
-        "Tottenham Hotspur": "https://media.api-sports.io/football/teams/47.png",
-        "Tottenham": "https://media.api-sports.io/football/teams/47.png",
-        "Chelsea": "https://media.api-sports.io/football/teams/49.png",
-        "Manchester United": "https://media.api-sports.io/football/teams/33.png",
-        "Man United": "https://media.api-sports.io/football/teams/33.png",
-        "Newcastle": "https://media.api-sports.io/football/teams/34.png",
-        "Newcastle United": "https://media.api-sports.io/football/teams/34.png",
-        "West Ham": "https://media.api-sports.io/football/teams/48.png",
-        "West Ham United": "https://media.api-sports.io/football/teams/48.png",
-        "Brighton": "https://media.api-sports.io/football/teams/51.png",
-        "Wolverhampton": "https://media.api-sports.io/football/teams/39.png",
-        "Fulham": "https://media.api-sports.io/football/teams/45.png",
-        "Bournemouth": "https://media.api-sports.io/football/teams/35.png",
-        "Crystal Palace": "https://media.api-sports.io/football/teams/52.png",
-        "Everton": "https://media.api-sports.io/football/teams/46.png",
-        "Brentford": "https://media.api-sports.io/football/teams/55.png",
-        "Nottingham Forest": "https://media.api-sports.io/football/teams/65.png",
-
-        // France
-        "Paris Saint-Germain": "https://media.api-sports.io/football/teams/85.png",
-        "PSG": "https://media.api-sports.io/football/teams/85.png",
-        "Marseille": "https://media.api-sports.io/football/teams/81.png",
-        "Olympique de Marseille": "https://media.api-sports.io/football/teams/81.png",
-        "OM": "https://media.api-sports.io/football/teams/81.png",
-        "Monaco": "https://media.api-sports.io/football/teams/91.png",
-        "AS Monaco": "https://media.api-sports.io/football/teams/91.png",
-        "Lille": "https://media.api-sports.io/football/teams/79.png",
-        "LOSC Lille": "https://media.api-sports.io/football/teams/79.png",
-        "Lyon": "https://media.api-sports.io/football/teams/80.png",
-        "Olympique Lyonnais": "https://media.api-sports.io/football/teams/80.png",
-        "Nice": "https://media.api-sports.io/football/teams/84.png",
-        "Lens": "https://media.api-sports.io/football/teams/116.png",
-        "Brest": "https://media.api-sports.io/football/teams/1063.png",
-        "Rennes": "https://media.api-sports.io/football/teams/94.png",
-
-        // Germany
-        "Bayern Munchen": "https://media.api-sports.io/football/teams/157.png",
-        "Bayern Munich": "https://media.api-sports.io/football/teams/157.png",
-        "Borussia Dortmund": "https://media.api-sports.io/football/teams/165.png",
-        "Dortmund": "https://media.api-sports.io/football/teams/165.png",
-        "Bayer Leverkusen": "https://media.api-sports.io/football/teams/168.png",
-        "Leverkusen": "https://media.api-sports.io/football/teams/168.png",
-        "RB Leipzig": "https://media.api-sports.io/football/teams/173.png",
-        "Leipzig": "https://media.api-sports.io/football/teams/173.png",
-        "Eintracht Frankfurt": "https://media.api-sports.io/football/teams/169.png",
-        "Frankfurt": "https://media.api-sports.io/football/teams/169.png",
-        "Stuttgart": "https://media.api-sports.io/football/teams/172.png",
-        "VfB Stuttgart": "https://media.api-sports.io/football/teams/172.png",
-        "Wolfsburg": "https://media.api-sports.io/football/teams/161.png",
-        "Gladbach": "https://media.api-sports.io/football/teams/163.png",
-        "Hoffenheim": "https://media.api-sports.io/football/teams/167.png",
-        "Freiburg": "https://media.api-sports.io/football/teams/160.png",
-        "Werder Bremen": "https://media.api-sports.io/football/teams/162.png",
-
-        // Italy
-        "Inter": "https://media.api-sports.io/football/teams/505.png",
-        "Inter Milan": "https://media.api-sports.io/football/teams/505.png",
-        "AC Milan": "https://media.api-sports.io/football/teams/489.png",
-        "Milan": "https://media.api-sports.io/football/teams/489.png",
-        "Juventus": "https://media.api-sports.io/football/teams/496.png",
-        "Atalanta": "https://media.api-sports.io/football/teams/499.png",
-        "Bologna": "https://media.api-sports.io/football/teams/500.png",
-        "Roma": "https://media.api-sports.io/football/teams/497.png",
-        "AS Roma": "https://media.api-sports.io/football/teams/497.png",
-        "Lazio": "https://media.api-sports.io/football/teams/487.png",
-        "SS Lazio": "https://media.api-sports.io/football/teams/487.png",
-        "Napoli": "https://media.api-sports.io/football/teams/492.png",
-        "Fiorentina": "https://media.api-sports.io/football/teams/502.png",
-        "Torino": "https://media.api-sports.io/football/teams/503.png",
-
-        // Other European Clubs
-        "PSV Eindhoven": "https://media.api-sports.io/football/teams/197.png",
-        "PSV": "https://media.api-sports.io/football/teams/197.png",
-        "Feyenoord": "https://media.api-sports.io/football/teams/610.png",
-        "Ajax": "https://media.api-sports.io/football/teams/194.png",
-        "Sporting CP": "https://media.api-sports.io/football/teams/498.png",
-        "Benfica": "https://media.api-sports.io/football/teams/495.png",
-        "Porto": "https://media.api-sports.io/football/teams/503.png",
-        "Celtic": "https://media.api-sports.io/football/teams/247.png",
-        "Rangers": "https://media.api-sports.io/football/teams/257.png",
-        "Club Brugge": "https://media.api-sports.io/football/teams/569.png",
-        "Anderlecht": "https://media.api-sports.io/football/teams/564.png",
-        "Bodo/Glimt": "https://media.api-sports.io/football/teams/1038.png",
-        "Bodø/Glimt": "https://media.api-sports.io/football/teams/1038.png",
-        "Copenhagen": "https://media.api-sports.io/football/teams/400.png",
-        "FC Copenhagen": "https://media.api-sports.io/football/teams/400.png",
-        "Galatasaray": "https://media.api-sports.io/football/teams/645.png",
-        "Fenerbahce": "https://media.api-sports.io/football/teams/611.png",
-        "Besiktas": "https://media.api-sports.io/football/teams/562.png",
-        "Shakhtar Donetsk": "https://media.api-sports.io/football/teams/550.png",
-        "Red Star Belgrade": "https://media.api-sports.io/football/teams/598.png",
-        "Sparta Praha": "https://media.api-sports.io/football/teams/549.png",
-        "Slavia Praha": "https://media.api-sports.io/football/teams/553.png",
-        "Sturm Graz": "https://media.api-sports.io/football/teams/2020.png",
-        "RB Salzburg": "https://media.api-sports.io/football/teams/571.png",
-        "Red Bull Salzburg": "https://media.api-sports.io/football/teams/571.png",
-        "Young Boys": "https://media.api-sports.io/football/teams/565.png",
-        "Dinamo Zagreb": "https://media.api-sports.io/football/teams/631.png",
-        "Midtjylland": "https://media.api-sports.io/football/teams/398.png",
-        "PAOK": "https://media.api-sports.io/football/teams/616.png",
-        "Malmo FF": "https://media.api-sports.io/football/teams/377.png",
-        "Qarabag": "https://media.api-sports.io/football/teams/636.png"
-    };
-
-    // Pre-build normalized lookup map for fuzzy matching
-    const NORMALIZED_CLUB_BADGES = {};
-    Object.keys(CLUB_BADGES).forEach(key => {
-        const normKey = key.toLowerCase().replace(/[\s\-_'’\/\.]/g, '');
-        NORMALIZED_CLUB_BADGES[normKey] = CLUB_BADGES[key];
-    });
-
-    function getFlagUrl(countryName, size = 'w40') {
-        if (!countryName) return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgd2lkdGg9JzI0JyBoZWlnaHQ9JzI0Jz48Y2lyY2xlIGN4PScxMicgY3k9JzEyJyByPScxMCcgZmlsbD0nIzY2NicvPjwvc3ZnPg==';
-        
-        // 1. Exact match
-        if (CLUB_BADGES[countryName]) {
-            return CLUB_BADGES[countryName];
-        }
-        
-        // 2. Normalized fuzzy match (handles "Athletic Club", "Tottenham Hotspur", "Marseille", "Villarreal")
-        const normName = countryName.toLowerCase().replace(/[\s\-_'’\/\.]/g, '');
-        if (NORMALIZED_CLUB_BADGES[normName]) {
-            return NORMALIZED_CLUB_BADGES[normName];
+    function getFlagUrl(target, size = 'w40') {
+        if (!target) return '/static/badges/default.png';
+        let teamName = null;
+        let url = null;
+        if (typeof target === 'object') {
+            url = target.logo_url;
+            teamName = target.name || target.team;
+        } else if (typeof target === 'string') {
+            teamName = target;
         }
 
-        // 3. Substring match
-        for (const key in CLUB_BADGES) {
-            const normKey = key.toLowerCase().replace(/[\s\-_'’\/\.]/g, '');
-            if (normName.includes(normKey) || normKey.includes(normName)) {
-                return CLUB_BADGES[key];
+        if (url && url.startsWith('http')) {
+            return url;
+        }
+        if (url && url.startsWith('/static/badges/') && !url.endsWith('default.png')) {
+            const matchId = url.match(/\/static\/badges\/(\d+)\.png/);
+            if (matchId) {
+                return `https://media.api-sports.io/football/teams/${matchId[1]}.png`;
             }
         }
-
-        const code = COUNTRY_FLAGS[countryName];
-        if (code) {
-            return `https://flagcdn.com/${size}/${code}.png`;
+        if (teamName) {
+            const code = COUNTRY_FLAGS[teamName];
+            if (code) return `https://flagcdn.com/${size}/${code}.png`;
         }
-        return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgd2lkdGg9JzI0JyBoZWlnaHQ9JzI0Jz48Y2lyY2xlIGN4PScxMicgY3k9JzEyJyByPScxMCcgZmlsbD0nIzY2NicvPjwvc3ZnPg==';
+        return (url && !url.endsWith('default.png')) ? url : '/static/badges/default.png';
     }
 
     // DOM Elements
@@ -306,12 +163,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fetch and Load Fixtures
 
     async function fetchFixtures() {
-        // Show spinner
-        Object.keys(lists).forEach(col => {
-            lists[col].innerHTML = '<div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Recalculating...</div>';
-        });
+        const cacheKey = 'findfootball-cached-fixtures-v3';
+        const cachedSession = sessionStorage.getItem(cacheKey);
+        if (cachedSession) {
+            try {
+                activeFixtures = JSON.parse(cachedSession);
+                renderAllColumns();
+            } catch (e) {}
+        } else {
+            Object.keys(lists).forEach(col => {
+                lists[col].innerHTML = `
+                    <div class="skeleton-card-container" style="display: flex; flex-direction: column; gap: 12px; padding: 4px;">
+                        <div style="height: 110px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);"></div>
+                        <div style="height: 110px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);"></div>
+                    </div>
+                `;
+            });
+        }
 
-        // Update column headers dynamically based on resolved timezone immediately
         const todayHeader = document.querySelector('#col-today h2');
         const tomorrowHeader = document.querySelector('#col-tomorrow h2');
         if (todayHeader) todayHeader.textContent = getFormattedDateString(resolvedTimezone, 0);
@@ -321,13 +190,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`/api/fixtures?tz=${encodeURIComponent(resolvedTimezone)}`);
             const data = await res.json();
             activeFixtures = data;
-
+            sessionStorage.setItem(cacheKey, JSON.stringify(data));
             renderAllColumns();
         } catch (err) {
             console.error("Failed to load fixtures", err);
-            Object.keys(lists).forEach(col => {
-                lists[col].innerHTML = '<div class="loading-spinner text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Error loading games.</div>';
-            });
+            if (!cachedSession) {
+                Object.keys(lists).forEach(col => {
+                    lists[col].innerHTML = '<div class="loading-spinner text-danger"><i class="fa-solid fa-triangle-exclamation"></i> Error loading games.</div>';
+                });
+            }
         }
     }
 
@@ -348,14 +219,14 @@ document.addEventListener('DOMContentLoaded', () => {
             card.title = `${match.home_team.name} vs ${match.away_team.name}`;
             card.innerHTML = `
                 <div class="ticker-team home">
-                    <img src="${getFlagUrl(match.home_team.name)}" class="ticker-flag" alt="${match.home_team.name}" title="${match.home_team.name}">
+                    <img src="${getFlagUrl(match.home_team)}" class="ticker-flag" alt="${match.home_team.name}" title="${match.home_team.name}">
                 </div>
                 <div class="score-wrapper blurred" title="Click to reveal score">
                     <span class="score-text">${match.score}</span>
                     <div class="score-blur-overlay">Reveal</div>
                 </div>
                 <div class="ticker-team away">
-                    <img src="${getFlagUrl(match.away_team.name)}" class="ticker-flag" alt="${match.away_team.name}" title="${match.away_team.name}">
+                    <img src="${getFlagUrl(match.away_team)}" class="ticker-flag" alt="${match.away_team.name}" title="${match.away_team.name}">
                 </div>
             `;
 
@@ -374,6 +245,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderAllColumns() {
         if (!activeFixtures) return;
+        
+        let noticeBanner = document.getElementById('offseason-notice-banner');
+        if (activeFixtures.is_offseason && activeFixtures.offseason_notice) {
+            if (!noticeBanner) {
+                noticeBanner = document.createElement('div');
+                noticeBanner.id = 'offseason-notice-banner';
+                noticeBanner.className = 'glass';
+                noticeBanner.style.cssText = 'padding: 12px 20px; margin-bottom: 1rem; border: 1px solid rgba(251, 191, 36, 0.4); background: rgba(251, 191, 36, 0.1); border-radius: 12px; color: #fbbf24; font-weight: 600; display: flex; align-items: center; gap: 10px;';
+                const triptychContainer = document.querySelector('.triptych-container');
+                if (triptychContainer) {
+                    triptychContainer.parentNode.insertBefore(noticeBanner, triptychContainer);
+                }
+            }
+            noticeBanner.innerHTML = `<i class="fa-solid fa-umbrella-beach"></i> <span>${activeFixtures.offseason_notice}</span>`;
+            noticeBanner.style.display = 'flex';
+        } else if (noticeBanner) {
+            noticeBanner.style.display = 'none';
+        }
         
         const filterFn = (match) => {
             if (activeCompFilter === 'all' || activeCompFilter === 'upcoming') {
@@ -413,8 +302,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = `match-card ${ratingClass}`;
             card.innerHTML = `
-                <div class="card-flag-bg home-flag-bg" style="background-image: url('${getFlagUrl(match.home_team.name, 'w320')}');"></div>
-                <div class="card-flag-bg away-flag-bg" style="background-image: url('${getFlagUrl(match.away_team.name, 'w320')}');"></div>
+                <div class="card-flag-bg home-flag-bg" style="background-image: url('${getFlagUrl(match.home_team, 'w320')}');"></div>
+                <div class="card-flag-bg away-flag-bg" style="background-image: url('${getFlagUrl(match.away_team, 'w320')}');"></div>
                 ${showDate ? `<div class="tile-date-title"><i class="fa-regular fa-calendar"></i> ${match.formatted_date}</div>` : ''}
                 <div class="card-header">
                     <div style="display: flex; gap: 6px; align-items: center;">
@@ -428,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="card-matchup">
                     <div class="team-box home clickable-team" data-name="${match.home_team.name}">
                         <div class="team-identity home-identity">
-                            <img src="${getFlagUrl(match.home_team.name)}" class="team-flag" alt="">
+                            <img src="${getFlagUrl(match.home_team)}" class="team-flag" alt="">
                             <span class="team-name" title="${match.home_team.name}">${match.home_team.name}</span>
                         </div>
                         <span class="elo-val">ELO ${match.home_team.elo}</span>
@@ -448,7 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="team-box away clickable-team" data-name="${match.away_team.name}">
                         <div class="team-identity away-identity">
                             <span class="team-name" title="${match.away_team.name}">${match.away_team.name}</span>
-                            <img src="${getFlagUrl(match.away_team.name)}" class="team-flag" alt="">
+                            <img src="${getFlagUrl(match.away_team)}" class="team-flag" alt="">
                         </div>
                         <span class="elo-val">ELO ${match.away_team.elo}</span>
                     </div>
@@ -663,6 +552,11 @@ document.addEventListener('DOMContentLoaded', () => {
             pill.setAttribute('data-competition', country.competition_name || '');
             pill.setAttribute('data-upcoming', country.has_upcoming_game ? 'true' : 'false');
             
+            if (country.has_upcoming_game) {
+                pill.style.border = '1px solid rgba(251, 191, 36, 0.6)';
+                pill.style.boxShadow = '0 0 10px rgba(251, 191, 36, 0.2)';
+            }
+            
             let badgeText = country.competition_badge || '⚽';
             let titleText = `${country.name} (ELO ${country.elo})`;
             if (country.competition_name) {
@@ -674,8 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             pill.title = titleText;
             pill.innerHTML = `
-                <img src="${getFlagUrl(country.name)}" class="flag-pill-img" alt="${country.name} flag">
-                ${country.has_upcoming_game ? '<span class="upcoming-dot-indicator"></span>' : ''}
+                <img src="${getFlagUrl(country)}" class="flag-pill-img" alt="${country.name} flag">
             `;
             pill.addEventListener('click', () => {
                 if (country.tournament_id) {

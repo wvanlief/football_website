@@ -17,12 +17,17 @@ document.addEventListener('DOMContentLoaded', () => {
         "Democratic Republic of the Congo": "cd"
     };
 
-    function getFlagUrl(countryName, size = 'w40') {
-        const code = COUNTRY_FLAGS[countryName];
-        if (code) {
-            return `https://flagcdn.com/${size}/${code}.png`;
+    function getFlagUrl(target, size = 'w40') {
+        if (!target) return '/static/badges/default.png';
+        if (typeof target === 'object') {
+            if (target.logo_url) return target.logo_url;
+            target = target.name || target.team;
         }
-        return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgd2lkdGg9JzI0JyBoZWlnaHQ9JzI0Jz48Y2lyY2xlIGN4PScxMicgY3k9JzEyJyByPScxMCcgZmlsbD0nIzY2NicvPjwvc3ZnPg==';
+        if (typeof target === 'string') {
+            const code = COUNTRY_FLAGS[target];
+            if (code) return `https://flagcdn.com/${size}/${code}.png`;
+        }
+        return '/static/badges/default.png';
     }
 
     // DOM Elements
@@ -47,6 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let cachedMatches = [];
     let currentYear = 2026;
     let currentMonth = 5; // June (0-indexed)
+    let highWatchabilityOnly = false;
 
     // Initialize Page
     selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
@@ -57,6 +63,18 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('findfootball-timezone', selectedTimezone);
             resolveAndTimezoneFetch();
             showToast(`Timezone set to ${timezoneSelect.options[timezoneSelect.selectedIndex].text}!`);
+        });
+    }
+
+    const filterBtn = document.getElementById('toggle-watchability-filter');
+    if (filterBtn) {
+        filterBtn.addEventListener('click', () => {
+            highWatchabilityOnly = !highWatchabilityOnly;
+            filterBtn.classList.toggle('active', highWatchabilityOnly);
+            filterBtn.innerHTML = highWatchabilityOnly
+                ? '<i class="fa-solid fa-fire text-warning"></i> Showing High Watchability (≥75%)'
+                : '<i class="fa-solid fa-filter"></i> Show High Watchability Only (≥75%)';
+            renderCalendar();
         });
     }
 
@@ -333,7 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
             matchesContainer.className = 'calendar-day-matches';
             
             const dateKey = `${day.year}-${String(day.month + 1).padStart(2, '0')}-${String(day.dayNumber).padStart(2, '0')}`;
-            const dayMatches = matchesByDateKey[dateKey] || [];
+            const dayMatches = (matchesByDateKey[dateKey] || []).filter(match => !highWatchabilityOnly || match.watchability_score >= 75);
             
             dayMatches.forEach(match => {
                 const compactMatch = document.createElement('div');
@@ -354,9 +372,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 compactMatch.innerHTML = `
                     <div class="compact-matchup">
-                        <img src="${getFlagUrl(match.home_team.name)}" class="compact-flag" alt="${match.home_team.name}">
+                        <img src="${getFlagUrl(match.home_team)}" class="compact-flag" alt="${match.home_team.name}">
                         ${statusHtml}
-                        <img src="${getFlagUrl(match.away_team.name)}" class="compact-flag" alt="${match.away_team.name}">
+                        <img src="${getFlagUrl(match.away_team)}" class="compact-flag" alt="${match.away_team.name}">
                     </div>
                 `;
                 

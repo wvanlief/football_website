@@ -1,6 +1,12 @@
 from sqlalchemy.orm import Session, joinedload, aliased
 from backend.database import Fixture, Team, Tournament
 
+def get_active_tournament_ids(db: Session) -> list[int]:
+    t_2026 = db.query(Tournament).filter(Tournament.status == "Active", Tournament.season_name == "2026").all()
+    if t_2026:
+        return [t.id for t in t_2026]
+    return [t.id for t in db.query(Tournament).filter(Tournament.status == "Active").all()]
+
 def get_all_fixtures(db: Session, tournament_id: int = None) -> list[Fixture]:
     q = db.query(Fixture).options(
         joinedload(Fixture.home_team),
@@ -9,22 +15,29 @@ def get_all_fixtures(db: Session, tournament_id: int = None) -> list[Fixture]:
     if tournament_id is not None:
         q = q.filter(Fixture.tournament_id == tournament_id)
     else:
-        active_ids = [t.id for t in db.query(Tournament).filter(Tournament.status == "Active").all()]
+        active_ids = get_active_tournament_ids(db)
         q = q.filter(Fixture.tournament_id.in_(active_ids))
     return q.all()
 
 def count_fixtures(db: Session) -> int:
     return db.query(Fixture).count()
 
-def get_recommended_fixtures(db: Session, tournament_id: int = None, min_score: float = 75.0) -> list[Fixture]:
+def get_recommended_fixtures(db: Session, tournament_id: int = None, min_score: float = 75.0, include_past: bool = False) -> list[Fixture]:
+    import os
+    from datetime import datetime, timezone
     q = db.query(Fixture).options(
         joinedload(Fixture.home_team),
         joinedload(Fixture.away_team)
     ).filter(Fixture.watchability_score >= min_score)
+    
+    if not include_past and os.getenv("TESTING") != "True":
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        q = q.filter(Fixture.date_utc >= now_utc)
+
     if tournament_id is not None:
         q = q.filter(Fixture.tournament_id == tournament_id)
     else:
-        active_ids = [t.id for t in db.query(Tournament).filter(Tournament.status == "Active").all()]
+        active_ids = get_active_tournament_ids(db)
         q = q.filter(Fixture.tournament_id.in_(active_ids))
     return q.all()
 

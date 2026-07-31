@@ -1,5 +1,243 @@
 [
   {
+    "api_football_name": "Benfica",
+    "clubelo_name": "Benfica",
+    "confidence": 1.0,
+    "elo": 1823,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Rangers",
+    "clubelo_name": "Rangers",
+    "confidence": 1.0,
+    "elo": 1517,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Tromso",
+    "clubelo_name": "Tromso",
+    "confidence": 1.0,
+    "elo": 1496,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Jagiellonia",
+    "clubelo_name": "Jagiellonia",
+    "confidence": 1.0,
+    "elo": 1466,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Hammarby FF",
+    "clubelo_name": "Hammarby",
+    "confidence": 0.84,
+    "elo": 1507,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "FC Midtjylland",
+    "clubelo_name": "Midtjylland",
+    "confidence": 0.88,
+    "elo": 1687,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Twente",
+    "clubelo_name": "Twente",
+    "confidence": 1.0,
+    "elo": 1567,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Beşiktaş",
+    "clubelo_name": "Besiktas",
+    "confidence": 0.75,
+    "elo": 1516,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Anderlecht",
+    "clubelo_name": "Anderlecht",
+    "confidence": 1.0,
+    "elo": 1523,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "SV Elversberg",
+    "clubelo_name": "Elversberg",
+    "confidence": 1.0,
+    "elo": 1523,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Maccabi Tel Aviv",
+    "clubelo_name": "M Tel Aviv",
+    "confidence": 0.77,
+    "elo": 1438,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "PAOK",
+    "clubelo_name": "PAOK",
+    "confidence": 1.0,
+    "elo": 1605,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Bodo/Glimt",
+    "clubelo_name": "Bodoe Glimt",
+    "confidence": 0.86,
+    "elo": 1708,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "FC ST. Gallen",
+    "clubelo_name": "StGallen",
+    "confidence": 0.76,
+    "elo": 1469,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Pafos",
+    "clubelo_name": "Paphos",
+    "confidence": 0.73,
+    "elo": 1561,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "NEC Nijmegen",
+    "clubelo_name": "Nijmegen",
+    "confidence": 0.8,
+    "elo": 1531,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Olympiakos Piraeus",
+    "clubelo_name": "Olympiakos",
+    "confidence": 0.71,
+    "elo": 1663,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Hradec Králové",
+    "clubelo_name": "Hradec Kralove",
+    "confidence": 0.86,
+    "elo": 1445,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Valencia",
+    "clubelo_name": "Valencia",
+    "confidence": 1.0,
+    "elo": 1697,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Villarreal",
+    "clubelo_name": "Villarreal",
+    "confidence": 1.0,
+    "elo": 1759,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Sevilla",
+    "clubelo_name": "Sevilla",
+    "confidence": 1.0,
+    "elo": 1625,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Ipswich",
+    "clubelo_name": "Ipswich",
+    "confidence": 1.0,
+    "elo": 1639,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Celta Vigo",
+    "clubelo_name": "Celta",
+    "confidence": 1.0,
+    "elo": 1700,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Levante",
+    "clubelo_name": "Levante",
+    "confidence": 1.0,
+    "elo": 1638,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Espanyol",
+    "clubelo_name": "Espanyol",
+    "confidence": 1.0,
+    "elo": 1629,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Sparta Praha",
+    "clubelo_name": "Sparta Praha",
+    "confidence": 1.0,
+    "elo": 1547,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Real Madrid",
+    "clubelo_name": "Real Madrid",
+    "confidence": 1.0,
+    "elo": 1922,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Alaves",
+    "clubelo_name": "Alaves",
+    "confidence": 1.0,
+    "elo": 1634,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Real Betis",
+    "clubelo_name": "Betis",
+    "confidence": 1.0,
+    "elo": 1747,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Getafe",
+    "clubelo_name": "Getafe",
+    "confidence": 1.0,
+    "elo": 1664,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Real Sociedad",
+    "clubelo_name": "Sociedad",
+    "confidence": 1.0,
+    "elo": 1669,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Osasuna",
+    "clubelo_name": "Osasuna",
+    "confidence": 1.0,
+    "elo": 1650,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Rayo Vallecano",
+    "clubelo_name": "Rayo Vallecano",
+    "confidence": 1.0,
+    "elo": 1707,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Elche",
+    "clubelo_name": "Elche",
+    "confidence": 1.0,
+    "elo": 1623,
+    "status": "approved"
+  },
+  {
     "api_football_name": "Bayern München",
     "clubelo_name": "Bayern",
     "confidence": 1.0,
@@ -42,10 +280,164 @@
     "status": "approved"
   },
   {
+    "api_football_name": "Hull City",
+    "clubelo_name": "Hull",
+    "confidence": 1.0,
+    "elo": 1532,
+    "status": "approved"
+  },
+  {
     "api_football_name": "1899 Hoffenheim",
     "clubelo_name": "Hoffenheim",
     "confidence": 1.0,
     "elo": 1700,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "FC Schalke 04",
+    "clubelo_name": "Schalke",
+    "confidence": 1.0,
+    "elo": 1519,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "SC Paderborn 07",
+    "clubelo_name": "Paderborn",
+    "confidence": 1.0,
+    "elo": 1525,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Deportivo La Coruna",
+    "clubelo_name": "Deportivo",
+    "confidence": 0.5,
+    "elo": 1500,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Coventry",
+    "clubelo_name": "Coventry",
+    "confidence": 1.0,
+    "elo": 1661,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Malaga",
+    "clubelo_name": "Malaga",
+    "confidence": 1.0,
+    "elo": 1568,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Werder Bremen II",
+    "clubelo_name": "Debrecen",
+    "confidence": 0.58,
+    "elo": 1353,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "SV Drochtersen/Assel",
+    "clubelo_name": "Cesena",
+    "confidence": 0.46,
+    "elo": 1365,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "VfB Lübeck",
+    "clubelo_name": "Slovan Liberec",
+    "confidence": 0.5,
+    "elo": 1431,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Union St. Gilloise",
+    "clubelo_name": "St Gillis",
+    "confidence": 0.67,
+    "elo": 1716,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Bremer SV",
+    "clubelo_name": "Beer-Sheva",
+    "confidence": 0.63,
+    "elo": 1466,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Eintracht Norderstedt",
+    "clubelo_name": "Randers",
+    "confidence": 0.5,
+    "elo": 1432,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Weiche Flensburg",
+    "clubelo_name": "Regensburg",
+    "confidence": 0.62,
+    "elo": 1314,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "SSV Jeddeloh",
+    "clubelo_name": "Slaven Belupo",
+    "confidence": 0.48,
+    "elo": 1282,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Racing Santander",
+    "clubelo_name": "Santander",
+    "confidence": 1.0,
+    "elo": 1581,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Atlas Delmenhorst",
+    "clubelo_name": "Alashkert",
+    "confidence": 0.54,
+    "elo": 1199,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "HSC Hannover",
+    "clubelo_name": "Hannover",
+    "confidence": 0.8,
+    "elo": 1527,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Hamburger SV II",
+    "clubelo_name": "Hamburg",
+    "confidence": 0.64,
+    "elo": 1602,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Le Mans",
+    "clubelo_name": "Le Mans",
+    "confidence": 1.0,
+    "elo": 1492,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Estac Troyes",
+    "clubelo_name": "Troyes",
+    "confidence": 1.0,
+    "elo": 1521,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Hannover 96 II",
+    "clubelo_name": "Hannover",
+    "confidence": 0.73,
+    "elo": 1527,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "St. Pauli II",
+    "clubelo_name": "St Pauli",
+    "confidence": 0.8,
+    "elo": 1532,
     "status": "approved"
   },
   {
@@ -77,10 +469,10 @@
     "status": "approved"
   },
   {
-    "api_football_name": "FC Schalke 04",
-    "clubelo_name": "Schalke",
+    "api_football_name": "RB Leipzig",
+    "clubelo_name": "RB Leipzig",
     "confidence": 1.0,
-    "elo": 1519,
+    "elo": 1761,
     "status": "approved"
   },
   {
@@ -91,27 +483,6 @@
     "status": "approved"
   },
   {
-    "api_football_name": "SC Paderborn 07",
-    "clubelo_name": "Paderborn",
-    "confidence": 1.0,
-    "elo": 1525,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "1. FC Köln",
-    "clubelo_name": "Koeln",
-    "confidence": 1.0,
-    "elo": 1568,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "RB Leipzig",
-    "clubelo_name": "RB Leipzig",
-    "confidence": 1.0,
-    "elo": 1761,
-    "status": "approved"
-  },
-  {
     "api_football_name": "Union Berlin",
     "clubelo_name": "Union Berlin",
     "confidence": 1.0,
@@ -119,73 +490,10 @@
     "status": "approved"
   },
   {
-    "api_football_name": "SV Elversberg",
-    "clubelo_name": "Elversberg",
-    "confidence": 1.0,
-    "elo": 1523,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Ipswich",
-    "clubelo_name": "Ipswich",
-    "confidence": 1.0,
-    "elo": 1639,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Hull City",
-    "clubelo_name": "Hull",
-    "confidence": 1.0,
-    "elo": 1532,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Deportivo La Coruna",
-    "clubelo_name": "Deportivo",
-    "confidence": 0.5,
-    "elo": 1500,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Coventry",
-    "clubelo_name": "Coventry",
-    "confidence": 1.0,
-    "elo": 1661,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Malaga",
-    "clubelo_name": "Malaga",
+    "api_football_name": "1. FC Köln",
+    "clubelo_name": "Koeln",
     "confidence": 1.0,
     "elo": 1568,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Paris Saint Germain",
-    "clubelo_name": "Paris SG",
-    "confidence": 1.0,
-    "elo": 1967,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Stade Brestois 29",
-    "clubelo_name": "Brest",
-    "confidence": 1.0,
-    "elo": 1620,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Racing Santander",
-    "clubelo_name": "Santander",
-    "confidence": 1.0,
-    "elo": 1581,
-    "status": "approved"
-  },
-  {
-    "api_football_name": "Estac Troyes",
-    "clubelo_name": "Troyes",
-    "confidence": 1.0,
-    "elo": 1521,
     "status": "approved"
   },
   {
@@ -224,6 +532,13 @@
     "status": "approved"
   },
   {
+    "api_football_name": "Paris Saint Germain",
+    "clubelo_name": "Paris SG",
+    "confidence": 1.0,
+    "elo": 1967,
+    "status": "approved"
+  },
+  {
     "api_football_name": "Monaco",
     "clubelo_name": "Monaco",
     "confidence": 1.0,
@@ -259,6 +574,13 @@
     "status": "approved"
   },
   {
+    "api_football_name": "Stade Brestois 29",
+    "clubelo_name": "Brest",
+    "confidence": 1.0,
+    "elo": 1620,
+    "status": "approved"
+  },
+  {
     "api_football_name": "Auxerre",
     "clubelo_name": "Auxerre",
     "confidence": 1.0,
@@ -287,10 +609,150 @@
     "status": "approved"
   },
   {
-    "api_football_name": "Le Mans",
-    "clubelo_name": "Le Mans",
+    "api_football_name": "Heart Of Midlothian",
+    "clubelo_name": "Hertha",
+    "confidence": 0.48,
+    "elo": 1461,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Lazio",
+    "clubelo_name": "Lazio",
     "confidence": 1.0,
-    "elo": 1492,
+    "elo": 1703,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Sassuolo",
+    "clubelo_name": "Sassuolo",
+    "confidence": 1.0,
+    "elo": 1622,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "AC Milan",
+    "clubelo_name": "Milan",
+    "confidence": 0.77,
+    "elo": 1750,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Cagliari",
+    "clubelo_name": "Cagliari",
+    "confidence": 1.0,
+    "elo": 1594,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Napoli",
+    "clubelo_name": "Napoli",
+    "confidence": 1.0,
+    "elo": 1780,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Udinese",
+    "clubelo_name": "Udinese",
+    "confidence": 1.0,
+    "elo": 1645,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Genoa",
+    "clubelo_name": "Genoa",
+    "confidence": 1.0,
+    "elo": 1618,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Juventus",
+    "clubelo_name": "Juventus",
+    "confidence": 1.0,
+    "elo": 1772,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "AS Roma",
+    "clubelo_name": "Roma",
+    "confidence": 0.73,
+    "elo": 1793,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Atalanta",
+    "clubelo_name": "Atalanta",
+    "confidence": 1.0,
+    "elo": 1763,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Bologna",
+    "clubelo_name": "Bologna",
+    "confidence": 1.0,
+    "elo": 1701,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Fiorentina",
+    "clubelo_name": "Fiorentina",
+    "confidence": 1.0,
+    "elo": 1670,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Torino",
+    "clubelo_name": "Torino",
+    "confidence": 1.0,
+    "elo": 1624,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Inter",
+    "clubelo_name": "Inter",
+    "confidence": 1.0,
+    "elo": 1888,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Frosinone",
+    "clubelo_name": "Frosinone",
+    "confidence": 1.0,
+    "elo": 1564,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Venezia",
+    "clubelo_name": "Venezia",
+    "confidence": 1.0,
+    "elo": 1598,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Parma",
+    "clubelo_name": "Parma",
+    "confidence": 1.0,
+    "elo": 1599,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Lecce",
+    "clubelo_name": "Lecce",
+    "confidence": 1.0,
+    "elo": 1568,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Como",
+    "clubelo_name": "Como",
+    "confidence": 1.0,
+    "elo": 1760,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Monza",
+    "clubelo_name": "Monza",
+    "confidence": 1.0,
+    "elo": 1543,
     "status": "approved"
   },
   {
@@ -455,101 +917,416 @@
     "status": "approved"
   },
   {
-    "api_football_name": "Valencia",
-    "clubelo_name": "Valencia",
-    "confidence": 1.0,
-    "elo": 1697,
+    "api_football_name": "Vikingur Reykjavik",
+    "clubelo_name": "Vikingur",
+    "confidence": 0.62,
+    "elo": 1285,
     "status": "approved"
   },
   {
-    "api_football_name": "Villarreal",
-    "clubelo_name": "Villarreal",
-    "confidence": 1.0,
-    "elo": 1759,
+    "api_football_name": "Gornik Zabrze",
+    "clubelo_name": "Gornik",
+    "confidence": 0.63,
+    "elo": 1452,
     "status": "approved"
   },
   {
-    "api_football_name": "Sevilla",
-    "clubelo_name": "Sevilla",
-    "confidence": 1.0,
-    "elo": 1625,
+    "api_football_name": "Lech Poznan",
+    "clubelo_name": "Lechia",
+    "confidence": 0.59,
+    "elo": 1396,
     "status": "approved"
   },
   {
-    "api_football_name": "Celta Vigo",
-    "clubelo_name": "Celta",
+    "api_football_name": "The New Saints",
+    "clubelo_name": "The New Saints",
     "confidence": 1.0,
-    "elo": 1700,
+    "elo": 1066,
     "status": "approved"
   },
   {
-    "api_football_name": "Levante",
-    "clubelo_name": "Levante",
+    "api_football_name": "Aarhus",
+    "clubelo_name": "Aarhus",
     "confidence": 1.0,
-    "elo": 1638,
+    "elo": 1582,
     "status": "approved"
   },
   {
-    "api_football_name": "Espanyol",
-    "clubelo_name": "Espanyol",
-    "confidence": 1.0,
-    "elo": 1629,
+    "api_football_name": "Hapoel Beer Sheva",
+    "clubelo_name": "Hapoel Eran Hadera",
+    "confidence": 0.74,
+    "elo": 1190,
     "status": "approved"
   },
   {
-    "api_football_name": "Real Madrid",
-    "clubelo_name": "Real Madrid",
-    "confidence": 1.0,
-    "elo": 1922,
+    "api_football_name": "Vardar Skopje",
+    "clubelo_name": "Vardar",
+    "confidence": 0.63,
+    "elo": 1099,
     "status": "approved"
   },
   {
-    "api_football_name": "Alaves",
-    "clubelo_name": "Alaves",
-    "confidence": 1.0,
-    "elo": 1634,
+    "api_football_name": "FK Crvena Zvezda",
+    "clubelo_name": "Crvena Zvezda",
+    "confidence": 0.9,
+    "elo": 1586,
     "status": "approved"
   },
   {
-    "api_football_name": "Real Betis",
-    "clubelo_name": "Betis",
-    "confidence": 1.0,
-    "elo": 1747,
+    "api_football_name": "Fenerbahçe",
+    "clubelo_name": "Fenerbahce",
+    "confidence": 0.9,
+    "elo": 1655,
     "status": "approved"
   },
   {
-    "api_football_name": "Getafe",
-    "clubelo_name": "Getafe",
+    "api_football_name": "Dinamo Zagreb",
+    "clubelo_name": "Dinamo Zagreb",
     "confidence": 1.0,
-    "elo": 1664,
+    "elo": 1577,
     "status": "approved"
   },
   {
-    "api_football_name": "Real Sociedad",
-    "clubelo_name": "Sociedad",
-    "confidence": 1.0,
-    "elo": 1669,
+    "api_football_name": "Universitatea Craiova",
+    "clubelo_name": "Universitatea Cluj",
+    "confidence": 0.77,
+    "elo": 1433,
     "status": "approved"
   },
   {
-    "api_football_name": "Osasuna",
-    "clubelo_name": "Osasuna",
+    "api_football_name": "Sturm Graz",
+    "clubelo_name": "Sturm Graz",
     "confidence": 1.0,
-    "elo": 1650,
+    "elo": 1471,
     "status": "approved"
   },
   {
-    "api_football_name": "Rayo Vallecano",
-    "clubelo_name": "Rayo Vallecano",
-    "confidence": 1.0,
-    "elo": 1707,
+    "api_football_name": "Levski Sofia",
+    "clubelo_name": "Lok Sofia",
+    "confidence": 0.76,
+    "elo": 1193,
     "status": "approved"
   },
   {
-    "api_football_name": "Elche",
-    "clubelo_name": "Elche",
+    "api_football_name": "Shamrock Rovers",
+    "clubelo_name": "Shamrock",
+    "confidence": 0.7,
+    "elo": 1313,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Slovan Bratislava",
+    "clubelo_name": "Slovan Bratislava",
     "confidence": 1.0,
-    "elo": 1623,
+    "elo": 1366,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Kairat Almaty",
+    "clubelo_name": "Kairat",
+    "confidence": 0.63,
+    "elo": 1294,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Lincoln Red Imps FC",
+    "clubelo_name": "Lincoln",
+    "confidence": 0.54,
+    "elo": 1065,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Sutjeska",
+    "clubelo_name": "Sutjeska",
+    "confidence": 1.0,
+    "elo": 1082,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Flora Tallinn",
+    "clubelo_name": "Flora Tallinn",
+    "confidence": 1.0,
+    "elo": 1130,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "KI Klaksvik",
+    "clubelo_name": "Klaksvik",
+    "confidence": 0.84,
+    "elo": 1189,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "FC Thun",
+    "clubelo_name": "Thun",
+    "confidence": 0.73,
+    "elo": 1463,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "KuPS",
+    "clubelo_name": "Kuopio",
+    "confidence": 0.6,
+    "elo": 1296,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Mjallby AIF",
+    "clubelo_name": "Mjaellby",
+    "confidence": 0.74,
+    "elo": 1515,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Tre Fiori",
+    "clubelo_name": "Tre Fiori",
+    "confidence": 1.0,
+    "elo": 736,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Petrocub",
+    "clubelo_name": "Petrocub",
+    "confidence": 1.0,
+    "elo": 1159,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Gyori ETO FC",
+    "clubelo_name": "Lorient",
+    "confidence": 0.53,
+    "elo": 1639,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Egnatia Rrogozhinë",
+    "clubelo_name": "Egnatia",
+    "confidence": 0.56,
+    "elo": 1157,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Inter Club d'Escaldes",
+    "clubelo_name": "Atletic Club Escaldes",
+    "confidence": 0.71,
+    "elo": 944,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Borac Banja Luka",
+    "clubelo_name": "Borac Banja Luka",
+    "confidence": 1.0,
+    "elo": 1210,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Omonia Nicosia",
+    "clubelo_name": "Monaco",
+    "confidence": 0.6,
+    "elo": 1717,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Saburtalo",
+    "clubelo_name": "Saburtalo",
+    "confidence": 1.0,
+    "elo": 1149,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Ararat-Armenia",
+    "clubelo_name": "Ararat",
+    "confidence": 0.6,
+    "elo": 1246,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Kauno Žalgiris",
+    "clubelo_name": "Kauno Zalgiris",
+    "confidence": 0.93,
+    "elo": 1131,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Celje",
+    "clubelo_name": "Celje",
+    "confidence": 1.0,
+    "elo": 1455,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Floriana",
+    "clubelo_name": "Floriana",
+    "confidence": 1.0,
+    "elo": 1063,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Larne",
+    "clubelo_name": "Larne",
+    "confidence": 1.0,
+    "elo": 1059,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "ML Vitebsk",
+    "clubelo_name": "Gil Vicente",
+    "confidence": 0.57,
+    "elo": 1507,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Riga",
+    "clubelo_name": "FK Riga",
+    "confidence": 0.73,
+    "elo": 1283,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Sabah FA",
+    "clubelo_name": "Sabah",
+    "confidence": 0.77,
+    "elo": 1311,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Drita",
+    "clubelo_name": "Drita",
+    "confidence": 1.0,
+    "elo": 1242,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Atert Bissen",
+    "clubelo_name": "Austria Wien",
+    "confidence": 0.58,
+    "elo": 1398,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Qarabag",
+    "clubelo_name": "Ararat",
+    "confidence": 0.62,
+    "elo": 1246,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Sheriff Tiraspol",
+    "clubelo_name": "Sheriff Tiraspol",
+    "confidence": 1.0,
+    "elo": 1337,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Dynamo Kyiv",
+    "clubelo_name": "Dynamo Kyiv",
+    "confidence": 1.0,
+    "elo": 1440,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "HNK Hajduk Split",
+    "clubelo_name": "Hajduk",
+    "confidence": 0.55,
+    "elo": 1426,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Ferencvarosi TC",
+    "clubelo_name": "Ferencvaros",
+    "confidence": 0.85,
+    "elo": 1520,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Derry City",
+    "clubelo_name": "Derry City",
+    "confidence": 1.0,
+    "elo": 1233,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Vojvodina",
+    "clubelo_name": "Verona",
+    "confidence": 0.53,
+    "elo": 1502,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "CSKA Sofia",
+    "clubelo_name": "CSKA Sofia",
+    "confidence": 1.0,
+    "elo": 1355,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Universitatea Cluj",
+    "clubelo_name": "Universitatea Cluj",
+    "confidence": 1.0,
+    "elo": 1433,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Žilina",
+    "clubelo_name": "Zilina",
+    "confidence": 0.83,
+    "elo": 1333,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Vestri",
+    "clubelo_name": "Estoril",
+    "confidence": 0.77,
+    "elo": 1493,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Aluminij",
+    "clubelo_name": "Aluminij",
+    "confidence": 1.0,
+    "elo": 1136,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "VfB Oldenburg",
+    "clubelo_name": "Orenburg",
+    "confidence": 0.67,
+    "elo": 1343,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Kickers Emden",
+    "clubelo_name": "Cesena",
+    "confidence": 0.53,
+    "elo": 1365,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Phönix Lübeck",
+    "clubelo_name": "Slovan Liberec",
+    "confidence": 0.44,
+    "elo": 1431,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Todesfelde",
+    "clubelo_name": "Odense",
+    "confidence": 0.62,
+    "elo": 1430,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Eimsbütteler TV",
+    "clubelo_name": "Leicester",
+    "confidence": 0.5,
+    "elo": 1620,
+    "status": "approved"
+  },
+  {
+    "api_football_name": "Schöningen",
+    "clubelo_name": "Groningen",
+    "confidence": 0.63,
+    "elo": 1438,
     "status": "approved"
   }
 ]

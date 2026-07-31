@@ -1,8 +1,18 @@
 import os
 import json
+import time
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session, joinedload
+
+_FIXTURES_CACHE = {}
+_RECOMMENDED_CACHE = {}
+_CACHE_TTL = 60  # seconds
+
+def invalidate_fixtures_cache():
+    """Clears in-memory fixture response caches."""
+    _FIXTURES_CACHE.clear()
+    _RECOMMENDED_CACHE.clear()
 
 from backend.database import Fixture, Team, Player, PlayerContract, TournamentTeam, Tournament, Competition
 import backend.crud.fixture as crud_fixture
@@ -266,6 +276,7 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
             "elo": home_team.elo if home_team else 1500,
             "form_score": home_team.form_score if home_team else 50.0,
             "win_streak": home_team.win_streak if home_team else 0,
+            "logo_url": home_team.badge_url if home_team else "/static/badges/default.png",
             "players": [{"name": p.name, "position": p.position, "form": p.form_score} for p in home_players]
         },
         "away_team": {
@@ -273,6 +284,7 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
             "elo": away_team.elo if away_team else 1500,
             "form_score": away_team.form_score if away_team else 50.0,
             "win_streak": away_team.win_streak if away_team else 0,
+            "logo_url": away_team.badge_url if away_team else "/static/badges/default.png",
             "players": [{"name": p.name, "position": p.position, "form": p.form_score} for p in away_players]
         },
         "date": f.date_utc.isoformat(),
@@ -299,6 +311,14 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
     }
 
 def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) -> dict:
+    use_cache = os.getenv("TESTING") != "True"
+    cache_key = (tz_str, tournament_id)
+    now = time.time()
+    if use_cache and cache_key in _FIXTURES_CACHE:
+        cached_time, cached_payload = _FIXTURES_CACHE[cache_key]
+        if now - cached_time < _CACHE_TTL:
+            return cached_payload
+            
     target_tz = get_timezone(tz_str)
     
     if tournament_id is not None:
@@ -325,6 +345,7 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
     tomorrow_fixtures = []
     week_fixtures = []
     finished_fixtures = []
+    scheduled_fixtures = []
     
     today_date = datetime.now(target_tz).date()
     tomorrow_date = today_date + timedelta(days=1)
@@ -343,6 +364,8 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
             finished_fixtures.append(fixture_data)
             continue
             
+        scheduled_fixtures.append((match_date, fixture_data))
+        
         if match_date == today_date:
             today_fixtures.append(fixture_data)
         elif match_date == tomorrow_date:
@@ -350,19 +373,48 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
         elif tomorrow_date < match_date <= max_date:
             week_fixtures.append(fixture_data)
             
+    is_offseason = False
+    offseason_notice = None
+    
+    # Off-season date anchor: If no upcoming matches in the next 8 days, find the earliest upcoming matchday
+    if not today_fixtures and not tomorrow_fixtures and not week_fixtures and scheduled_fixtures:
+        scheduled_fixtures.sort(key=lambda x: x[0])
+        earliest_date = scheduled_fixtures[0][0]
+        matchday_end = earliest_date + timedelta(days=3)
+        
+        upcoming_block = [data for m_date, data in scheduled_fixtures if earliest_date <= m_date <= matchday_end]
+        upcoming_block.sort(key=lambda x: x["watchability"]["overall"], reverse=True)
+        week_fixtures = upcoming_block
+        is_offseason = True
+        formatted_start = earliest_date.strftime("%B %d, %Y")
+        offseason_notice = f"Off-Season: Showing upcoming Gameweek 1 blockbusters starting {formatted_start}"
+        
     today_fixtures.sort(key=lambda x: x["date"])
     tomorrow_fixtures.sort(key=lambda x: x["date"])
     week_fixtures.sort(key=lambda x: x["watchability"]["overall"], reverse=True)
     finished_fixtures.sort(key=lambda x: x["date"], reverse=True)
     
-    return {
+    result = {
         "today": today_fixtures,
         "tomorrow": tomorrow_fixtures,
         "this_week": week_fixtures[:5],
-        "finished": finished_fixtures
+        "finished": finished_fixtures,
+        "is_offseason": is_offseason,
+        "offseason_notice": offseason_notice
     }
+    if use_cache:
+        _FIXTURES_CACHE[cache_key] = (now, result)
+    return result
 
 def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None, min_score: float = 75.0) -> list:
+    use_cache = os.getenv("TESTING") != "True"
+    cache_key = (tz_str, tournament_id, min_score)
+    now = time.time()
+    if use_cache and cache_key in _RECOMMENDED_CACHE:
+        cached_time, cached_payload = _RECOMMENDED_CACHE[cache_key]
+        if now - cached_time < _CACHE_TTL:
+            return cached_payload
+            
     target_tz = get_timezone(tz_str)
     
     if tournament_id is not None:
@@ -384,7 +436,10 @@ def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None
     for tt in tts:
         team_group_map[(tt.tournament_id, tt.team_id)] = tt.group_name
         
-    return [enrich_fixture(f, db, target_tz, team_players_map, team_group_map) for f in fixtures]
+    result = [enrich_fixture(f, db, target_tz, team_players_map, team_group_map) for f in fixtures]
+    if use_cache:
+        _RECOMMENDED_CACHE[cache_key] = (now, result)
+    return result
 
 
 
@@ -487,6 +542,7 @@ def get_country_details(db: Session, country_name: str, tz_str: str, tournament_
     return {
         "name": team.name,
         "elo": team.elo,
+        "logo_url": team.badge_url,
         "group_name": group_name,
         "group_rank": rank,
         "form": form_results,
@@ -691,10 +747,12 @@ def get_calendar_fixtures(db: Session, tz_str: str, tournament_id: int = None, s
         calendar_data.append({
             "id": f.id,
             "home_team": {
-                "name": f.home_team.name if f.home_team else resolve_placeholder_name(db, f.home_team_placeholder, f.tournament_id)
+                "name": f.home_team.name if f.home_team else resolve_placeholder_name(db, f.home_team_placeholder, f.tournament_id),
+                "logo_url": f.home_team.badge_url if f.home_team else "/static/badges/default.png"
             },
             "away_team": {
-                "name": f.away_team.name if f.away_team else resolve_placeholder_name(db, f.away_team_placeholder, f.tournament_id)
+                "name": f.away_team.name if f.away_team else resolve_placeholder_name(db, f.away_team_placeholder, f.tournament_id),
+                "logo_url": f.away_team.badge_url if f.away_team else "/static/badges/default.png"
             },
             "date": f.date_utc.isoformat(),
             "formatted_time": dt_tz.strftime("%H:%M"),

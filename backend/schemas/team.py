@@ -7,6 +7,7 @@ class TeamSimple(BaseModel):
     elo: int
     form_score: float
     win_streak: int
+    logo_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -24,8 +25,10 @@ class TeamStanding(BaseModel):
     goal_difference: int
     points: int
     elo: int
+    logo_url: Optional[str] = None
     qualification_probability: Optional[float] = None
     status: Optional[str] = "Active"
     points_needed_top_2: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
+

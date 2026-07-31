@@ -56,7 +56,7 @@ graph TD
     P5 --> P6[Phase 6: Live Updater & Odds Sync]
 ```
 
-### Phase 1: Baseline & National ELO Ratings (Day 1)
+### Phase 1: Baseline & National ELO Ratings (Day 1) — ✅ COMPLETED
 * **Goal**: Establish the international team baseline and verify composite unique constraints.
 * **Actions**:
   1. Fetch current international ELOs:
@@ -70,7 +70,7 @@ graph TD
 
 ---
 
-### Phase 2: Premier League (PL) Pilot Seeding (Days 2–3)
+### Phase 2: Premier League (PL) Pilot Seeding (Days 2–3) — ✅ COMPLETED
 * **Goal**: Populate a reference domestic league (Competition ID 39) for 2025/26 and 2026/27.
 * **Resilience & Idempotency**: Squad fetching checks existing DB entries before hitting API-Football; if interrupted, running `fetch-teams` again skips already ingested teams and consumes zero extra API calls.
 * **Actions**:
@@ -100,13 +100,20 @@ graph TD
 
 ---
 
-### Phase 3: Staggered Major Domestic Leagues (Days 4–7)
+### Phase 3: Staggered Major Domestic Leagues (Days 4–7) — 🟡 IN PROGRESS (Almost Complete)
 * **Goal**: Ingest La Liga (140), Bundesliga (78), Serie A (135), and Ligue 1 (61) without exceeding daily rate limits.
-* **Staggering Schedule**:
-  - **Day 4**: Fetch teams and spotlights for **La Liga** (21 requests). Auto-approve ELO mappings $\ge 90\%$.
-  - **Day 5**: Fetch teams and spotlights for **Bundesliga** (19 requests) & **Ligue 1** (19 requests). Auto-approve ELO mappings $\ge 90\%$.
-  - **Day 6**: Fetch teams and spotlights for **Serie A** (21 requests). Auto-approve ELO mappings $\ge 90\%$.
-  - **Day 7**: Seed fixtures for all four leagues (4 calls to `seed-competition` = 4 requests total).
+* **Current Status**:
+  - ✅ **La Liga** (140): Completed
+  - ✅ **Bundesliga** (78): Completed
+  - ✅ **Ligue 1** (61): Completed
+  - ⏳ **Serie A** (135): **Only remaining domestic league to fetch & seed**
+* **Next Action for Phase 3 Completion**:
+  ```bash
+  railway run python -m backend.ingestor fetch-teams --league=135 --season=2026
+  railway run python -m backend.ingestor review-elo-matches --file=backend/data/elo_name_review.json
+  railway run python -m backend.ingestor apply-elo-matches --file=backend/data/elo_name_review.json
+  railway run python -m backend.ingestor seed-competition --league=135 --season=2026 --comp-name="Serie A" --comp-type="League" --format-engine="league"
+  ```
 * **Connection & Integrity Check**:
   - Verify that clubs with identical names from different countries do not conflict (e.g., Barcelona in Spain vs. Barcelona in Ecuador).
   - Verify that ELO mappings for all newly added clubs are applied and documented in `EloHistory`.
