@@ -144,25 +144,38 @@ def seed_database(db: Session):
             win_streak = 4 if elo > 2000 else (2 if elo > 1850 else 0)
             
             country_code = NATIONAL_TEAM_ISO_CODES.get(name) or name[:3].upper()
-            db_team = Team(
-                name=name,
-                country_code=country_code,
-                elo=elo,
-                form_score=round(form_score, 1),
-                win_streak=win_streak,
-                draw_streak=0,
-                loss_streak=0
-            )
-            db.add(db_team)
-            db.flush()
+            db_team = db.query(Team).filter(Team.name == name).first()
+            if not db_team:
+                db_team = Team(
+                    name=name,
+                    country_code=country_code,
+                    team_type="National",
+                    elo_source="eloratings",
+                    elo=elo,
+                    form_score=round(form_score, 1),
+                    win_streak=win_streak,
+                    draw_streak=0,
+                    loss_streak=0
+                )
+                db.add(db_team)
+                db.flush()
+            else:
+                db_team.elo = elo
+                db_team.form_score = round(form_score, 1)
+                db.flush()
             
-            db_tourney_team = TournamentTeam(
-                tournament_id=tourney.id,
-                team_id=db_team.id,
-                group_name=group,
-                tournament_status="Active"
-            )
-            db.add(db_tourney_team)
+            db_tourney_team = db.query(TournamentTeam).filter(
+                TournamentTeam.tournament_id == tourney.id,
+                TournamentTeam.team_id == db_team.id
+            ).first()
+            if not db_tourney_team:
+                db_tourney_team = TournamentTeam(
+                    tournament_id=tourney.id,
+                    team_id=db_team.id,
+                    group_name=group,
+                    tournament_status="Active"
+                )
+                db.add(db_tourney_team)
             
             db_elo_hist = EloHistory(
                 team_id=db_team.id,
@@ -173,6 +186,7 @@ def seed_database(db: Session):
             
             team_map[str(id_counter)] = name
             id_counter += 1
+
                 
     db.commit()
 
@@ -284,24 +298,38 @@ def seed_database(db: Session):
             a_elo = live_elo.get(a_team, 1700) if a_team else 1700
             odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo)
             
-            fixture = Fixture(
-                tournament_id=tourney.id,
-                home_team_id=home_id,
-                away_team_id=away_id,
-                home_team_placeholder=home_placeholder,
-                away_team_placeholder=away_placeholder,
-                api_id=str(m.get("id")),
-                date_utc=dt_utc,
-                stage=stage,
-                status=status
-            )
+            api_id_str = str(m.get("id"))
+            fixture = db.query(Fixture).filter(
+                Fixture.tournament_id == tourney.id,
+                Fixture.api_id == api_id_str
+            ).first()
+            if not fixture:
+                fixture = Fixture(
+                    tournament_id=tourney.id,
+                    home_team_id=home_id,
+                    away_team_id=away_id,
+                    home_team_placeholder=home_placeholder,
+                    away_team_placeholder=away_placeholder,
+                    api_id=api_id_str,
+                    date_utc=dt_utc,
+                    stage=stage,
+                    status=status
+                )
+                db.add(fixture)
+            else:
+                fixture.home_team_id = home_id or fixture.home_team_id
+                fixture.away_team_id = away_id or fixture.away_team_id
+                fixture.date_utc = dt_utc
+                fixture.stage = stage
+                fixture.status = status
+
             if status == "Finished" and m.get("home_score") is not None and m.get("away_score") is not None:
                 try:
                     settle_result(fixture, int(m["home_score"]), int(m["away_score"]))
                 except Exception:
                     pass
-            db.add(fixture)
             db.flush()
+
 
             
             init_odds = FixtureOdds(
