@@ -42,6 +42,8 @@ LEAGUE_MAPPING = {
 
 def parse_match_date(date_str: str, stadium_id: str) -> datetime:
     """Parses a local date string and stadium ID into a UTC datetime."""
+    if not date_str or not isinstance(date_str, str):
+        return datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc)
     try:
         dt_naive = datetime.strptime(date_str, "%m/%d/%Y %H:%M")
         tz_name = STADIUM_TIMEZONES.get(str(stadium_id), "America/New_York")
@@ -51,8 +53,9 @@ def parse_match_date(date_str: str, stadium_id: str) -> datetime:
         try:
             dt = datetime.strptime(date_str, "%m/%d/%Y %H:%M")
             return dt.replace(tzinfo=timezone.utc)
-        except ValueError:
+        except Exception:
             return datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc)
+
 
 def map_api_football_round_to_type_key(round_str: str) -> str:
     if not round_str:

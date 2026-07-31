@@ -22,13 +22,23 @@ def trigger_update(db: Session = Depends(get_db)):
     """
     Secured endpoint to trigger database updates (scores, odds, ELOs, simulation predictions).
     """
-    result = update_results_and_odds(db)
-    if result.get("status") == "error":
+    try:
+        result = update_results_and_odds(db)
+        if result.get("status") == "error":
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=result.get("message")
+            )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.get("message")
+            detail=f"Update task failed: {str(e)}"
         )
-    return result
 
 @router.post("/update-live", dependencies=[Depends(verify_admin_token)])
 def trigger_live_update(force: bool = False, db: Session = Depends(get_db)):
@@ -36,11 +46,22 @@ def trigger_live_update(force: bool = False, db: Session = Depends(get_db)):
     Secured endpoint to trigger database live-score updates dynamically.
     Only updates when matches are in progress unless forced.
     """
-    result = update_live_scores(db, force=force)
-    if result.get("status") == "error":
+    try:
+        result = update_live_scores(db, force=force)
+        if result.get("status") == "error":
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=result.get("message")
+            )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.get("message")
+            detail=f"Live update task failed: {str(e)}"
         )
-    return result
+
 

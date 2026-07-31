@@ -52,11 +52,14 @@ def update_results_and_odds(db: Session) -> dict:
     for tourney in tournaments:
         comp = tourney.competition
         print(f"Updating tournament: {comp.name} ({tourney.season_name})")
-        adapter = get_format_adapter(comp.format_engine, comp.name)
-        
-        created, updated = adapter.sync_results(db, tourney)
-        fixtures_created += created
-        fixtures_updated_results += updated
+        try:
+            adapter = get_format_adapter(comp.format_engine, comp.name)
+            created, updated = adapter.sync_results(db, tourney)
+            fixtures_created += created
+            fixtures_updated_results += updated
+        except Exception as e:
+            print(f"Error syncing results for tournament {tourney.id} ({comp.name}): {e}")
+
 
         # Update Odds history for active tournament fixtures
         try:
