@@ -1,0 +1,8 @@
+app.js?v=1.0.4:112 Uncaught TypeError: Cannot read properties of null (reading 'addEventListener')
+    at HTMLDocument.<anonymous> (app.js?v=1.0.4:112:16)
+app.js?v=1.0.4:88 Detected timezone from IP lookup: Europe/Brussels (Belgium)
+app.js?v=1.0.4:181 Failed to load fixtures ReferenceError: Cannot access 'resultsBarContainer' before initialization
+    at renderResultsBar (app.js?v=1.0.4:189:9)
+    at fetchFixtures (app.js?v=1.0.4:179:13)
+    at async resolveAndTimezoneFetch (app.js?v=1.0.4:103:9)
+fetchFixtures @ app.js?v=1.0.4:181

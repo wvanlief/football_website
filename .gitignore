@@ -26,6 +26,7 @@ test_football_games.db
 *.sln
 *.swp
 
-# Logs
-logs/
+# Generated Data & Cache
+backend/data/cache/
+backend/static/badges/
 

@@ -10,15 +10,22 @@ from datetime import datetime, timezone
 from typing import Any
 
 def _get_cache_path(url: str, headers: dict = None) -> str:
-    """Generates a date-prefixed file path for caching the request."""
+    """Generates a date-prefixed file path for caching the request, matching existing cached files regardless of date."""
     # Serialize headers deterministically
     headers_str = json.dumps(headers or {}, sort_keys=True)
     hash_input = f"{url}||{headers_str}".encode('utf-8')
     h = hashlib.md5(hash_input).hexdigest()
+    
+    cache_dir = os.path.join("backend", "data", "cache")
+    if os.path.exists(cache_dir):
+        for filename in os.listdir(cache_dir):
+            if filename.endswith(f"_{h}.json"):
+                return os.path.join(cache_dir, filename)
+
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     filename = f"{today}_{h}.json"
-    cache_dir = os.path.join("backend", "data", "cache")
     return os.path.join(cache_dir, filename)
+
 
 def fetch_url_with_retry(
     url: str,

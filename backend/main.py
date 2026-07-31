@@ -27,8 +27,10 @@ async def lifespan(app: FastAPI):
         db = next(get_db())
         try:
             if db.query(Fixture).count() == 0:
-                seed_database(db)
+                from backend.services.seeder import seed_all_default_competitions
+                seed_all_default_competitions(db)
         finally:
+
             db.close()
     yield
 
