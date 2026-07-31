@@ -26,10 +26,12 @@ async def lifespan(app: FastAPI):
     if os.getenv("TESTING") != "True":
         db = next(get_db())
         try:
-            if db.query(Fixture).count() == 0:
-                from backend.services.seeder import seed_all_default_competitions
-                seed_all_default_competitions(db)
+            from backend.services.seeder import seed_all_default_competitions
+            seed_all_default_competitions(db)
+        except Exception as e:
+            print(f"Startup seeding notice: {e}")
         finally:
+
 
             db.close()
     yield
