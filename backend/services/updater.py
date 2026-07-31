@@ -14,13 +14,17 @@ from backend.database import (
     Team, Fixture, Tournament, Competition, TournamentTeam, FixtureOdds, EloHistory, get_db
 )
 from backend.scoring import update_fixture_score
-from backend.ingestor import (
-    normalize_team_name, calculate_default_odds, update_odds_from_api,
-    call_football_api, fetch_clubelo_ratings
-)
+from backend.services.ingestion import NameNormalizer
+from backend.services.odds import calculate_default_odds, update_odds_from_api
+from backend.services.elo import fetch_clubelo_ratings
+from backend.services.seeder import call_football_api
+
+def normalize_team_name(name: str) -> str:
+    return NameNormalizer().normalize(name)
 from backend.services.tournament import propagate_knockout_fixtures
 from backend.services.simulation import run_monte_carlo_simulation
 from backend.services.standings import recalculate_tournament_team_standings
+from backend.services.settling import settle_result
 
 
 STAGE_MAPPING = {
@@ -72,47 +76,6 @@ def parse_match_date(date_str: str, stadium_id: str) -> datetime:
             return dt.replace(tzinfo=timezone.utc)
         except ValueError:
             return datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc)
-
-def calculate_elo_updates(home_elo: int, away_elo: int, outcome: float) -> tuple[int, int]:
-    """
-    outcome: 1.0 for home win, 0.5 for draw, 0.0 for away win
-    Returns updated (home_elo, away_elo)
-    """
-    diff = home_elo - away_elo
-    p_home = 1.0 / (1.0 + 10.0 ** (-diff / 400.0))
-    change = round(30.0 * (outcome - p_home))
-    return home_elo + change, away_elo - change
-
-def update_team_streaks_and_form(home_team: Team, away_team: Team, outcome: float):
-    """Updates the win/draw/loss streaks and form score for both teams based on outcome."""
-    if outcome == 1.0: # Home Win
-        home_team.win_streak += 1
-        home_team.draw_streak = 0
-        home_team.loss_streak = 0
-        
-        away_team.loss_streak += 1
-        away_team.win_streak = 0
-        away_team.draw_streak = 0
-    elif outcome == 0.0: # Away Win
-        away_team.win_streak += 1
-        away_team.draw_streak = 0
-        away_team.loss_streak = 0
-        
-        home_team.loss_streak += 1
-        home_team.win_streak = 0
-        home_team.draw_streak = 0
-    else: # Draw
-        home_team.draw_streak += 1
-        home_team.win_streak = 0
-        home_team.loss_streak = 0
-        
-        away_team.draw_streak += 1
-        away_team.win_streak = 0
-        away_team.loss_streak = 0
-
-    # Form score update based on ELO: min(95.0, max(45.0, 50.0 + (elo - 1500) * 0.05))
-    home_team.form_score = round(min(95.0, max(45.0, 50.0 + (home_team.elo - 1500) * 0.05)), 1)
-    away_team.form_score = round(min(95.0, max(45.0, 50.0 + (away_team.elo - 1500) * 0.05)), 1)
 
 
 
@@ -355,38 +318,7 @@ def update_results_and_odds(db: Session) -> dict:
                     resolved_fixtures.add(fixture)
                     
                 if fixture.status != "Finished" and is_finished_in_feed:
-                    fixture.status = "Finished"
-                    fixture.home_score = feed_home_score
-                    fixture.away_score = feed_away_score
-                    
-                    if home_team and away_team:
-                        fixture.home_team_id = home_team.id
-                        fixture.away_team_id = away_team.id
-                        fixture.home_team_placeholder = None
-                        fixture.away_team_placeholder = None
-                        
-                        if feed_home_score > feed_away_score:
-                            outcome = 1.0
-                            fixture.winner_id = home_team.id
-                        elif feed_home_score < feed_away_score:
-                            outcome = 0.0
-                            fixture.winner_id = away_team.id
-                        else:
-                            outcome = 0.5
-                            fixture.winner_id = None
-                            
-                        home_elo_old = home_team.elo
-                        away_elo_old = away_team.elo
-                        home_elo_new, away_elo_new = calculate_elo_updates(home_elo_old, away_elo_old, outcome)
-                        
-                        home_team.elo = home_elo_new
-                        away_team.elo = away_elo_new
-                        
-                        update_team_streaks_and_form(home_team, away_team, outcome)
-                        
-                        db.add(EloHistory(team_id=home_team.id, recorded_at=now_time, elo_rating=home_elo_new))
-                        db.add(EloHistory(team_id=away_team.id, recorded_at=now_time, elo_rating=away_elo_new))
-                        
+                    settle_result(fixture, feed_home_score, feed_away_score)
                     fixtures_updated_results += 1
                     
             if resolved_fixtures:
@@ -524,36 +456,7 @@ def update_results_and_odds(db: Session) -> dict:
                     
                 # Update status and scores
                 if fixture.status != "Finished" and status == "Finished":
-                    fixture.status = "Finished"
-                    fixture.home_score = feed_home_score
-                    fixture.away_score = feed_away_score
-                    
-                    if home_team and away_team:
-                        fixture.home_team_id = home_team.id
-                        fixture.away_team_id = away_team.id
-                        
-                        if feed_home_score > feed_away_score:
-                            outcome = 1.0
-                            fixture.winner_id = home_team.id
-                        elif feed_home_score < feed_away_score:
-                            outcome = 0.0
-                            fixture.winner_id = away_team.id
-                        else:
-                            outcome = 0.5
-                            fixture.winner_id = None
-                            
-                        home_elo_old = home_team.elo
-                        away_elo_old = away_team.elo
-                        home_elo_new, away_elo_new = calculate_elo_updates(home_elo_old, away_elo_old, outcome)
-                        
-                        home_team.elo = home_elo_new
-                        away_team.elo = away_elo_new
-                        
-                        update_team_streaks_and_form(home_team, away_team, outcome)
-                        
-                        db.add(EloHistory(team_id=home_team.id, recorded_at=now_time, elo_rating=home_elo_new))
-                        db.add(EloHistory(team_id=away_team.id, recorded_at=now_time, elo_rating=away_elo_new))
-                        
+                    settle_result(fixture, feed_home_score, feed_away_score)
                     fixtures_updated_results += 1
                 elif fixture.status != "Finished":
                     fixture.status = status
@@ -641,25 +544,7 @@ def update_results_and_odds(db: Session) -> dict:
     }
 
 def matches_team_name(db_name: str, api_name: str) -> bool:
-    if not db_name or not api_name:
-        return False
-    db_lower = db_name.lower().strip()
-    api_lower = api_name.lower().strip()
-    
-    if db_lower in api_lower or api_lower in db_lower:
-        return True
-        
-    # Handle Wolverhampton / Wolves special case
-    if "wolves" in db_lower and "wolverhampton" in api_lower:
-        return True
-    if "wolverhampton" in db_lower and "wolves" in api_lower:
-        return True
-        
-    # Handle Nottingham Forest / Forest
-    if "nottingham" in db_lower and "forest" in api_lower:
-        return True
-        
-    return False
+    return NameNormalizer().match_names(db_name, api_name)
 
 def update_live_scores(db: Session, force: bool = False) -> dict:
     """
@@ -758,32 +643,8 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
                 feed_away_score = int(m["away_score"]) if m.get("away_score") not in (None, 'null') else None
                 
                 if is_finished_in_feed:
-                    fixture.status = "Finished"
-                    fixture.home_score = feed_home_score
-                    fixture.away_score = feed_away_score
-                    
-                    if home_team and away_team:
-                        if feed_home_score > feed_away_score:
-                            outcome = 1.0
-                            fixture.winner_id = home_team.id
-                        elif feed_home_score < feed_away_score:
-                            outcome = 0.0
-                            fixture.winner_id = away_team.id
-                        else:
-                            outcome = 0.5
-                            fixture.winner_id = None
-                            
-                        home_elo_old = home_team.elo
-                        away_elo_old = away_team.elo
-                        home_elo_new, away_elo_new = calculate_elo_updates(home_elo_old, away_elo_old, outcome)
-                        
-                        home_team.elo = home_elo_new
-                        away_team.elo = away_elo_new
-                        update_team_streaks_and_form(home_team, away_team, outcome)
-                        db.add(EloHistory(team_id=home_team.id, recorded_at=now_time, elo_rating=home_elo_new))
-                        db.add(EloHistory(team_id=away_team.id, recorded_at=now_time, elo_rating=away_elo_new))
-                        update_fixture_score(fixture, db)
-                        
+                    settle_result(fixture, feed_home_score, feed_away_score)
+                    update_fixture_score(fixture, db)
                     fixtures_finished += 1
                 else:
                     f_date_aware = fixture.date_utc.replace(tzinfo=timezone.utc) if fixture.date_utc.tzinfo is None else fixture.date_utc
@@ -848,32 +709,8 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
                 away_team = matching_fixture.away_team
                 
                 if api_status == "FINISHED":
-                    matching_fixture.status = "Finished"
-                    matching_fixture.home_score = feed_home_score
-                    matching_fixture.away_score = feed_away_score
-                    
-                    if home_team and away_team:
-                        if feed_home_score > feed_away_score:
-                            outcome = 1.0
-                            matching_fixture.winner_id = home_team.id
-                        elif feed_home_score < feed_away_score:
-                            outcome = 0.0
-                            matching_fixture.winner_id = away_team.id
-                        else:
-                            outcome = 0.5
-                            matching_fixture.winner_id = None
-                            
-                        home_elo_old = home_team.elo
-                        away_elo_old = away_team.elo
-                        home_elo_new, away_elo_new = calculate_elo_updates(home_elo_old, away_elo_old, outcome)
-                        
-                        home_team.elo = home_elo_new
-                        away_team.elo = away_elo_new
-                        update_team_streaks_and_form(home_team, away_team, outcome)
-                        db.add(EloHistory(team_id=home_team.id, recorded_at=now_time, elo_rating=home_elo_new))
-                        db.add(EloHistory(team_id=away_team.id, recorded_at=now_time, elo_rating=away_elo_new))
-                        update_fixture_score(matching_fixture, db)
-                        
+                    settle_result(matching_fixture, feed_home_score, feed_away_score)
+                    update_fixture_score(matching_fixture, db)
                     fixtures_finished += 1
                 elif api_status in ("IN_PLAY", "PAUSED"):
                     matching_fixture.status = "Live"

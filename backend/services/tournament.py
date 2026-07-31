@@ -163,7 +163,7 @@ def propagate_knockout_fixtures(db: Session):
                         modified_fixtures.add(third_fixture)
 
     if modified_fixtures:
-        from backend.ingestor import calculate_default_odds
+        from backend.services.odds import calculate_default_odds
         from backend.database import FixtureOdds
         from datetime import timezone
         
