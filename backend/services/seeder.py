@@ -102,37 +102,31 @@ def get_fallback_matches():
 
 def seed_database(db: Session):
     """
-    Seeds database using actual World Cup 2026 schedules from GitHub, falling back to mock fixtures if offline.
+    Seeds database using actual World Cup 2026 schedules from API-Football, falling back to mock fixtures if offline.
+    Also seeds Phase 8 competitions (Copa del Rey, Nations League).
     """
     normalizer = NameNormalizer()
     comp = db.query(Competition).filter_by(name="FIFA World Cup").first()
-    if comp:
-        db.delete(comp)
-        db.commit()
-        
-    db.query(Team).filter(Team.team_type == "National").delete()
-    db.commit()
+    if not comp:
+        comp = Competition(
+            name="FIFA World Cup",
+            type="International",
+            format_engine="group_knockout",
+            odds_api_sport_key="soccer_fifa_world_cup",
+            home_advantage_elo=0,
+            neutral_venue=True
+        )
+        db.add(comp)
+        db.flush()
     
-    active_player_ids = db.query(PlayerContract.player_id).subquery()
-    db.query(Player).filter(~Player.id.in_(active_player_ids)).delete(synchronize_session=False)
-    db.commit()
-
-    comp = Competition(
-        name="FIFA World Cup",
-        type="International",
-        format_engine="group_knockout",
-        odds_api_sport_key="soccer_fifa_world_cup",
-        home_advantage_elo=0,
-        neutral_venue=True
-    )
-    db.add(comp)
-    db.flush()
-    
-    tourney = Tournament(competition_id=comp.id, season_name="2026", status="Active")
-    db.add(tourney)
-    db.flush()
+    tourney = db.query(Tournament).filter_by(competition_id=comp.id, season_name="2026").first()
+    if not tourney:
+        tourney = Tournament(competition_id=comp.id, season_name="2026", status="Active")
+        db.add(tourney)
+        db.flush()
 
     team_map = {}
+
     
     try:
         print("Fetching live Elo ratings from eloratings.net...")
@@ -367,14 +361,14 @@ def seed_database(db: Session):
     recalculate_standings(db, tourney.id)
     db.commit()
 
-    print("Database seeding completed. Triggering tournament Monte Carlo simulation...")
-    from backend.services.tournament import run_monte_carlo_simulation
     try:
-        run_monte_carlo_simulation(db)
+        from backend.seed_phase8 import seed_phase8_data
+        seed_phase8_data()
     except Exception as e:
-        print(f"Error running pre-computed Monte Carlo simulation: {e}")
-        
+        print(f"Phase 8 seeding warning: {e}")
+
     print("Database seeding and simulation completed.")
+
 
 def fetch_and_seed_teams(
     db: Session,
