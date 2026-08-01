@@ -65,10 +65,16 @@ def trigger_live_update(force: bool = False, db: Session = Depends(get_db)):
         )
 
 @router.post("/seed-all", dependencies=[Depends(verify_admin_token)])
-def trigger_seed_all(db: Session = Depends(get_db)):
+def trigger_seed_all(confirm: bool = False, db: Session = Depends(get_db)):
     """
-    Secured endpoint to trigger full database seeding across all major competitions (World Cup, Premier League, Champions League, La Liga, Copa del Rey, Nations League).
+    Secured endpoint to trigger full database seeding across all major competitions.
+    Requires confirm=true query parameter to prevent accidental API quota consumption.
     """
+    if not confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This operation consumes external API calls. Pass ?confirm=true to execute."
+        )
     try:
         from backend.services.seeder import seed_all_default_competitions
         details = seed_all_default_competitions(db)

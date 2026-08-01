@@ -14,9 +14,6 @@ from backend.services.elo import fetch_clubelo_ratings
 from backend.services.seeder import call_football_api
 from backend.scoring import update_fixture_score
 
-def fetch_json(url: str, use_cache: bool = True):
-    return fetch_json_with_retry(url, use_cache=use_cache)
-
 
 
 STAGE_MAPPING = {
