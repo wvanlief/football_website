@@ -57,73 +57,89 @@
     </header>
 
     <main class="app-main">
-        <!-- Top Inline Geographic Waterfall Filter Bar -->
-        <div class="inline-waterfall-bar glass" id="inline-waterfall-bar">
-            <div class="inline-waterfall-group">
-                <button class="drawer-trigger-chip" id="trigger-drawer-chip" title="Open Competitions Menu">
-                    <i class="fa-solid fa-bars"></i> Competitions
-                </button>
-                <span class="inline-label"><i class="fa-solid fa-earth-americas"></i> Region:</span>
-                <button class="facet-chip active" data-geo="all">All</button>
-                <button class="facet-chip" data-geo="europe">Europe <i class="fa-solid fa-chevron-right"></i></button>
-                <button class="facet-chip" data-geo="americas">Americas <i class="fa-solid fa-chevron-right"></i></button>
+        <!-- Main Inspector & Feed Grid Layout -->
+        <div class="variant-c-inspector-layout glass">
+            <div class="inspector-feed-area" id="inspector-feed-area">
+                <!-- Top Inline Geographic Waterfall Filter Bar -->
+                <div class="inline-waterfall-bar glass" id="inline-waterfall-bar">
+                    <div class="inline-waterfall-group">
+                        <button class="drawer-trigger-chip" id="trigger-drawer-chip" title="Open Competitions Menu">
+                            <i class="fa-solid fa-bars"></i> Competitions
+                        </button>
+                        <span class="inline-label"><i class="fa-solid fa-earth-americas"></i> Region:</span>
+                        <button class="facet-chip active" data-geo="all">All</button>
+                        <button class="facet-chip" data-geo="europe">Europe <i class="fa-solid fa-chevron-right"></i></button>
+                        <button class="facet-chip" data-geo="americas">Americas <i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+
+                    <div class="inline-waterfall-sub" id="geo-sub-level" style="display: none;">
+                        <span class="inline-arrow">➔ Country:</span>
+                        <div class="waterfall-chips" id="geo-country-chips"></div>
+                    </div>
+
+                    <div class="inline-waterfall-sub" id="geo-team-level" style="display: none;">
+                        <span class="inline-arrow">➔ Team:</span>
+                        <div class="waterfall-chips" id="geo-team-chips"></div>
+                    </div>
+                </div>
+
+                <!-- Finished Matches Results Bar -->
+                <section class="results-bar glass" id="results-bar-container" style="display: none;">
+                    <div class="results-title"><i class="fa-solid fa-square-poll-vertical"></i> Results</div>
+                    <div class="results-list-horizontal" id="results-list-horizontal">
+                        <!-- Dynamically injected finished matches -->
+                    </div>
+                </section>
+
+                <!-- Triptych Columns Layout -->
+                <div class="triptych-container">
+
+                    <!-- Column 1: Today -->
+                    <section class="triptych-column" id="col-today">
+                        <div class="column-header">
+                            <span class="date-badge">TODAY</span>
+                            <h2>Loading...</h2>
+                        </div>
+                        <div class="match-list" id="list-today">
+                            <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading...</div>
+                        </div>
+                    </section>
+
+                    <!-- Column 2: Tomorrow -->
+                    <section class="triptych-column" id="col-tomorrow">
+                        <div class="column-header">
+                            <span class="date-badge">TOMORROW</span>
+                            <h2>Loading...</h2>
+                        </div>
+                        <div class="match-list" id="list-tomorrow">
+                            <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading...</div>
+                        </div>
+                    </section>
+
+                    <!-- Column 3: This Week -->
+                    <section class="triptych-column" id="col-week">
+                        <div class="column-header">
+                            <span class="date-badge">THIS WEEK</span>
+                            <h2>Upcoming Gems</h2>
+                        </div>
+                        <div class="match-list" id="list-week">
+                            <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading...</div>
+                        </div>
+                    </section>
+
+                </div>
             </div>
 
-            <div class="inline-waterfall-sub" id="geo-sub-level" style="display: none;">
-                <span class="inline-arrow">➔ Country:</span>
-                <div class="waterfall-chips" id="geo-country-chips"></div>
-            </div>
-
-            <div class="inline-waterfall-sub" id="geo-team-level" style="display: none;">
-                <span class="inline-arrow">➔ Team:</span>
-                <div class="waterfall-chips" id="geo-team-chips"></div>
-            </div>
-        </div>
-
-        <!-- Finished Matches Results Bar -->
-        <section class="results-bar glass" id="results-bar-container" style="display: none;">
-            <div class="results-title"><i class="fa-solid fa-square-poll-vertical"></i> Results</div>
-            <div class="results-list-horizontal" id="results-list-horizontal">
-                <!-- Dynamically injected finished matches -->
-            </div>
-        </section>
-
-        <!-- Triptych Columns Layout -->
-        <div class="triptych-container">
-
-            <!-- Column 1: Today -->
-            <section class="triptych-column" id="col-today">
-                <div class="column-header">
-                    <span class="date-badge">TODAY</span>
-                    <h2>Loading...</h2>
+            <!-- Docked Right Side Inspector Panel -->
+            <aside class="inspector-side-panel" id="proto-inspector">
+                <div class="inspector-card glass">
+                    <div class="inspector-empty">
+                        <i class="fa-solid fa-hand-pointer"></i>
+                        <h3>Click any match card</h3>
+                        <p>Select any fixture from Today, Tomorrow, or This Week to inspect live tactical drivers, win probabilities &amp; odds movement!</p>
+                    </div>
                 </div>
-                <div class="match-list" id="list-today">
-                    <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading...</div>
-                </div>
-            </section>
-
-            <!-- Column 2: Tomorrow -->
-            <section class="triptych-column" id="col-tomorrow">
-                <div class="column-header">
-                    <span class="date-badge">TOMORROW</span>
-                    <h2>Loading...</h2>
-                </div>
-                <div class="match-list" id="list-tomorrow">
-                    <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading...</div>
-                </div>
-            </section>
-
-            <!-- Column 3: This Week -->
-            <section class="triptych-column" id="col-week">
-                <div class="column-header">
-                    <span class="date-badge">THIS WEEK</span>
-                    <h2>Upcoming Gems</h2>
-                </div>
-                <div class="match-list" id="list-week">
-                    <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading...</div>
-                </div>
-            </section>
-
+            </aside>
         </div>
     </main>
 

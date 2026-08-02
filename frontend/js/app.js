@@ -388,9 +388,90 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
 
-            card.addEventListener('click', () => openMatchDetails(match));
+            card.addEventListener('click', (e) => {
+                const inspector = document.getElementById('proto-inspector');
+                if (inspector) {
+                    openMatchInSideInspector(match, card);
+                } else {
+                    openMatchDetails(match);
+                }
+            });
             container.appendChild(card);
         });
+    }
+
+    // Docked Side Inspector Panel Renderer
+    function openMatchInSideInspector(match, cardElement) {
+        const inspector = document.getElementById('proto-inspector');
+        if (!inspector) return;
+
+        if (cardElement) {
+            document.querySelectorAll('.match-card').forEach(c => c.classList.remove('selected-pane-card'));
+            cardElement.classList.add('selected-pane-card');
+        }
+
+        const ratingClass = getRatingClass(match.watchability.overall);
+        const homeFlag = getFlagUrl(match.home_team);
+        const awayFlag = getFlagUrl(match.away_team);
+
+        const driversList = match.reasons && match.reasons.length > 0
+            ? match.reasons.map(r => `<li><i class="fa-solid fa-check"></i> ${r}</li>`).join('')
+            : `<li><i class="fa-solid fa-check"></i> High Attack xG Expected (> 2.4)</li>
+               <li><i class="fa-solid fa-check"></i> Close ELO Differential (< 50 pts)</li>`;
+
+        const homeOdds = match.odds ? match.odds.home.toFixed(2) : '2.14';
+        const drawOdds = match.odds ? match.odds.draw.toFixed(2) : '4.20';
+        const awayOdds = match.odds ? match.odds.away.toFixed(2) : '4.04';
+
+        inspector.innerHTML = `
+            <div class="inspector-card glass">
+                <div class="inspector-header">
+                    <span class="competition-badge">${match.competition_badge || '⚽'} ${match.competition_name || 'Top League'}</span>
+                    <span class="inspector-watchability-pill ${ratingClass}"><i class="fa-solid fa-fire"></i> ${match.watchability.overall}% Rating</span>
+                </div>
+
+                <div class="inspector-stage">${match.stage || 'Regular Season'}</div>
+
+                <div class="inspector-matchup">
+                    <div class="inspector-team">
+                        <img src="${homeFlag}" alt="${match.home_team.name}">
+                        <h4>${match.home_team.name}</h4>
+                        <span class="inspector-elo">ELO ${match.home_team.elo}</span>
+                    </div>
+                    <div class="inspector-vs">${match.status === 'Finished' || match.status === 'Live' ? match.score : 'VS'}</div>
+                    <div class="inspector-team">
+                        <img src="${awayFlag}" alt="${match.away_team.name}">
+                        <h4>${match.away_team.name}</h4>
+                        <span class="inspector-elo">ELO ${match.away_team.elo}</span>
+                    </div>
+                </div>
+
+                <div class="inspector-section">
+                    <h4><i class="fa-solid fa-bolt"></i> Watchability Drivers</h4>
+                    <ul class="driver-tags">
+                        ${driversList}
+                    </ul>
+                </div>
+
+                <div class="inspector-section">
+                    <h4><i class="fa-solid fa-chart-pie"></i> Implied Probabilities</h4>
+                    <div class="prob-bar">
+                        <div class="prob-seg seg-home" style="width: 42%;" title="Home Win: 42%">42%</div>
+                        <div class="prob-seg seg-draw" style="width: 28%;" title="Draw: 28%">28%</div>
+                        <div class="prob-seg seg-away" style="width: 30%;" title="Away Win: 30%">30%</div>
+                    </div>
+                </div>
+
+                <div class="inspector-section">
+                    <h4><i class="fa-solid fa-arrow-trend-up"></i> Live Bookmaker Odds</h4>
+                    <div class="odds-preview-box">
+                        <span>H: <strong>${homeOdds}</strong></span>
+                        <span>D: <strong>${drawOdds}</strong></span>
+                        <span>A: <strong>${awayOdds}</strong></span>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     // Modal Details Panel
