@@ -457,8 +457,41 @@ class LeagueFormatAdapter(BaseFormatAdapter):
             h_api_id = t_info.get("home", {}).get("id")
             a_api_id = t_info.get("away", {}).get("id")
             
-            home_team = db.query(Team).filter(Team.api_id == h_api_id).first()
-            away_team = db.query(Team).filter(Team.api_id == a_api_id).first()
+            home_team = db.query(Team).filter(Team.api_id == h_api_id).first() if h_api_id else None
+            if not home_team and h_api_id:
+                h_raw_name = t_info.get("home", {}).get("name", "")
+                h_norm_name = normalizer.normalize(h_raw_name)
+                home_team = db.query(Team).filter(Team.name == h_norm_name).first()
+                if home_team:
+                    home_team.api_id = h_api_id
+                else:
+                    home_team = Team(
+                        name=h_norm_name,
+                        team_type="Club" if comp.type != "International" else "National",
+                        api_id=h_api_id,
+                        elo=1500,
+                        form_score=50.0
+                    )
+                    db.add(home_team)
+                db.flush()
+
+            away_team = db.query(Team).filter(Team.api_id == a_api_id).first() if a_api_id else None
+            if not away_team and a_api_id:
+                a_raw_name = t_info.get("away", {}).get("name", "")
+                a_norm_name = normalizer.normalize(a_raw_name)
+                away_team = db.query(Team).filter(Team.name == a_norm_name).first()
+                if away_team:
+                    away_team.api_id = a_api_id
+                else:
+                    away_team = Team(
+                        name=a_norm_name,
+                        team_type="Club" if comp.type != "International" else "National",
+                        api_id=a_api_id,
+                        elo=1500,
+                        form_score=50.0
+                    )
+                    db.add(away_team)
+                db.flush()
             
             stage = "Regular Season"
             status_short = f_info.get("status", {}).get("short", "")
