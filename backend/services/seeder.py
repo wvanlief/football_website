@@ -398,7 +398,7 @@ def seed_database(db: Session):
     print("Database seeding and simulation completed.")
 
 def seed_all_default_competitions(db: Session) -> dict:
-    """Seeds all default competitions (FIFA World Cup, Copa del Rey, Nations League, Premier League, Champions League, La Liga)."""
+    """Seeds all default 15 competitions (World Cup, Big 5 Domestic Leagues, European Cups, Domestic Cups, Nations League)."""
     results = {}
     print("--- Starting Full Multi-Competition Database Seeding ---")
     
@@ -417,18 +417,32 @@ def seed_all_default_competitions(db: Session) -> dict:
     except Exception as e:
         results["Phase 8"] = f"Error: {e}"
         
-    # 3. Premier League, UEFA Champions League, La Liga
+    # 3. API-Football Competitions (Big 5 Leagues, European Cups, Domestic Cups)
     api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
     if api_key:
         leagues_to_seed = [
+            # Big 5 Domestic Leagues
             ("Premier League", "League", "league", 39, "2025/26", 2025, 3, 100),
-            ("UEFA Champions League", "Cup", "group_knockout", 2, "2025/26", 2025, 0, 80),
             ("La Liga", "League", "league", 140, "2025/26", 2025, 3, 120),
+            ("Serie A", "League", "league", 135, "2025/26", 2025, 3, 100),
+            ("Bundesliga", "League", "league", 78, "2025/26", 2025, 2, 100),
+            ("Ligue 1", "League", "league", 61, "2025/26", 2025, 2, 90),
+
+            # European Cups
+            ("UEFA Champions League", "Cup", "group_knockout", 2, "2025/26", 2025, 0, 80),
+            ("UEFA Europa League", "Cup", "group_knockout", 3, "2025/26", 2025, 0, 60),
+            ("UEFA Conference League", "Cup", "group_knockout", 848, "2025/26", 2025, 0, 50),
+
+            # Domestic Cups
+            ("FA Cup", "Cup", "cup", 45, "2025/26", 2025, 0, 30),
+            ("Coppa Italia", "Cup", "cup", 137, "2025/26", 2025, 0, 30),
+            ("DFB Pokal", "Cup", "cup", 81, "2025/26", 2025, 0, 30),
+            ("Coupe de France", "Cup", "cup", 66, "2025/26", 2025, 0, 30),
         ]
         for name, comp_type, format_eng, league_id, season_str, api_season, releg_spots, home_adv in leagues_to_seed:
             try:
                 print(f"Seeding competition: {name}...")
-                fetch_and_seed_teams(db, api_league_id=league_id, api_season=api_season)
+                fetch_and_seed_teams(db, api_league_id=league_id, api_season=api_season, fetch_squads=False)
                 seed_competition(
                     db=db,
                     competition_name=name,
@@ -458,9 +472,10 @@ def fetch_and_seed_teams(
     api_league_id: int,
     api_season: int,
     team_type: str = "Club",
-    elo_source: str = "clubelo"
+    elo_source: str = "clubelo",
+    fetch_squads: bool = False
 ):
-    """Fetches all teams for a league and picks spotlight players for each team."""
+    """Fetches all teams for a league and optionally picks spotlight players for each team."""
     normalizer = NameNormalizer()
     print(f"Fetching teams for league {api_league_id}, season {api_season}...")
     try:
@@ -516,6 +531,9 @@ def fetch_and_seed_teams(
             print(f"Created new team: {name} (api_id={api_team_id})")
         db.flush()
         
+        if not fetch_squads:
+            continue
+
         existing_contracts = db.query(PlayerContract).filter(PlayerContract.team_id == db_team.id).first()
         if existing_contracts:
             print(f"Squad already populated for {name}, skipping squad API call.")
