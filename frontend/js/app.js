@@ -735,4 +735,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     };
+
+    window.filterMatchesByKeywords = function(keywords) {
+        const cards = document.querySelectorAll('.match-card');
+        cards.forEach(card => {
+            if (!keywords || keywords.length === 0) {
+                card.style.display = '';
+                return;
+            }
+            const text = card.textContent.toLowerCase();
+            const matches = keywords.some(kw => text.includes(kw.toLowerCase()));
+            card.style.display = matches ? '' : 'none';
+        });
+    };
 });

@@ -57,22 +57,28 @@
     </header>
 
     <main class="app-main">
-        <!-- Competition Filter Bar -->
-        <div id="explorer-comp-filters" class="comp-filter-pill-box glass"></div>
+        <!-- Top Inline Geographic Waterfall Filter Bar -->
+        <div class="inline-waterfall-bar glass" id="inline-waterfall-bar">
+            <div class="inline-waterfall-group">
+                <button class="drawer-trigger-chip" id="trigger-drawer-chip" title="Open Competitions Menu">
+                    <i class="fa-solid fa-bars"></i> Competitions
+                </button>
+                <span class="inline-label"><i class="fa-solid fa-earth-americas"></i> Region:</span>
+                <button class="facet-chip active" data-geo="all">All</button>
+                <button class="facet-chip" data-geo="europe">Europe <i class="fa-solid fa-chevron-right"></i></button>
+                <button class="facet-chip" data-geo="americas">Americas <i class="fa-solid fa-chevron-right"></i></button>
+            </div>
 
-        <!-- Country Selection & Search Panel -->
-        <section class="country-explorer glass">
-            <div class="explorer-header">
-                <div class="search-wrapper">
-                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                    <input type="text" id="country-search" placeholder="Search..." autocomplete="off">
-                    <button id="search-clear" class="search-clear-btn" style="display: none;">&times;</button>
-                </div>
+            <div class="inline-waterfall-sub" id="geo-sub-level" style="display: none;">
+                <span class="inline-arrow">➔ Country:</span>
+                <div class="waterfall-chips" id="geo-country-chips"></div>
             </div>
-            <div class="flag-carousel" id="flag-carousel-container">
-                <!-- Dynamically injected country flag capsules -->
+
+            <div class="inline-waterfall-sub" id="geo-team-level" style="display: none;">
+                <span class="inline-arrow">➔ Team:</span>
+                <div class="waterfall-chips" id="geo-team-chips"></div>
             </div>
-        </section>
+        </div>
 
         <!-- Finished Matches Results Bar -->
         <section class="results-bar glass" id="results-bar-container" style="display: none;">
