@@ -433,14 +433,50 @@ def seed_all_default_competitions(db: Session) -> dict:
             ("UEFA Europa League", "Cup", "group_knockout", 3, "2026/27", 2026, 0, 60),
             ("UEFA Conference League", "Cup", "group_knockout", 848, "2026/27", 2026, 0, 50),
 
-            # Domestic Cups
+            # Domestic Cups (Big 5)
             ("FA Cup", "Cup", "cup", 45, "2026/27", 2026, 0, 30),
             ("Coppa Italia", "Cup", "cup", 137, "2026/27", 2026, 0, 30),
             ("DFB Pokal", "Cup", "cup", 81, "2026/27", 2026, 0, 30),
             ("Coupe de France", "Cup", "cup", 66, "2026/27", 2026, 0, 30),
+
+            # Other Top European Leagues & Cups
+            ("Eredivisie", "League", "league", 88, "2026/27", 2026, 3, 90),
+            ("KNVB Beker", "Cup", "cup", 90, "2026/27", 2026, 0, 30),
+            ("Primeira Liga", "League", "league", 94, "2026/27", 2026, 3, 90),
+            ("Taça de Portugal", "Cup", "cup", 96, "2026/27", 2026, 0, 30),
+            ("Scottish Premiership", "League", "league", 179, "2026/27", 2026, 2, 80),
+            ("Belgian Pro League", "League", "league", 144, "2026/27", 2026, 3, 80),
+            ("Süper Lig", "League", "league", 203, "2026/27", 2026, 4, 100),
+
+            # Americas Leagues & Cups
+            ("Major League Soccer", "League", "league", 253, "2026", 2026, 0, 80),
+            ("US Open Cup", "Cup", "cup", 257, "2026", 2026, 0, 30),
+            ("Brasileirão Série A", "League", "league", 71, "2026", 2026, 4, 110),
+            ("Copa do Brasil", "Cup", "cup", 73, "2026", 2026, 0, 30),
+            ("Liga Profesional Argentina", "League", "league", 128, "2026", 2026, 2, 110),
+            ("Copa Argentina", "Cup", "cup", 130, "2026", 2026, 0, 30),
+
+            # Continental Cups (Americas)
+            ("Copa Libertadores", "Cup", "group_knockout", 13, "2026", 2026, 0, 80),
+            ("Copa Sudamericana", "Cup", "group_knockout", 11, "2026", 2026, 0, 60),
+            ("CONCACAF Champions Cup", "Cup", "cup", 16, "2026", 2026, 0, 40),
         ]
         for name, comp_type, format_eng, league_id, season_str, api_season, releg_spots, home_adv in leagues_to_seed:
             try:
+                # Check if this competition edition is already populated in DB
+                comp = db.query(Competition).filter(Competition.name == name).first()
+                if comp:
+                    tourney = db.query(Tournament).filter(
+                        Tournament.competition_id == comp.id,
+                        Tournament.season_name == season_str
+                    ).first()
+                    if tourney:
+                        f_count = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).count()
+                        if f_count > 0:
+                            print(f"Skipping {name} ({season_str}): already seeded with {f_count} fixtures.")
+                            results[name] = f"Already seeded ({f_count} fixtures)"
+                            continue
+
                 print(f"Seeding competition: {name}...")
                 fetch_and_seed_teams(db, api_league_id=league_id, api_season=api_season, fetch_squads=False)
                 seed_competition(
