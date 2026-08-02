@@ -22,6 +22,9 @@
 
     <header class="app-header">
         <div class="header-container">
+            <button id="hamburger-menu-btn" class="hamburger-menu-btn" title="Open Competitions Drawer">
+                <i class="fa-solid fa-bars"></i>
+            </button>
             <a href="/" class="logo-area">
                 <i class="fa-solid fa-trophy trophy-logo"></i>
                 <div class="logo-text">
@@ -131,13 +134,37 @@
     <!-- Notification Toast -->
     <div id="toast" class="toast">Weights updated & scores recalculated!</div>
 
-    <footer class="app-footer">
-        <p>&copy; 2026 findfootball.games. Reimagining the way we watch football.</p>
-    </footer>
+    <!-- Off-Canvas Competitions Drawer -->
+    <aside id="offcanvas-sidebar" class="offcanvas-sidebar glass">
+        <div class="drawer-header">
+            <h3><i class="fa-solid fa-trophy"></i> Competitions</h3>
+            <button id="close-drawer-btn" class="close-drawer-btn">&times;</button>
+        </div>
+        <div class="drawer-section">
+            <button class="drawer-item active" data-filter="all"><span class="badge">🌐</span> All Recommended Matches</button>
+            <button class="drawer-item" data-filter="hot"><span class="badge">🔥</span> Hot Matches (&ge;75%)</button>
+        </div>
+        <div class="drawer-divider"></div>
+        <div class="drawer-section">
+            <div class="drawer-category-title">Top Leagues</div>
+            <button class="drawer-item" data-filter="Premier League"><span class="badge">🏴󠁧󠁢󠁥󠁮󠁧󠁿</span> Premier League</button>
+            <button class="drawer-item" data-filter="La Liga"><span class="badge">🇪🇸</span> La Liga</button>
+            <button class="drawer-item" data-filter="Serie A"><span class="badge">🇮🇹</span> Serie A</button>
+            <button class="drawer-item" data-filter="Bundesliga"><span class="badge">🇩🇪</span> Bundesliga</button>
+        </div>
+        <div class="drawer-divider"></div>
+        <div class="drawer-section">
+            <div class="drawer-category-title">European &amp; International Cups</div>
+            <button class="drawer-item" data-filter="Champions League"><span class="badge">⭐</span> UEFA Champions League</button>
+            <button class="drawer-item" data-filter="Europa League"><span class="badge">🏆</span> UEFA Europa League</button>
+            <button class="drawer-item" data-filter="World Cup"><span class="badge">🌍</span> FIFA World Cup</button>
+        </div>
+    </aside>
 
     <!-- Custom JS -->
-    <script src="/js/navigation.js?v=1.0.4"></script>
-    <script src="/js/app.js?v=1.0.5"></script>
+    <script src="/js/navigation.js?v=1.0.5"></script>
+    <script src="/js/app.js?v=1.0.6"></script>
+    <script src="/js/prototype-ui.js"></script>
 </body>
 
 </html>

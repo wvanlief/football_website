@@ -707,4 +707,32 @@ document.addEventListener('DOMContentLoaded', () => {
             toast.classList.remove('show');
         }, 3000);
     }
+
+    // Expose global filterMatchesByName function for Drawer & Navigation controls
+    window.filterMatchesByName = function(leagueName) {
+        const cards = document.querySelectorAll('.match-card');
+        cards.forEach(card => {
+            if (!leagueName || leagueName === 'all') {
+                card.style.display = '';
+                return;
+            }
+            if (leagueName === 'hot') {
+                const scoreEl = card.querySelector('.score-badge, .score-val');
+                let score = 0;
+                if (scoreEl) {
+                    const matchText = scoreEl.textContent.match(/(\d+)%/);
+                    if (matchText) score = parseInt(matchText[1], 10);
+                }
+                card.style.display = (score >= 75) ? '' : 'none';
+                return;
+            }
+
+            const text = (card.textContent).toLowerCase();
+            if (text.includes(leagueName.toLowerCase())) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    };
 });

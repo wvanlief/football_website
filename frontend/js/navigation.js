@@ -172,4 +172,28 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         })
         .catch(err => console.error("Error loading competitions selector:", err));
+
+    // 6. Off-Canvas Competitions Drawer Controller
+    const hamburgerBtn = document.getElementById('hamburger-menu-btn');
+    const closeDrawerBtn = document.getElementById('close-drawer-btn');
+    const offcanvasSidebar = document.getElementById('offcanvas-sidebar');
+
+    function toggleOffcanvasDrawer() {
+        if (offcanvasSidebar) offcanvasSidebar.classList.toggle('open');
+    }
+
+    if (hamburgerBtn) hamburgerBtn.addEventListener('click', toggleOffcanvasDrawer);
+    if (closeDrawerBtn) closeDrawerBtn.addEventListener('click', toggleOffcanvasDrawer);
+
+    document.querySelectorAll('.drawer-item').forEach(dBtn => {
+        dBtn.addEventListener('click', () => {
+            document.querySelectorAll('.drawer-item').forEach(b => b.classList.remove('active'));
+            dBtn.classList.add('active');
+            const filter = dBtn.getAttribute('data-filter');
+            if (typeof window.filterMatchesByName === 'function') {
+                window.filterMatchesByName(filter);
+            }
+            if (offcanvasSidebar) offcanvasSidebar.classList.remove('open');
+        });
+    });
 });

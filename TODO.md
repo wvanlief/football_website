@@ -1,6 +1,10 @@
 
 ## Prio 1
-
+ - Fix inconsistent displaying of team badges
+ - Where is the matrix for european leagues ?
+ - Why does the group page displays all competitions? Same for bracket
+ - In calendar, the only matches with 75+ watchability are only 3 manchester united matches
+ - Fix ELO 1500 for smaller teams  
 
 ## Prio 2
  - Export Good matches to social media (Insta/ Tik Tok)
