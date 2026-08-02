@@ -28,7 +28,7 @@ Overhaul the findfootball.games multi-competition navigation and match dashboard
 - [x] **[Ticket 1: Off-Canvas Hamburger Competitions Drawer Component](https://github.com/wvanlief/football_website/issues/21)** (`#21`)
 - [x] **[Ticket 2: Top Inline Geographic Waterfall Filter Bar](https://github.com/wvanlief/football_website/issues/22)** (`#22`)
 - [x] **[Ticket 3: Docked Right Side Inspector Panel & Event Delegation](https://github.com/wvanlief/football_website/issues/23)** (`#23`)
-- [ ] **[Ticket 4: Main Layout Integration & Desktop Clean-up](https://github.com/wvanlief/football_website/issues/24)** (`#24`)
+- [x] **[Ticket 4: Main Layout Integration & Desktop Clean-up](https://github.com/wvanlief/football_website/issues/24)** (`#24`)
 - [ ] **[Ticket 5: Mobile View Adaptation & Bottom Tab Bar](https://github.com/wvanlief/football_website/issues/25)** (`#25`)
 
 ## Not yet specified
