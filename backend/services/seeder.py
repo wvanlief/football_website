@@ -422,22 +422,22 @@ def seed_all_default_competitions(db: Session) -> dict:
     if api_key:
         leagues_to_seed = [
             # Big 5 Domestic Leagues
-            ("Premier League", "League", "league", 39, "2025/26", 2025, 3, 100),
-            ("La Liga", "League", "league", 140, "2025/26", 2025, 3, 120),
-            ("Serie A", "League", "league", 135, "2025/26", 2025, 3, 100),
-            ("Bundesliga", "League", "league", 78, "2025/26", 2025, 2, 100),
-            ("Ligue 1", "League", "league", 61, "2025/26", 2025, 2, 90),
+            ("Premier League", "League", "league", 39, "2026/27", 2026, 3, 100),
+            ("La Liga", "League", "league", 140, "2026/27", 2026, 3, 120),
+            ("Serie A", "League", "league", 135, "2026/27", 2026, 3, 100),
+            ("Bundesliga", "League", "league", 78, "2026/27", 2026, 2, 100),
+            ("Ligue 1", "League", "league", 61, "2026/27", 2026, 2, 90),
 
             # European Cups
-            ("UEFA Champions League", "Cup", "group_knockout", 2, "2025/26", 2025, 0, 80),
-            ("UEFA Europa League", "Cup", "group_knockout", 3, "2025/26", 2025, 0, 60),
-            ("UEFA Conference League", "Cup", "group_knockout", 848, "2025/26", 2025, 0, 50),
+            ("UEFA Champions League", "Cup", "group_knockout", 2, "2026/27", 2026, 0, 80),
+            ("UEFA Europa League", "Cup", "group_knockout", 3, "2026/27", 2026, 0, 60),
+            ("UEFA Conference League", "Cup", "group_knockout", 848, "2026/27", 2026, 0, 50),
 
             # Domestic Cups
-            ("FA Cup", "Cup", "cup", 45, "2025/26", 2025, 0, 30),
-            ("Coppa Italia", "Cup", "cup", 137, "2025/26", 2025, 0, 30),
-            ("DFB Pokal", "Cup", "cup", 81, "2025/26", 2025, 0, 30),
-            ("Coupe de France", "Cup", "cup", 66, "2025/26", 2025, 0, 30),
+            ("FA Cup", "Cup", "cup", 45, "2026/27", 2026, 0, 30),
+            ("Coppa Italia", "Cup", "cup", 137, "2026/27", 2026, 0, 30),
+            ("DFB Pokal", "Cup", "cup", 81, "2026/27", 2026, 0, 30),
+            ("Coupe de France", "Cup", "cup", 66, "2026/27", 2026, 0, 30),
         ]
         for name, comp_type, format_eng, league_id, season_str, api_season, releg_spots, home_adv in leagues_to_seed:
             try:

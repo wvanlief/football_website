@@ -415,8 +415,8 @@ class LeagueFormatAdapter(BaseFormatAdapter):
             league_id = LEAGUE_MAPPING.get(comp.name, 39)
 
         try:
-            api_season = int(tourney.season_name)
-        except ValueError:
+            api_season = int(tourney.season_name.split("/")[0])
+        except (ValueError, AttributeError):
             api_season = 2026
             
         print(f"Fetching fixtures from API-Football for league={league_id}, season={api_season}...")

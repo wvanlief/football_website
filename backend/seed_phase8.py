@@ -24,11 +24,11 @@ def seed_phase8_data():
             db.add(copa_comp)
             db.flush()
             
-        copa_tourney = db.query(Tournament).filter(Tournament.competition_id == copa_comp.id, Tournament.season_name == "2025/26").first()
+        copa_tourney = db.query(Tournament).filter(Tournament.competition_id == copa_comp.id, Tournament.season_name == "2026/27").first()
         if not copa_tourney:
             copa_tourney = Tournament(
                 competition_id=copa_comp.id,
-                season_name="2025/26",
+                season_name="2026/27",
                 status="Active"
             )
             db.add(copa_tourney)

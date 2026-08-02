@@ -92,11 +92,17 @@ def fetch_clubelo_ratings(date_str: str = None) -> dict[str, int]:
     return ratings
 
 def fuzzy_match_team(team_name: str, clubelo_names: list[str]) -> tuple[str, float]:
-    """Fuzzy match team name against ClubElo name registry."""
-    import difflib
-    best_name = None
-    best_score = 0.0
-    
+    """Fuzzy match team name against ClubElo name registry with fast exact-match short circuits."""
+    if not team_name or not clubelo_names:
+        return "", 0.0
+
+    # 1. Fast exact & case-insensitive match
+    t_lower = team_name.lower()
+    for name in clubelo_names:
+        if name.lower() == t_lower:
+            return name, 1.0
+
+    # 2. Try RapidFuzz if installed (C-accelerated)
     try:
         from rapidfuzz import process, fuzz
         match = process.extractOne(team_name, clubelo_names, scorer=fuzz.token_sort_ratio)
@@ -105,13 +111,23 @@ def fuzzy_match_team(team_name: str, clubelo_names: list[str]) -> tuple[str, flo
     except ImportError:
         pass
         
+    # 3. Fast substring check before difflib
     for name in clubelo_names:
-        score = difflib.SequenceMatcher(None, team_name.lower(), name.lower()).ratio()
+        n_lower = name.lower()
+        if t_lower in n_lower or n_lower in t_lower:
+            return name, 0.90
+
+    # 4. Fallback to difflib SequenceMatcher
+    import difflib
+    best_name = None
+    best_score = 0.0
+    for name in clubelo_names:
+        score = difflib.SequenceMatcher(None, t_lower, name.lower()).ratio()
         if score > best_score:
             best_score = score
             best_name = name
             
-    return best_name, best_score
+    return best_name or "", best_score
 
 def review_elo_matches(db: Session, output_path: str = "backend/data/elo_name_review.json"):
     """Generates an ELO match review file comparing DB club teams with ClubElo database."""
