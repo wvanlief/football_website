@@ -636,6 +636,15 @@ def seed_competition(
         db.flush()
         print(f"Updated Competition metadata: {competition_name}")
 
+    # Ensure only the new season edition remains Active for this competition
+    old_tourneys = db.query(Tournament).filter(
+        Tournament.competition_id == comp.id,
+        Tournament.season_name != season,
+        Tournament.status == "Active"
+    ).all()
+    for old_t in old_tourneys:
+        old_t.status = "Completed"
+
     tourney = db.query(Tournament).filter(
         Tournament.competition_id == comp.id,
         Tournament.season_name == season
@@ -649,6 +658,9 @@ def seed_competition(
         db.add(tourney)
         db.flush()
         print(f"Created Tournament season: {season}")
+    else:
+        tourney.status = "Active"
+        db.flush()
         
     print(f"Fetching fixtures from API-Football for league={api_league_id}, season={api_season}...")
     try:

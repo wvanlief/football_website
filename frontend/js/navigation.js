@@ -18,16 +18,20 @@ document.addEventListener('DOMContentLoaded', () => {
             let selectedId = localStorage.getItem('findfootball-tournament-id');
             let activeTourney = null;
             
-            // Build a flat list of active tournaments
-            const activeTourneysList = [];
+            // Build a flat list of the latest active tournament edition per competition
+            const activeTourneysMap = new Map();
             competitions.forEach(comp => {
                 comp.tournaments.forEach(tourney => {
                     if (tourney.status === 'Active') {
                         tourney.competition = comp;
-                        activeTourneysList.push(tourney);
+                        const existing = activeTourneysMap.get(comp.id);
+                        if (!existing || tourney.id > existing.id) {
+                            activeTourneysMap.set(comp.id, tourney);
+                        }
                     }
                 });
             });
+            const activeTourneysList = Array.from(activeTourneysMap.values());
 
             // Find matching active tournament
             if (selectedId) {
