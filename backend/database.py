@@ -34,6 +34,7 @@ class Competition(Base):
     badge = Column(String, nullable=True, default="⚽")
     
     tournaments = relationship("Tournament", back_populates="competition", cascade="all, delete-orphan")
+    external_mappings = relationship("ExternalCompetitionMapping", back_populates="competition", cascade="all, delete-orphan")
 
 
 class Tournament(Base):
@@ -86,6 +87,7 @@ class Team(Base):
     contracts = relationship("PlayerContract", back_populates="team", cascade="all, delete-orphan")
     tournament_teams = relationship("TournamentTeam", back_populates="team", cascade="all, delete-orphan")
     elo_history = relationship("EloHistory", back_populates="team", cascade="all, delete-orphan")
+    external_mappings = relationship("ExternalTeamMapping", back_populates="team", cascade="all, delete-orphan")
 
 class TournamentTeam(Base):
     __tablename__ = "tournament_teams"
@@ -244,6 +246,34 @@ class FixtureDependency(Base):
     target_fixture_id = Column(Integer, ForeignKey("fixtures.id", ondelete="CASCADE"), index=True)
     slot = Column(String)         # "home" | "away"
     result_type = Column(String)  # "winner" | "loser"
+
+class ExternalTeamMapping(Base):
+    __tablename__ = "external_team_mappings"
+    
+    __table_args__ = (
+        UniqueConstraint("provider_name", "external_id", name="uq_external_team_mapping"),
+    )
+    
+    id = Column(Integer, primary_key=True, index=True)
+    team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider_name = Column(String, nullable=False, index=True)
+    external_id = Column(String, nullable=False, index=True)
+    
+    team = relationship("Team", back_populates="external_mappings")
+
+class ExternalCompetitionMapping(Base):
+    __tablename__ = "external_competition_mappings"
+    
+    __table_args__ = (
+        UniqueConstraint("provider_name", "external_id", name="uq_external_competition_mapping"),
+    )
+    
+    id = Column(Integer, primary_key=True, index=True)
+    competition_id = Column(Integer, ForeignKey("competitions.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider_name = Column(String, nullable=False, index=True)
+    external_id = Column(String, nullable=False, index=True)
+    
+    competition = relationship("Competition", back_populates="external_mappings")
 
 def init_db():
     # Schema changes are managed via Alembic migrations.

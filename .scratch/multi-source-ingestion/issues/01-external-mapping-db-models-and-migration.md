@@ -4,9 +4,9 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Create SQLAlchemy models `ExternalTeamMapping` and `ExternalCompetitionMapping` with foreign keys to `teams.id` and `competitions.id`.
-- [ ] Add unique constraint on `(provider_name, external_id)` for indexed $O(1)$ lookups.
-- [ ] Generate non-destructive Alembic migration (`alembic revision --autogenerate`) that only creates new tables without altering or dropping existing columns/data.
-- [ ] Create CRUD helper utilities to lookup internal team/competition IDs by `(provider_name, external_id)` and auto-insert new mappings.
+- [x] Create SQLAlchemy models `ExternalTeamMapping` and `ExternalCompetitionMapping` with foreign keys to `teams.id` and `competitions.id`.
+- [x] Add unique constraint on `(provider_name, external_id)` for indexed $O(1)$ lookups.
+- [x] Generate non-destructive Alembic migration (`alembic revision --autogenerate`) that only creates new tables without altering or dropping existing columns/data.
+- [x] Create CRUD helper utilities to lookup internal team/competition IDs by `(provider_name, external_id)` and auto-insert new mappings.
