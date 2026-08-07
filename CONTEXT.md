@@ -17,9 +17,12 @@
 
 ## Performance & Caching
 - **API Payload Caching**: In-memory response caching (60s TTL) for heavy endpoints (`/api/fixtures`, `/api/fixtures/recommended`).
-- **Live Invalidation**: Live score updates immediately invalidate cached payloads for real-time responsiveness under 5ms response times.
+## Multi-Source Data Ingestion & Failover
+- **Priority Fallback Chain**: Match fixtures, schedules, and scores are ingested using an ordered provider hierarchy (`Football-Data.org` -> `API-Football` -> `TheSportsDB`). If a higher-priority provider encounters rate limits, errors, or downtime, the engine fails over to the next provider seamlessly.
+- **External Entity Mapping Tables**: Decouple provider IDs from domain models using `ExternalTeamMapping` and `ExternalCompetitionMapping` tables (`(provider_name, external_id) -> internal_id`). This allows adding new API providers dynamically without schema migrations on `teams` or `competitions`.
+- **Live Scoring Scope**: Live score polling remains unchanged for now, using the current lightweight single-source update engine.
+- **Local Asset Isolation**: Team crest badges remain locally cached on disk (`/static/badges/`), independent of provider availability.
 
-## UI Components & Navigation
 - **Categorized Competition Selector**: Grouped switcher (Top 5 Leagues, European Cups, International & Domestic Cups) replacing flat horizontal text scrolling pills.
 - **Calendar Segmentation**: Gameweek/Weekly date blocks with team crests (`logo_url`) and a High-Watchability filter toggle ($\ge 75\%$).
 

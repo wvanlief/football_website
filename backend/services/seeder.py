@@ -524,7 +524,11 @@ def fetch_and_seed_teams(
     if not isinstance(res, dict) or "response" not in res:
         print(f"Invalid API response: {res}")
         return
-        
+
+    if res.get("errors"):
+        print(f"API-Football Error: {res['errors']}")
+        return
+
     teams_data = res["response"]
     print(f"Seeding {len(teams_data)} teams...")
     
@@ -709,7 +713,11 @@ def seed_competition(
     if not isinstance(res, dict) or "response" not in res:
         print(f"Invalid API response for fixtures: {res}")
         return
-        
+
+    if res.get("errors"):
+        print(f"API-Football Error: {res['errors']}")
+        return
+
     fixtures_data = res["response"]
     print(f"Found {len(fixtures_data)} fixtures in response. Seeding/Upserting...")
     
