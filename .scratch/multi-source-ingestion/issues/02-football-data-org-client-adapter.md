@@ -4,9 +4,9 @@
 
 **Blocked by:** 01 — External Mapping Database Models & Schema Migration
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Implement `FootballDataClient` adapter using `X-Auth-Token` header authentication.
-- [ ] Map Football-Data.org competition codes (`PL`, `PD`, `SA`, `BL1`, `FL1`, `CL`, `WC`) to internal competition entities.
-- [ ] Map fixture stages, matchday numbers, and game statuses (`SCHEDULED`, `FINISHED`, `IN_PLAY`, `PAUSED`) to findingfootball.games domain formats.
-- [ ] Resolve teams using `external_team_mappings`, falling back to `NameNormalizer` and auto-registering new mappings on initial fetch.
+- [x] Implement `FootballDataClient` adapter using `X-Auth-Token` header authentication.
+- [x] Map Football-Data.org competition codes (`PL`, `PD`, `SA`, `BL1`, `FL1`, `CL`, `WC`) to internal competition entities.
+- [x] Map fixture stages, matchday numbers, and game statuses (`SCHEDULED`, `FINISHED`, `IN_PLAY`, `PAUSED`) to findingfootball.games domain formats.
+- [x] Resolve teams using `external_team_mappings`, falling back to `NameNormalizer` and auto-registering new mappings on initial fetch.
