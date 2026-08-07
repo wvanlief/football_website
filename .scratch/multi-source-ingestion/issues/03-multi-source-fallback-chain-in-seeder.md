@@ -4,9 +4,9 @@
 
 **Blocked by:** 02 — Football-Data.org Client & Provider Adapter
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Implement provider failover loop inside `seed_competition` that checks `res.get("errors")` and HTTP errors before attempting secondary/tertiary providers.
-- [ ] Ensure fixture matching checks existing DB entries by `(tournament_id, home_team_id, away_team_id, date_utc)` to update existing rows rather than creating duplicate fixtures across failover.
-- [ ] Add explicit warning logs when a primary provider is skipped due to API errors.
-- [ ] Add integration test in `tests/test_services/test_updater.py` verifying seamless failover when the primary provider returns an error payload.
+- [x] Implement provider failover loop inside `seed_competition` that checks `res.get("errors")` and HTTP errors before attempting secondary/tertiary providers.
+- [x] Ensure fixture matching checks existing DB entries by `(tournament_id, home_team_id, away_team_id, date_utc)` to update existing rows rather than creating duplicate fixtures across failover.
+- [x] Add explicit warning logs when a primary provider is skipped due to API errors.
+- [x] Add integration test in `tests/test_services/test_multi_source_fallback.py` verifying seamless failover when the primary provider returns an error payload.

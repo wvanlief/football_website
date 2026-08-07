@@ -701,115 +701,159 @@ def seed_competition(
         print(f"Created Tournament season: {season}")
     else:
         tourney.status = "Active"
-        db.flush()
         
-    print(f"Fetching fixtures from API-Football for league={api_league_id}, season={api_season}...")
-    try:
-        res = call_football_api("fixtures", {"league": api_league_id, "season": api_season})
-    except Exception as e:
-        print(f"Error fetching fixtures from API-Football: {e}")
-        return
-        
-    if not isinstance(res, dict) or "response" not in res:
-        print(f"Invalid API response for fixtures: {res}")
-        return
-
-    if res.get("errors"):
-        print(f"API-Football Error: {res['errors']}")
-        return
-
-    fixtures_data = res["response"]
-    print(f"Found {len(fixtures_data)} fixtures in response. Seeding/Upserting...")
+    from backend.services.providers.football_data import FootballDataProvider
     
+    # 1. Primary provider attempt: Football-Data.org
+    fd_provider = FootballDataProvider()
+    fd_fixtures = fd_provider.fetch_fixtures(competition_name, api_season)
+    
+    normalized_fixtures = []
+    
+    if fd_fixtures:
+        print(f"Football-Data.org: Found {len(fd_fixtures)} fixtures for '{competition_name}'. Processing...")
+        for item in fd_fixtures:
+            norm_item = fd_provider.normalize_fixture_payload(db, item, tourney.id, competition_type)
+            if norm_item:
+                normalized_fixtures.append(norm_item)
+    else:
+        print(f"Football-Data.org unavailable or returned 0 fixtures for '{competition_name}'. Falling back to API-Football...")
+        
+        normalizer = NameNormalizer()
+        # 2. Secondary provider attempt: API-Football
+        try:
+            res = call_football_api("fixtures", {"league": api_league_id, "season": api_season})
+            if isinstance(res, dict) and "response" in res and not res.get("errors"):
+                raw_fixtures = res["response"]
+                print(f"API-Football: Found {len(raw_fixtures)} fixtures in response. Processing...")
+                for item in raw_fixtures:
+                    f_info = item.get("fixture", {})
+                    t_info = item.get("teams", {})
+                    goals = item.get("goals", {})
+                    league_info = item.get("league", {})
+                    
+                    api_id = str(f_info.get("id"))
+                    date_utc_str = f_info.get("date")
+                    date_utc = datetime.fromisoformat(date_utc_str.replace('Z', '+00:00'))
+                    round_str = league_info.get("round", "")
+                    
+                    matchday_number = None
+                    if round_str and "Regular Season" in round_str:
+                        try:
+                            matchday_number = int(round_str.split("-")[-1].strip())
+                        except ValueError:
+                            pass
+                            
+                    h_api_id = t_info.get("home", {}).get("id")
+                    a_api_id = t_info.get("away", {}).get("id")
+                    
+                    home_team = db.query(Team).filter(Team.api_id == h_api_id).first() if h_api_id else None
+                    if not home_team and h_api_id:
+                        h_raw_name = t_info.get("home", {}).get("name", "")
+                        h_norm_name = normalizer.normalize(h_raw_name)
+                        home_team = db.query(Team).filter(Team.name == h_norm_name).first()
+                        if home_team:
+                            home_team.api_id = h_api_id
+                        else:
+                            home_team = Team(
+                                name=h_norm_name,
+                                team_type="Club" if competition_type != "International" else "National",
+                                api_id=h_api_id,
+                                elo=1500,
+                                form_score=50.0
+                            )
+                            db.add(home_team)
+                        db.flush()
+
+                    away_team = db.query(Team).filter(Team.api_id == a_api_id).first() if a_api_id else None
+                    if not away_team and a_api_id:
+                        a_raw_name = t_info.get("away", {}).get("name", "")
+                        a_norm_name = normalizer.normalize(a_raw_name)
+                        away_team = db.query(Team).filter(Team.name == a_norm_name).first()
+                        if away_team:
+                            away_team.api_id = a_api_id
+                        else:
+                            away_team = Team(
+                                name=a_norm_name,
+                                team_type="Club" if competition_type != "International" else "National",
+                                api_id=a_api_id,
+                                elo=1500,
+                                form_score=50.0
+                            )
+                            db.add(away_team)
+                        db.flush()
+
+                    stage = "Regular Season" if format_engine in ("league", "league_playoffs") else round_str
+                    status_short = f_info.get("status", {}).get("short", "")
+                    status = "Scheduled"
+                    if status_short in ("FT", "AET", "PEN"):
+                        status = "Finished"
+                    elif status_short in ("1H", "2H", "HT", "ET", "P", "LIVE"):
+                        status = "Live"
+
+                    normalized_fixtures.append({
+                        "api_id": api_id,
+                        "home_team": home_team,
+                        "away_team": away_team,
+                        "home_team_id": home_team.id if home_team else None,
+                        "away_team_id": away_team.id if away_team else None,
+                        "date_utc": date_utc,
+                        "stage": stage,
+                        "matchday_number": matchday_number,
+                        "status": status,
+                        "home_score": goals.get("home"),
+                        "away_score": goals.get("away"),
+                    })
+            elif isinstance(res, dict) and res.get("errors"):
+                print(f"API-Football Error: {res['errors']}")
+        except Exception as e:
+            print(f"API-Football failover error: {e}")
+
     fixtures_saved = []
     team_ids_in_fixtures = set()
-    
-    for item in fixtures_data:
-        f_info = item.get("fixture", {})
-        t_info = item.get("teams", {})
-        goals = item.get("goals", {})
-        league_info = item.get("league", {})
-        
-        api_id = str(f_info.get("id"))
-        date_utc_str = f_info.get("date")
-        date_utc = datetime.fromisoformat(date_utc_str.replace('Z', '+00:00'))
-        round_str = league_info.get("round", "")
-        
-        matchday_number = None
-        if round_str and "Regular Season" in round_str:
-            try:
-                matchday_number = int(round_str.split("-")[-1].strip())
-            except ValueError:
-                pass
-                
-        h_api_id = t_info.get("home", {}).get("id")
-        a_api_id = t_info.get("away", {}).get("id")
-        
-        home_team = db.query(Team).filter(Team.api_id == h_api_id).first() if h_api_id else None
-        if not home_team and h_api_id:
-            h_raw_name = t_info.get("home", {}).get("name", "")
-            h_norm_name = normalizer.normalize(h_raw_name)
-            home_team = db.query(Team).filter(Team.name == h_norm_name).first()
-            if home_team:
-                home_team.api_id = h_api_id
-            else:
-                home_team = Team(
-                    name=h_norm_name,
-                    team_type="Club" if competition_type != "International" else "National",
-                    api_id=h_api_id,
-                    elo=1500,
-                    form_score=50.0
-                )
-                db.add(home_team)
-            db.flush()
 
-        away_team = db.query(Team).filter(Team.api_id == a_api_id).first() if a_api_id else None
-        if not away_team and a_api_id:
-            a_raw_name = t_info.get("away", {}).get("name", "")
-            a_norm_name = normalizer.normalize(a_raw_name)
-            away_team = db.query(Team).filter(Team.name == a_norm_name).first()
-            if away_team:
-                away_team.api_id = a_api_id
-            else:
-                away_team = Team(
-                    name=a_norm_name,
-                    team_type="Club" if competition_type != "International" else "National",
-                    api_id=a_api_id,
-                    elo=1500,
-                    form_score=50.0
-                )
-                db.add(away_team)
-            db.flush()
-        
-        if home_team:
-            team_ids_in_fixtures.add(home_team.id)
-        if away_team:
-            team_ids_in_fixtures.add(away_team.id)
-            
-        stage = "Regular Season" if format_engine in ("league", "league_playoffs") else round_str
-        status_short = f_info.get("status", {}).get("short", "")
-        status = "Scheduled"
-        if status_short in ("FT", "AET", "PEN"):
-            status = "Finished"
-        elif status_short in ("1H", "2H", "HT", "ET", "P", "LIVE"):
-            status = "Live"
-            
-        home_score = goals.get("home")
-        away_score = goals.get("away")
-        
-        fixture = db.query(Fixture).filter(
-            Fixture.tournament_id == tourney.id,
-            Fixture.api_id == api_id
-        ).first()
-        
+    for m in normalized_fixtures:
+        api_id = m.get("api_id")
+        home_team = m.get("home_team")
+        away_team = m.get("away_team")
+        home_id = m.get("home_team_id")
+        away_id = m.get("away_team_id")
+        date_utc = m["date_utc"]
+        stage = m["stage"]
+        matchday_number = m.get("matchday_number")
+        status = m["status"]
+        home_score = m.get("home_score")
+        away_score = m.get("away_score")
+
+        if home_id:
+            team_ids_in_fixtures.add(home_id)
+        if away_id:
+            team_ids_in_fixtures.add(away_id)
+
+        fixture = None
+        if api_id:
+            fixture = db.query(Fixture).filter(
+                Fixture.tournament_id == tourney.id,
+                Fixture.api_id == api_id
+            ).first()
+
+        if not fixture and home_id and away_id:
+            window_start = date_utc - timedelta(hours=12)
+            window_end = date_utc + timedelta(hours=12)
+            fixture = db.query(Fixture).filter(
+                Fixture.tournament_id == tourney.id,
+                Fixture.home_team_id == home_id,
+                Fixture.away_team_id == away_id,
+                Fixture.date_utc >= window_start,
+                Fixture.date_utc <= window_end
+            ).first()
+
         if not fixture:
             fixture = Fixture(
                 tournament_id=tourney.id,
                 api_id=api_id,
-                home_team_id=home_team.id if home_team else None,
-                away_team_id=away_team.id if away_team else None,
-                home_team_placeholder=None if home_team else t_info.get("home", {}).get("name"),
-                away_team_placeholder=None if away_team else t_info.get("away", {}).get("name"),
+                home_team_id=home_id,
+                away_team_id=away_id,
                 date_utc=date_utc,
                 stage=stage,
                 matchday_number=matchday_number,
@@ -819,8 +863,10 @@ def seed_competition(
                 settle_result(fixture, home_score, away_score)
             db.add(fixture)
         else:
-            fixture.home_team_id = home_team.id if home_team else fixture.home_team_id
-            fixture.away_team_id = away_team.id if away_team else fixture.away_team_id
+            if api_id and not fixture.api_id:
+                fixture.api_id = api_id
+            fixture.home_team_id = home_id or fixture.home_team_id
+            fixture.away_team_id = away_id or fixture.away_team_id
             fixture.date_utc = date_utc
             fixture.stage = stage
             fixture.matchday_number = matchday_number
@@ -830,7 +876,7 @@ def seed_competition(
                 fixture.status = status
                 fixture.home_score = home_score
                 fixture.away_score = away_score
-            
+
         db.flush()
         fixtures_saved.append(fixture)
         
