@@ -12,6 +12,7 @@
  - team historical data
  - Odds movement
  - History in the Form box
+ - Reactivate Monte Carlo tournament simulation in backend/services/updater.py (currently disabled to keep admin cron fast)
  
 ## Prio 3
  - Match timeline

@@ -435,6 +435,7 @@ def seed_all_default_competitions(db: Session) -> dict:
 
             # Domestic Cups (Big 5)
             ("FA Cup", "Cup", "cup", 45, "2026/27", 2026, 0, 30),
+            ("EFL Cup", "Cup", "cup", 48, "2026/27", 2026, 0, 30),
             ("Coppa Italia", "Cup", "cup", 137, "2026/27", 2026, 0, 30),
             ("DFB Pokal", "Cup", "cup", 81, "2026/27", 2026, 0, 30),
             ("Coupe de France", "Cup", "cup", 66, "2026/27", 2026, 0, 30),

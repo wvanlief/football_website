@@ -93,15 +93,7 @@ def update_results_and_odds(db: Session) -> dict:
             pass
     db.commit()
 
-    simulation_status = "Simulation paused for Phase 3"
-    has_wc = any(t.competition.format_engine == "group_knockout" or "World Cup" in t.competition.name for t in tournaments)
-    if has_wc:
-        print("Triggering tournament Monte Carlo simulation for World Cup...")
-        try:
-            run_monte_carlo_simulation(db)
-            simulation_status = "Successfully updated and simulation completed."
-        except Exception as e:
-            simulation_status = f"Simulation failed with error: {str(e)}"
+    simulation_status = "Simulation temporarily disabled"
 
     return {
         "status": "success",
@@ -166,16 +158,7 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
                     pass
             db.commit()
 
-    simulation_status = "Simulation paused for Phase 3"
-    if fixtures_finished > 0:
-        has_wc = any(t.competition.format_engine == "group_knockout" or "World Cup" in t.competition.name for t in tournaments)
-        if has_wc:
-            print("A match has finished. Triggering tournament Monte Carlo simulation...")
-            try:
-                run_monte_carlo_simulation(db)
-                simulation_status = "Successfully updated and simulation completed."
-            except Exception as e:
-                simulation_status = f"Simulation failed with error: {str(e)}"
+    simulation_status = "Simulation temporarily disabled"
 
     return {
         "status": "success",

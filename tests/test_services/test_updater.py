@@ -241,7 +241,7 @@ def test_update_live_scores(mock_sim, mock_fetch, db_session):
     assert res["status"] == "success"
     assert res["fixtures_updated_live"] == 0
     assert res["fixtures_finished"] == 1
-    mock_sim.assert_called_once()
+    mock_sim.assert_not_called()
     
     db_session.refresh(f_live)
     assert f_live.status == "Finished"
