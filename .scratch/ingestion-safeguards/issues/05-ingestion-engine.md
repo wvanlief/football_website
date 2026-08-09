@@ -4,10 +4,10 @@
 
 **Blocked by:** 01 — Preflight Safety Guard, 03 — Shared Fixture Upserter, 04 — Provider Adapter Extraction
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Assemble `backend/services/ingestion/__init__.py`
-- [ ] Implement `seed(db, config)` with pre-flight check, provider fallback chain, and fixture upserter
-- [ ] Implement `sync(db, tournament)` for ongoing updates
-- [ ] Refactor `seeder.py` to delegate to `ingestion.seed()`
-- [ ] Verify existing seeder tests pass against the new deep engine
+- [x] Assemble `backend/services/ingestion/__init__.py`
+- [x] Implement `seed(db, config)` with pre-flight check, provider fallback chain, and fixture upserter
+- [x] Implement `sync(db, tournament)` for ongoing updates
+- [x] Refactor `seeder.py` to delegate to `ingestion.seed()`
+- [x] Verify existing seeder tests pass against the new deep engine

@@ -9,6 +9,8 @@ from backend.services.ingestion.preflight import (
     PreflightGuard,
 )
 from backend.services.ingestion.team_resolver import TeamResolver
+from backend.services.ingestion.fixture_upserter import FixtureUpserter, UpsertResult
+from backend.services.ingestion.engine import IngestionEngine, seed_competition
 
 __all__ = [
     "COUNTRY_ISO_MAP",
@@ -18,4 +20,8 @@ __all__ = [
     "IngestionAborted",
     "PreflightGuard",
     "TeamResolver",
+    "FixtureUpserter",
+    "UpsertResult",
+    "IngestionEngine",
+    "seed_competition",
 ]

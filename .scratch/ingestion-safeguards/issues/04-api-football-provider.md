@@ -4,9 +4,9 @@
 
 **Blocked by:** 02 — Unified Team Resolver & Mapping Engine
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Create `backend/services/providers/api_football.py`
-- [ ] Move `call_football_api` logic into provider module
-- [ ] Implement `fetch_fixtures()` returning normalized fixture payloads
-- [ ] Write unit tests for `ApiFootballProvider` API payload parsing
+- [x] Create `backend/services/providers/api_football.py`
+- [x] Move `call_football_api` logic into provider module
+- [x] Implement `fetch_fixtures()` returning normalized fixture payloads
+- [x] Write unit tests for `ApiFootballProvider` API payload parsing

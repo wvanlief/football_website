@@ -4,10 +4,10 @@
 
 **Blocked by:** 02 — Unified Team Resolver & Mapping Engine
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Implement `FixtureUpserter` class
-- [ ] Match existing fixtures by `api_id` or `(home_team_id, away_team_id)` within ±12h date window
-- [ ] Add date deduplication check for initial odds seeding and ELO history creation
-- [ ] Trigger `settle_result()` for finished fixtures
-- [ ] Write unit tests for fixture upserting and odds deduplication
+- [x] Implement `FixtureUpserter` class
+- [x] Match existing fixtures by `api_id` or `(home_team_id, away_team_id)` within ±12h date window
+- [x] Add date deduplication check for initial odds seeding and ELO history creation
+- [x] Trigger `settle_result()` for finished fixtures
+- [x] Write unit tests for fixture upserting and odds deduplication
