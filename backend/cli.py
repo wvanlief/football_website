@@ -1,5 +1,11 @@
+"""
+findfootball.games CLI Administration Entry Point.
+Command-line tools for database seeding, ELO review/matching, badge caching, and competition seeding.
+"""
 import sys
 import os
+import argparse
+import urllib.request
 from pathlib import Path
 
 # Add project root to sys.path if missing
@@ -7,97 +13,50 @@ project_root = str(Path(__file__).resolve().parent.parent)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-import argparse
-import urllib.request
 from sqlalchemy.orm import Session
 from backend.database import SessionLocal, Team
-from backend.services.ingestion import NameNormalizer, COUNTRY_ISO_MAP
+from backend.services.elo import review_elo_matches, apply_elo_matches
+from backend.services.seeder import seed_database, fetch_and_seed_teams
+from backend.services.ingestion import seed_competition
 
-
-# Re-exports for backward compatibility
-from backend.services.odds import (
-    calculate_default_odds,
-    update_odds_from_api
-)
-from backend.services.elo import (
-    fetch_current_elo_ratings,
-    fetch_clubelo_ratings,
-    fuzzy_match_team,
-    review_elo_matches,
-    apply_elo_matches
-)
-from backend.services.seeder import (
-    call_football_api,
-    get_fallback_matches,
-    seed_database,
-    fetch_and_seed_teams,
-    seed_competition,
-    GROUPS,
-    SPOTLIGHT_PLAYERS,
-    ELO_RATINGS
-)
-
-NATIONAL_TEAM_ISO_CODES = COUNTRY_ISO_MAP
-
-def normalize_team_name(name: str) -> str:
-    """Standardizes team name by stripping whitespace and mapping known alias variants."""
-    return NameNormalizer().normalize(name)
 
 def download_and_cache_badges(db: Session):
     """
     Downloads and caches team badge PNGs locally in backend/static/badges/{api_id}.png
     and updates team.logo_url in the database.
     """
-    os.makedirs(os.path.join("backend", "static", "badges"), exist_ok=True)
-    teams = db.query(Team).all()
-    print(f"Caching badges for {len(teams)} teams...")
+    teams = db.query(Team).filter(Team.api_id.isnot(None)).all()
+    static_badges_dir = Path("backend/static/badges")
+    static_badges_dir.mkdir(parents=True, exist_ok=True)
     
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     updated_count = 0
-    
     for team in teams:
-        if team.api_id:
-            local_path = os.path.join("backend", "static", "badges", f"{team.api_id}.png")
-            url_path = f"/static/badges/{team.api_id}.png"
+        if not team.api_id:
+            continue
             
-            if not os.path.exists(local_path):
-                img_url = f"https://media.api-sports.io/football/teams/{team.api_id}.png"
-                try:
-                    import ssl
-                    ssl_ctx = ssl._create_unverified_context()
-                    req = urllib.request.Request(img_url, headers=headers)
-                    with urllib.request.urlopen(req, context=ssl_ctx, timeout=10) as resp:
-                        if resp.status == 200:
-                            with open(local_path, "wb") as f:
-                                f.write(resp.read())
-                            print(f"Downloaded badge for {team.name} ({team.api_id})")
-                except Exception as e:
-                    print(f"Could not download badge for {team.name}: {e}")
-            
-            if os.path.exists(local_path):
-                if team.logo_url != url_path:
-                    team.logo_url = url_path
-                    updated_count += 1
-        elif team.team_type == "National" and team.country_code:
-            code = team.country_code.lower()
-            if code == "eng": code = "gb-eng"
-            elif code == "sco": code = "gb-sct"
-            elif code == "wal": code = "gb-wls"
-            elif code == "nir": code = "gb-nir"
-            team.logo_url = f"https://flagcdn.com/w80/{code}.png"
+        badge_path = static_badges_dir / f"{team.api_id}.png"
+        local_url = f"/static/badges/{team.api_id}.png"
+        
+        if not badge_path.exists():
+            remote_url = f"https://media.api-sports.io/football/teams/{team.api_id}.png"
+            try:
+                print(f"Downloading badge for {team.name} ({team.api_id})...")
+                req = urllib.request.Request(remote_url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req) as resp, open(badge_path, "wb") as f:
+                    f.write(resp.read())
+            except Exception as e:
+                print(f"Failed to download badge for {team.name}: {e}")
+                continue
+                
+        if team.logo_url != local_url:
+            team.logo_url = local_url
             updated_count += 1
-        else:
-            team.logo_url = "/static/badges/default.png"
             
     db.commit()
-    print(f"Successfully updated logo_url for {updated_count} teams.")
+    print(f"Badge caching complete. Updated logo_url for {updated_count} teams.")
 
 
-
-if __name__ == "__main__":
-    import argparse
-    from backend.database import SessionLocal
-    
+def main():
     parser = argparse.ArgumentParser(description="findfootball.games Database Ingestion and Seeding CLI")
 
     parser.add_argument("command", nargs="?", default="seed-wc", 
@@ -150,3 +109,6 @@ if __name__ == "__main__":
     finally:
         db.close()
 
+
+if __name__ == "__main__":
+    main()

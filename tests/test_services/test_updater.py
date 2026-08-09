@@ -79,10 +79,10 @@ def test_update_results_and_odds(db_session):
         }
     ]
     
-    with patch("backend.services.updater.fetch_json") as mock_fetch, \
+    with patch("backend.services.format_adapters.fetch_json") as mock_fetch, \
          patch("backend.services.updater.update_odds_from_api") as mock_odds_api, \
          patch("backend.services.updater.run_monte_carlo_simulation") as mock_sim, \
-         patch("backend.ingestor.fetch_current_elo_ratings") as mock_fetch_elo:
+         patch("backend.services.elo.fetch_current_elo_ratings") as mock_fetch_elo:
          
         mock_fetch_elo.return_value = {
             "Spain": 2018,
@@ -137,7 +137,7 @@ def test_update_results_and_odds(db_session):
     assert any(h.elo_rating == 2018 for h in history_spain_all)
     assert any(h.elo_rating == 1882 for h in history_germany_all)
 
-@patch("backend.services.updater.fetch_json")
+@patch("backend.services.format_adapters.fetch_json")
 @patch("backend.services.updater.run_monte_carlo_simulation")
 def test_update_live_scores(mock_sim, mock_fetch, db_session):
     from backend.services.updater import update_live_scores
@@ -248,10 +248,9 @@ def test_update_live_scores(mock_sim, mock_fetch, db_session):
     assert f_live.winner_id == t1.id
 
 
-@patch("backend.services.updater.fetch_json")
-@patch("backend.services.updater.fetch_json_with_retry")
+@patch("backend.services.format_adapters.fetch_json")
 @patch("backend.services.updater.run_monte_carlo_simulation")
-def test_update_live_scores_fallback(mock_sim, mock_fetch_retry, mock_fetch, db_session):
+def test_update_live_scores_fallback(mock_sim, mock_fetch, db_session):
     from backend.services.updater import update_live_scores
     from backend.database import Competition, Tournament, Team, Fixture
     from datetime import timedelta
@@ -288,9 +287,6 @@ def test_update_live_scores_fallback(mock_sim, mock_fetch_retry, mock_fetch, db_
     db_session.add(f_live)
     db_session.commit()
 
-    # Make the primary API fetch fail
-    mock_fetch.side_effect = Exception("Primary API Crash")
-
     # Mock the fallback API response
     mock_fallback_response = {
         "response": [
@@ -316,7 +312,13 @@ def test_update_live_scores_fallback(mock_sim, mock_fetch_retry, mock_fetch, db_
             }
         ]
     }
-    mock_fetch_retry.return_value = mock_fallback_response
+
+    def fetch_side_effect(url, *args, **kwargs):
+        if "football-data.org" in url:
+            raise Exception("Primary API Crash")
+        return mock_fallback_response
+
+    mock_fetch.side_effect = fetch_side_effect
 
     # Run the live scores update with force=True
     res = update_live_scores(db_session, force=True)
@@ -333,10 +335,10 @@ def test_update_live_scores_fallback(mock_sim, mock_fetch_retry, mock_fetch, db_
     assert f_live.away_score == 2
 
 
-@patch("backend.services.updater.fetch_json")
+@patch("backend.services.format_adapters.fetch_json")
 @patch("backend.services.updater.update_odds_from_api")
 @patch("backend.services.updater.run_monte_carlo_simulation")
-@patch("backend.ingestor.fetch_current_elo_ratings")
+@patch("backend.services.elo.fetch_current_elo_ratings")
 def test_newly_created_finished_fixture_updates_team_stats(mock_fetch_elo, mock_sim, mock_odds_api, mock_fetch, db_session):
     # Setup base competition and tournament
     comp = Competition(name="FIFA World Cup Test", type="International")
@@ -414,10 +416,10 @@ def test_newly_created_finished_fixture_updates_team_stats(mock_fetch_elo, mock_
     assert t2.elo == 1889
 
 
-@patch("backend.services.updater.fetch_json")
+@patch("backend.services.format_adapters.fetch_json")
 @patch("backend.services.updater.update_odds_from_api")
 @patch("backend.services.updater.run_monte_carlo_simulation")
-@patch("backend.ingestor.fetch_current_elo_ratings")
+@patch("backend.services.elo.fetch_current_elo_ratings")
 def test_update_placeholder_fixtures_resolution(mock_fetch_elo, mock_sim, mock_odds_api, mock_fetch, db_session):
     # Setup base competition and tournament
     comp = Competition(name="FIFA World Cup Placeholder Test", type="International")
@@ -524,7 +526,7 @@ def test_update_placeholder_fixtures_resolution(mock_fetch_elo, mock_sim, mock_o
     assert fixture.away_team_placeholder is None
 
 
-@patch("backend.services.updater.fetch_json_with_retry")
+@patch("backend.services.format_adapters.fetch_json")
 @patch("backend.services.updater.update_odds_from_api")
 def test_update_live_scores_league(mock_odds_api, mock_fetch_retry, db_session):
     from backend.services.updater import update_live_scores
@@ -592,8 +594,8 @@ def test_update_live_scores_league(mock_odds_api, mock_fetch_retry, db_session):
     assert f_live.winner_id == t1.id
 
 
-@patch("backend.services.updater.call_football_api")
-@patch("backend.services.updater.fetch_clubelo_ratings")
+@patch("backend.services.providers.api_football.call_football_api")
+@patch("backend.services.elo.fetch_clubelo_ratings")
 @patch("backend.services.updater.update_odds_from_api")
 def test_update_results_and_odds_league(mock_odds_api, mock_fetch_clubelo, mock_call_api, db_session):
     from backend.services.updater import update_results_and_odds
@@ -671,7 +673,7 @@ def test_update_results_and_odds_league(mock_odds_api, mock_fetch_clubelo, mock_
 
 
 def test_calculate_default_odds_custom_advantage():
-    from backend.ingestor import calculate_default_odds
+    from backend.services.odds import calculate_default_odds
     
     # 1. Neutral venue (no home advantage applied)
     h_odds_neutral, _, a_odds_neutral = calculate_default_odds(1600, 1600, neutral_venue=True)

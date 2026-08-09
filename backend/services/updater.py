@@ -23,7 +23,8 @@ from backend.services.format_adapters import (
 )
 
 from backend.services.elo import fetch_current_elo_ratings, fetch_clubelo_ratings
-from backend.services.seeder import call_football_api
+from backend.services.providers.api_football import call_football_api
+from backend.services.ingestion import TeamResolver, FixtureUpserter
 from backend.utils import fetch_json_with_retry, fetch_url_with_retry
 
 def fetch_json(url: str, use_cache: bool = True) -> list:
@@ -49,11 +50,21 @@ def update_results_and_odds(db: Session) -> dict:
     fixtures_created = 0
     fixtures_updated_results = 0
 
+    team_resolver = TeamResolver()
+    fixture_upserter = FixtureUpserter(team_resolver=team_resolver)
+
     for tourney in tournaments:
         comp = tourney.competition
+        if not comp:
+            continue
         print(f"Updating tournament: {comp.name} ({tourney.season_name})")
         try:
-            adapter = get_format_adapter(comp.format_engine, comp.name)
+            adapter = get_format_adapter(
+                comp.format_engine,
+                comp.name,
+                team_resolver=team_resolver,
+                fixture_upserter=fixture_upserter
+            )
             created, updated = adapter.sync_results(db, tourney)
             fixtures_created += created
             fixtures_updated_results += updated
@@ -133,9 +144,17 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
     fixtures_updated = 0
     fixtures_finished = 0
     
+    team_resolver = TeamResolver()
+    fixture_upserter = FixtureUpserter(team_resolver=team_resolver)
+    
     for tourney in tournaments:
         comp = tourney.competition
-        adapter = get_format_adapter(comp.format_engine, comp.name)
+        adapter = get_format_adapter(
+            comp.format_engine,
+            comp.name,
+            team_resolver=team_resolver,
+            fixture_upserter=fixture_upserter
+        )
         updated, finished = adapter.sync_live_scores(db, tourney)
         fixtures_updated += updated
         fixtures_finished += finished

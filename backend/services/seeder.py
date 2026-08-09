@@ -389,12 +389,6 @@ def seed_database(db: Session):
     recalculate_standings(db, tourney.id)
     db.commit()
 
-    try:
-        from backend.seed_phase8 import seed_phase8_data
-        seed_phase8_data()
-    except Exception as e:
-        print(f"Phase 8 seeding warning: {e}")
-
     print("Database seeding and simulation completed.")
 
 def seed_all_default_competitions(db: Session) -> dict:
@@ -408,14 +402,6 @@ def seed_all_default_competitions(db: Session) -> dict:
         results["FIFA World Cup"] = "Seeded successfully"
     except Exception as e:
         results["FIFA World Cup"] = f"Error: {e}"
-        
-    # 2. Copa del Rey & UEFA Nations League
-    try:
-        from backend.seed_phase8 import seed_phase8_data
-        seed_phase8_data()
-        results["Phase 8 (Copa del Rey & Nations League)"] = "Seeded successfully"
-    except Exception as e:
-        results["Phase 8"] = f"Error: {e}"
         
     # 3. API-Football Competitions (Big 5 Leagues, European Cups, Domestic Cups)
     api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")

@@ -4,9 +4,10 @@
 
 **Blocked by:** 05 — Deep Ingestion Engine (`seed()` & `sync()` Orchestration)
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Update `BaseFormatAdapter` to accept dependencies
-- [ ] Refactor `GroupKnockoutAdapter` and `LeagueFormatAdapter` to use injected upserter/resolver
-- [ ] Update `get_format_adapter()` factory and `updater.py` caller
-- [ ] Verify circular imports are eliminated and updater tests pass
+- [x] Refactor `BaseFormatAdapter` to accept optional `team_resolver` and `fixture_upserter`
+- [x] Refactor `GroupKnockoutAdapter` and `LeagueFormatAdapter` to use injected upserter and resolver
+- [x] Update `get_format_adapter()` factory and callers in `updater.py` to pass dependencies
+- [x] Eliminate circular `import backend.services.updater as updater_module` imports
+- [x] Verify existing updater tests pass against the refactored adapters

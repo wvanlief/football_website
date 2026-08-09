@@ -4,10 +4,10 @@
 
 **Blocked by:** 06 — Format Adapter Refactoring & Dependency Injection
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Remove `backend/ingestor.py`
-- [ ] Remove `backend/seed_phase8.py`
-- [ ] Create `backend/cli.py` for administrative CLI scripts
-- [ ] Update imports in `main.py`, `api_admin.py`, and test files
-- [ ] Run complete test suite (`pytest tests/`) to ensure green build
+- [x] Remove `backend/ingestor.py`
+- [x] Remove `backend/seed_phase8.py`
+- [x] Create `backend/cli.py` for administrative CLI scripts
+- [x] Update imports in `main.py`, `api_admin.py`, and test files
+- [x] Run complete test suite (`pytest tests/`) to ensure green build

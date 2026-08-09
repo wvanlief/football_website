@@ -75,8 +75,10 @@ class FixtureUpserter:
             )
 
         # Register TournamentTeam relationships
+        added_teams = set()
         for t in (home_team, away_team):
-            if t and tournament:
+            if t and tournament and t.id not in added_teams:
+                added_teams.add(t.id)
                 tt = db.query(TournamentTeam).filter(
                     TournamentTeam.tournament_id == tournament.id,
                     TournamentTeam.team_id == t.id
@@ -121,8 +123,8 @@ class FixtureUpserter:
                 tournament_id=tournament.id if tournament else None,
                 home_team_id=home_team.id if home_team else None,
                 away_team_id=away_team.id if away_team else None,
-                home_team_placeholder=fixture_payload.get("home_team_placeholder") if not home_team else None,
-                away_team_placeholder=fixture_payload.get("away_team_placeholder") if not away_team else None,
+                home_team_placeholder=fixture_payload.get("home_team_placeholder") or (fixture_payload.get("home_team_name") if not home_team else None),
+                away_team_placeholder=fixture_payload.get("away_team_placeholder") or (fixture_payload.get("away_team_name") if not away_team else None),
                 api_id=api_id,
                 date_utc=date_utc,
                 stage=stage,

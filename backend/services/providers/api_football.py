@@ -60,11 +60,7 @@ class ApiFootballProvider:
         return headers
 
     def call_api(self, endpoint: str, params: Optional[dict] = None) -> dict:
-        query = ""
-        if params:
-            query = "?" + "&".join(f"{k}={v}" for k, v in params.items())
-        url = f"https://v3.football.api-sports.io/{endpoint}{query}"
-        return fetch_json_with_retry(url, headers=self.get_headers())
+        return call_football_api(endpoint, params)
 
     def fetch_fixtures(self, league_id: int, season: int) -> List[dict]:
         """Fetches raw fixtures for a league and season from API-Football."""

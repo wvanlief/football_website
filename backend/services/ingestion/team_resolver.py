@@ -5,6 +5,17 @@ from backend.crud.mapping import get_team_by_external_id, link_team_external_id
 from backend.services.ingestion.normalizer import NameNormalizer
 
 
+def is_placeholder(name: str) -> bool:
+    if not name:
+        return True
+    n_lower = name.lower().strip()
+    if n_lower in ("0", "tbd", "placeholder", "unknown", "null", "none"):
+        return True
+    if n_lower.startswith("winner") or n_lower.startswith("runner") or n_lower.startswith("loser"):
+        return True
+    return False
+
+
 class TeamResolver:
     """
     Unified team resolution service following ADR-0002.
@@ -27,19 +38,13 @@ class TeamResolver:
     ) -> Optional[Team]:
         """
         Resolves a raw API team payload to an internal database Team entity.
-
-        Precedence order:
-        1. Query ExternalTeamMapping by (provider_name, external_id).
-        2. Query Team by normalized name. If match found and external_id provided, create ExternalTeamMapping link.
-        3. Query Team by raw name. If match found and external_id provided, create ExternalTeamMapping link.
-        4. If api_id is passed, query Team by api_id. If match found, link external_id.
-        5. Create new Team entity, set attributes, flush, link ExternalTeamMapping, and return team.
+        Returns None for placeholder team strings.
         """
-        if not raw_name and external_id is None:
+        if not raw_name or is_placeholder(raw_name):
             return None
 
         # 1. Check ExternalTeamMapping
-        if provider_name and external_id is not None:
+        if provider_name and external_id is not None and str(external_id) != "0":
             mapped_team = get_team_by_external_id(db, provider_name=provider_name, external_id=external_id)
             if mapped_team:
                 return mapped_team

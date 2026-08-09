@@ -1,17 +1,18 @@
 import os
 import json
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from backend.database import Team, Fixture, Tournament, Competition, FixtureOdds, EloHistory
 from backend.utils import fetch_json_with_retry
-from backend.services.ingestion import NameNormalizer
+from backend.services.ingestion import NameNormalizer, TeamResolver, FixtureUpserter
 from backend.services.odds import calculate_default_odds
 from backend.services.settling import settle_result
 from backend.services.elo import fetch_clubelo_ratings
-from backend.services.seeder import call_football_api
+from backend.services.providers.api_football import call_football_api
 from backend.scoring import update_fixture_score
 
 
@@ -84,13 +85,12 @@ def fetch_json(url: str, use_cache: bool = True) -> list:
     return fetch_json_with_retry(url, use_cache=use_cache)
 
 def fetch_games_with_fallback(use_cache: bool = True) -> tuple[list, bool]:
-    import backend.services.updater as updater_module
     is_testing = os.getenv("TESTING") == "True"
     api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
     
     if is_testing or not api_key:
         try:
-            res = updater_module.fetch_json("https://api.football-data.org/v4/games", use_cache=use_cache)
+            res = fetch_json("https://api.football-data.org/v4/games", use_cache=use_cache)
             if res:
                 games = res.get("games") if isinstance(res, dict) else res
                 if games and len(games) > 0:
@@ -108,7 +108,7 @@ def fetch_games_with_fallback(use_cache: bool = True) -> tuple[list, bool]:
     }
     try:
         print("Attempting to fetch games from API-Sports (World Cup 2026)...")
-        res = updater_module.fetch_json_with_retry(fallback_url, headers=headers, use_cache=use_cache)
+        res = fetch_json(fallback_url, use_cache=use_cache)
 
 
         if isinstance(res, dict) and "response" in res:
@@ -163,6 +163,14 @@ def fetch_games_with_fallback(use_cache: bool = True) -> tuple[list, bool]:
 
 class BaseFormatAdapter:
     """Abstract base adapter for format-specific result and live score updates."""
+    def __init__(
+        self,
+        team_resolver: Optional[TeamResolver] = None,
+        fixture_upserter: Optional[FixtureUpserter] = None
+    ):
+        self.team_resolver = team_resolver or TeamResolver()
+        self.upserter = fixture_upserter or FixtureUpserter(team_resolver=self.team_resolver)
+
     def sync_results(self, db: Session, tourney: Tournament) -> tuple[int, int]:
         """Syncs results for a tournament. Returns (fixtures_created, fixtures_updated)."""
         raise NotImplementedError
@@ -177,13 +185,10 @@ class GroupKnockoutAdapter(BaseFormatAdapter):
         comp = tourney.competition
         normalizer = NameNormalizer()
         now_time = datetime.now(timezone.utc)
-        fixtures_created = 0
-        fixtures_updated_results = 0
 
         fetched_matches = []
-        is_fallback = False
         try:
-            fetched_matches, is_fallback = fetch_games_with_fallback()
+            fetched_matches, _ = fetch_games_with_fallback()
         except Exception as e:
             print(f"Error during matches fetch: {e}")
             
@@ -193,119 +198,46 @@ class GroupKnockoutAdapter(BaseFormatAdapter):
 
         fetched_teams = []
         try:
-            import backend.services.updater as updater_module
-            res_teams = updater_module.fetch_json("https://api.football-data.org/v4/teams")
+            res_teams = fetch_json("https://api.football-data.org/v4/teams")
             fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else (res_teams if isinstance(res_teams, list) else [])
         except Exception:
             pass
 
+        external_team_map = {t["id"]: normalizer.normalize(t.get("name_en", "")) for t in fetched_teams if isinstance(t, dict) and "id" in t} if fetched_teams else {}
 
-
-        external_team_map = {t["id"]: normalizer.normalize(t.get("name_en", "")) for t in fetched_teams} if fetched_teams else {}
-        db_teams = db.query(Team).filter(Team.team_type == "National").all()
-        db_teams_by_name = {team.name: team for team in db_teams}
-
-        resolved_fixtures = set()
+        payloads = []
         for m in fetched_matches:
-            h_name = external_team_map.get(m.get("home_team_id")) if external_team_map else None
-            if not h_name:
-                h_name = normalizer.normalize(m.get("home_team_name_en") or m.get("home_team_label") or "")
-                
-            a_name = external_team_map.get(m.get("away_team_id")) if external_team_map else None
-            if not a_name:
-                a_name = normalizer.normalize(m.get("away_team_name_en") or m.get("away_team_label") or "")
-            
-            home_team = db_teams_by_name.get(h_name)
-            away_team = db_teams_by_name.get(a_name)
-            
+            h_raw = external_team_map.get(m.get("home_team_id")) if (external_team_map and m.get("home_team_id") in external_team_map) else (m.get("home_team_name_en") or m.get("home_team_label") or "")
+            a_raw = external_team_map.get(m.get("away_team_id")) if (external_team_map and m.get("away_team_id") in external_team_map) else (m.get("away_team_name_en") or m.get("away_team_label") or "")
             stage = STAGE_MAPPING.get(m.get("type"), "Group Stage")
             dt_utc = parse_match_date(m.get("local_date"), m.get("stadium_id"))
-            api_match_id = str(m.get("id"))
-            
-            fixture = db.query(Fixture).filter(
-                Fixture.tournament_id == tourney.id,
-                Fixture.api_id == api_match_id
-            ).first()
-            
-            if not fixture and home_team and away_team:
-                fixture = db.query(Fixture).filter(
-                    Fixture.tournament_id == tourney.id,
-                    Fixture.stage == stage,
-                    or_(
-                        (Fixture.home_team_id == home_team.id) & (Fixture.away_team_id == away_team.id),
-                        (Fixture.home_team_id == away_team.id) & (Fixture.away_team_id == home_team.id)
-                    )
-                ).first()
-                
-            is_finished_in_feed = m.get("finished") == "TRUE"
-            feed_home_score = int(m["home_score"]) if is_finished_in_feed and m.get("home_score") not in (None, 'null') else None
-            feed_away_score = int(m["away_score"]) if is_finished_in_feed and m.get("away_score") not in (None, 'null') else None
-            
-            if not fixture:
-                h_elo = home_team.elo if home_team else 1700
-                a_elo = away_team.elo if away_team else 1700
-                odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo, neutral_venue=comp.neutral_venue, home_advantage=comp.home_advantage_elo or 100)
+            api_match_id = str(m.get("id")) if m.get("id") is not None else None
 
-                fixture = Fixture(
-                    tournament_id=tourney.id,
-                    home_team_id=home_team.id if home_team else None,
-                    away_team_id=away_team.id if away_team else None,
-                    home_team_placeholder=h_name if not home_team else None,
-                    away_team_placeholder=a_name if not away_team else None,
-                    api_id=api_match_id,
-                    date_utc=dt_utc,
-                    stage=stage,
-                    status="Scheduled",
-                    home_score=None,
-                    away_score=None,
-                    winner_id=None
-                )
-                db.add(fixture)
-                db.flush()
-                
-                init_odds = FixtureOdds(
-                    fixture_id=fixture.id,
-                    recorded_at=dt_utc - timedelta(days=2),
-                    odds_home=odds_h,
-                    odds_draw=odds_d,
-                    odds_away=odds_a
-                )
-                db.add(init_odds)
-                fixtures_created += 1
-                
-            if home_team and fixture.home_team_id is None:
-                fixture.home_team_id = home_team.id
-                fixture.home_team_placeholder = None
-                resolved_fixtures.add(fixture)
-            if away_team and fixture.away_team_id is None:
-                fixture.away_team_id = away_team.id
-                fixture.away_team_placeholder = None
-                resolved_fixtures.add(fixture)
-                
-            if fixture.status != "Finished" and is_finished_in_feed:
-                settle_result(fixture, feed_home_score, feed_away_score)
-                fixtures_updated_results += 1
-                
-        if resolved_fixtures:
-            for fixture in resolved_fixtures:
-                h_elo = fixture.home_team.elo if fixture.home_team else 1700
-                a_elo = fixture.away_team.elo if fixture.away_team else 1700
-                odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo, neutral_venue=comp.neutral_venue, home_advantage=comp.home_advantage_elo or 100)
+            is_finished = m.get("finished") == "TRUE"
+            feed_home_score = int(m["home_score"]) if is_finished and m.get("home_score") not in (None, 'null') else None
+            feed_away_score = int(m["away_score"]) if is_finished and m.get("away_score") not in (None, 'null') else None
 
-                db_odds = FixtureOdds(
-                    fixture_id=fixture.id,
-                    recorded_at=now_time,
-                    odds_home=odds_h,
-                    odds_draw=odds_d,
-                    odds_away=odds_a
-                )
-                db.add(db_odds)
-        
+            p = {
+                "provider_name": "api_football",
+                "api_id": api_match_id,
+                "home_team_name": h_raw,
+                "home_team_external_id": m.get("home_team_id"),
+                "away_team_name": a_raw,
+                "away_team_external_id": m.get("away_team_id"),
+                "date_utc": dt_utc,
+                "stage": stage,
+                "status": "Finished" if is_finished else "Scheduled",
+                "home_score": feed_home_score,
+                "away_score": feed_away_score,
+            }
+            payloads.append(p)
+
+        res = self.upserter.upsert_fixtures(db, tourney, payloads, competition=comp)
+
         try:
-            print("Syncing Elo ratings from eloratings.net...")
-            import backend.ingestor as ingestor_module
-            live_elo = ingestor_module.fetch_current_elo_ratings()
-
+            from backend.services.elo import fetch_current_elo_ratings
+            live_elo = fetch_current_elo_ratings()
+            db_teams = db.query(Team).filter(Team.team_type == "National").all()
             teams_updated = 0
             for team in db_teams:
                 fetched_elo = live_elo.get(team.name)
@@ -318,7 +250,7 @@ class GroupKnockoutAdapter(BaseFormatAdapter):
         except Exception as e:
             print(f"Warning: Failed to sync Elo ratings: {e}")
 
-        return fixtures_created, fixtures_updated_results
+        return res.created, res.updated
 
     def sync_live_scores(self, db: Session, tourney: Tournament) -> tuple[int, int]:
         normalizer = NameNormalizer()
@@ -338,8 +270,7 @@ class GroupKnockoutAdapter(BaseFormatAdapter):
 
         external_team_map = {}
         try:
-            import backend.services.updater as updater_module
-            res_teams = updater_module.fetch_json("https://api.football-data.org/v4/teams")
+            res_teams = fetch_json("https://api.football-data.org/v4/teams")
             fetched_teams = res_teams.get("teams") if isinstance(res_teams, dict) else (res_teams if isinstance(res_teams, list) else [])
             if fetched_teams:
                 external_team_map = {t["id"]: normalizer.normalize(t.get("name_en", "")) for t in fetched_teams if isinstance(t, dict) and "id" in t}
@@ -407,12 +338,8 @@ class LeagueFormatAdapter(BaseFormatAdapter):
     def sync_results(self, db: Session, tourney: Tournament) -> tuple[int, int]:
         comp = tourney.competition
         now_time = datetime.now(timezone.utc)
-        fixtures_created = 0
-        fixtures_updated_results = 0
 
-        league_id = comp.api_league_id
-        if not league_id:
-            league_id = LEAGUE_MAPPING.get(comp.name, 39)
+        league_id = comp.api_league_id or LEAGUE_MAPPING.get(comp.name, 39)
 
         try:
             api_season = int(tourney.season_name.split("/")[0])
@@ -420,146 +347,22 @@ class LeagueFormatAdapter(BaseFormatAdapter):
             api_season = 2026
             
         print(f"Fetching fixtures from API-Football for league={league_id}, season={api_season}...")
-        try:
-            import backend.services.updater as updater_module
-            res = updater_module.call_football_api("fixtures", {"league": league_id, "season": api_season})
-        except Exception as e:
-            print(f"Error calling football API for league fixtures: {e}")
+        from backend.services.providers.api_football import ApiFootballProvider
+        af_provider = ApiFootballProvider()
+        raw_fixtures = af_provider.fetch_fixtures(league_id, api_season)
+            
+        if not raw_fixtures:
             return 0, 0
 
-
-            
-        if not isinstance(res, dict) or "response" not in res:
-            print(f"Invalid API response for league fixtures: {res}")
-            return 0, 0
-            
-        fixtures_data = res["response"]
-        print(f"Syncing {len(fixtures_data)} league fixtures...")
-
-        for item in fixtures_data:
-            f_info = item.get("fixture", {})
-            t_info = item.get("teams", {})
-            goals = item.get("goals", {})
-            league_info = item.get("league", {})
-            
-            api_id = str(f_info.get("id"))
-            date_utc_str = f_info.get("date")
-            date_utc = datetime.fromisoformat(date_utc_str.replace('Z', '+00:00'))
-            round_str = league_info.get("round", "")
-            
-            matchday_number = None
-            if round_str and "Regular Season" in round_str:
-                try:
-                    matchday_number = int(round_str.split("-")[-1].strip())
-                except ValueError:
-                    pass
-                    
-            h_api_id = t_info.get("home", {}).get("id")
-            a_api_id = t_info.get("away", {}).get("id")
-            
-            home_team = db.query(Team).filter(Team.api_id == h_api_id).first() if h_api_id else None
-            if not home_team and h_api_id:
-                h_raw_name = t_info.get("home", {}).get("name", "")
-                h_norm_name = normalizer.normalize(h_raw_name)
-                home_team = db.query(Team).filter(Team.name == h_norm_name).first()
-                if home_team:
-                    home_team.api_id = h_api_id
-                else:
-                    home_team = Team(
-                        name=h_norm_name,
-                        team_type="Club" if comp.type != "International" else "National",
-                        api_id=h_api_id,
-                        elo=1500,
-                        form_score=50.0
-                    )
-                    db.add(home_team)
-                db.flush()
-
-            away_team = db.query(Team).filter(Team.api_id == a_api_id).first() if a_api_id else None
-            if not away_team and a_api_id:
-                a_raw_name = t_info.get("away", {}).get("name", "")
-                a_norm_name = normalizer.normalize(a_raw_name)
-                away_team = db.query(Team).filter(Team.name == a_norm_name).first()
-                if away_team:
-                    away_team.api_id = a_api_id
-                else:
-                    away_team = Team(
-                        name=a_norm_name,
-                        team_type="Club" if comp.type != "International" else "National",
-                        api_id=a_api_id,
-                        elo=1500,
-                        form_score=50.0
-                    )
-                    db.add(away_team)
-                db.flush()
-            
-            stage = "Regular Season"
-            status_short = f_info.get("status", {}).get("short", "")
-            status = "Scheduled"
-            if status_short in ("FT", "AET", "PEN"):
-                status = "Finished"
-            elif status_short in ("1H", "2H", "HT", "ET", "P", "LIVE"):
-                status = "Live"
-                
-            feed_home_score = goals.get("home")
-            feed_away_score = goals.get("away")
-            
-            fixture = db.query(Fixture).filter(
-                Fixture.tournament_id == tourney.id,
-                Fixture.api_id == api_id
-            ).first()
-            
-            if not fixture:
-                h_elo = home_team.elo if home_team else 1700
-                a_elo = away_team.elo if away_team else 1700
-                odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo, neutral_venue=comp.neutral_venue, home_advantage=comp.home_advantage_elo or 100)
-
-                fixture = Fixture(
-                    tournament_id=tourney.id,
-                    home_team_id=home_team.id if home_team else None,
-                    away_team_id=away_team.id if away_team else None,
-                    api_id=api_id,
-                    date_utc=date_utc,
-                    stage=stage,
-                    matchday_number=matchday_number,
-                    status=status,
-                    home_score=feed_home_score,
-                    away_score=feed_away_score,
-                    winner_id=None
-                )
-                db.add(fixture)
-                db.flush()
-                
-                init_odds = FixtureOdds(
-                    fixture_id=fixture.id,
-                    recorded_at=date_utc - timedelta(days=2),
-                    odds_home=odds_h,
-                    odds_draw=odds_d,
-                    odds_away=odds_a
-                )
-                db.add(init_odds)
-                fixtures_created += 1
-            else:
-                fixture.date_utc = date_utc
-                fixture.matchday_number = matchday_number
-                
-            if fixture.status != "Finished" and status == "Finished":
-                settle_result(fixture, feed_home_score, feed_away_score)
-                fixtures_updated_results += 1
-            elif fixture.status != "Finished":
-                fixture.status = status
-                fixture.home_score = feed_home_score
-                fixture.away_score = feed_away_score
+        payloads = [af_provider.normalize_fixture_payload(item) for item in raw_fixtures]
+        res = self.upserter.upsert_fixtures(db, tourney, payloads, competition=comp)
 
         try:
             last_club_sync = db.query(EloHistory).join(Team).filter(Team.elo_source == "clubelo").order_by(EloHistory.recorded_at.desc()).first()
             if not last_club_sync or last_club_sync.recorded_at.date() < now_time.date():
                 print("Syncing Elo ratings from ClubElo...")
-                import backend.services.updater as updater_module
-                club_ratings = updater_module.fetch_clubelo_ratings()
+                club_ratings = fetch_clubelo_ratings()
                 if club_ratings:
-
-
                     review_path = "backend/data/elo_name_review.json"
                     if os.path.exists(review_path):
                         with open(review_path, "r", encoding="utf-8") as f:
@@ -582,7 +385,7 @@ class LeagueFormatAdapter(BaseFormatAdapter):
         except Exception as e:
             print(f"Warning: Failed to sync ClubElo ratings: {e}")
 
-        return fixtures_created, fixtures_updated_results
+        return res.created, res.updated
 
     def sync_live_scores(self, db: Session, tourney: Tournament) -> tuple[int, int]:
         normalizer = NameNormalizer()
@@ -598,8 +401,7 @@ class LeagueFormatAdapter(BaseFormatAdapter):
         url = "https://api.football-data.org/v4/matches"
         headers = {"X-Auth-Token": api_key}
         try:
-            import backend.services.updater as updater_module
-            res = updater_module.fetch_json_with_retry(url, headers=headers, use_cache=False)
+            res = fetch_json(url, use_cache=False)
         except Exception as e:
             print(f"Error fetching live scores from Football-Data.org: {e}")
             return 0, 0
@@ -649,8 +451,13 @@ class LeagueFormatAdapter(BaseFormatAdapter):
 
         return fixtures_updated, fixtures_finished
 
-def get_format_adapter(format_engine: str, competition_name: str = "") -> BaseFormatAdapter:
+def get_format_adapter(
+    format_engine: str,
+    competition_name: str = "",
+    team_resolver: Optional[TeamResolver] = None,
+    fixture_upserter: Optional[FixtureUpserter] = None
+) -> BaseFormatAdapter:
     """Factory method resolving the format engine or competition name to the appropriate adapter."""
     if format_engine == "league" or "Premier League" in competition_name:
-        return LeagueFormatAdapter()
-    return GroupKnockoutAdapter()
+        return LeagueFormatAdapter(team_resolver=team_resolver, fixture_upserter=fixture_upserter)
+    return GroupKnockoutAdapter(team_resolver=team_resolver, fixture_upserter=fixture_upserter)
