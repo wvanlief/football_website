@@ -8,6 +8,7 @@ from backend.services.ingestion.preflight import (
     IngestionAborted,
     PreflightGuard,
 )
+from backend.services.ingestion.team_resolver import TeamResolver
 
 __all__ = [
     "COUNTRY_ISO_MAP",
@@ -16,4 +17,5 @@ __all__ = [
     "IngestorService",
     "IngestionAborted",
     "PreflightGuard",
+    "TeamResolver",
 ]

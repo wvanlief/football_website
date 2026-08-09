@@ -4,9 +4,9 @@
 
 **Blocked by:** 01 — Preflight Safety Guard & Non-Destructive Invariant
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Implement `TeamResolver` class in `backend/services/ingestion/team_resolver.py`
-- [ ] Integrate with `NameNormalizer` and `ExternalTeamMapping` CRUD utilities
-- [ ] Ensure resolution precedence: External mapping → Normalized name → Create new Team
-- [ ] Write unit tests verifying mapping creation and team resolution
+- [x] Implement `TeamResolver` class in `backend/services/ingestion/team_resolver.py`
+- [x] Integrate with `NameNormalizer` and `ExternalTeamMapping` CRUD utilities
+- [x] Ensure resolution precedence: External mapping → Normalized name → Create new Team
+- [x] Write unit tests verifying mapping creation and team resolution
