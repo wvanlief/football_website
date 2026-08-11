@@ -42,7 +42,7 @@ def update_odds_from_api(fixtures: list, db: Session, sport_key: str = "soccer_f
     print(f"Fetching odds from The Odds API for {sport_key}...")
     url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?apiKey={api_key}&regions=eu&markets=h2h"
     try:
-        odds_data = fetch_json_with_retry(url)
+        odds_data = fetch_json_with_retry(url, provider="the_odds_api")
             
         odds_lookup = {}
         for match in odds_data:

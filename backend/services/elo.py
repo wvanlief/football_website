@@ -17,7 +17,7 @@ def fetch_current_elo_ratings() -> dict[str, int]:
     world_url = "https://www.eloratings.net/World.tsv"
     normalizer = NameNormalizer()
     
-    teams_content = fetch_url_with_retry(teams_url).decode('utf-8')
+    teams_content = fetch_url_with_retry(teams_url, provider="eloratings").decode('utf-8')
         
     code_to_name = {}
     for line in teams_content.split('\n'):
@@ -29,7 +29,7 @@ def fetch_current_elo_ratings() -> dict[str, int]:
             name = parts[1].strip()
             code_to_name[code] = normalizer.normalize(name)
             
-    world_content = fetch_url_with_retry(world_url).decode('utf-8')
+    world_content = fetch_url_with_retry(world_url, provider="eloratings").decode('utf-8')
         
     parsed_ratings = {}
     for line in world_content.split('\n'):
@@ -58,7 +58,7 @@ def fetch_clubelo_ratings(date_str: str = None) -> dict[str, int]:
     
     def _parse_csv(url_to_fetch: str) -> dict[str, int]:
         try:
-            content = fetch_url_with_retry(url_to_fetch).decode('utf-8')
+            content = fetch_url_with_retry(url_to_fetch, provider="clubelo").decode('utf-8')
         except Exception as e:
             print(f"Error fetching ClubElo ratings from {url_to_fetch}: {e}")
             return {}
