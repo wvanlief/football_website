@@ -4,9 +4,9 @@
 
 **Blocked by:** 02 — Global Single-Call API Sync Engine & Rate Limit Upgrade, 03 — Regional ELO Baselines & Watchability Hot List Gating
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Build background feed pre-computer module generating `fixtures_feed_cache.json`
-- [ ] Configure twice-weekly heavy enrichment schedule (narratives, ELOs, watchability scores) on Mondays and Fridays
-- [ ] Configure daily lightweight score/status updates for pre-calculated JSON feed
-- [ ] **Mandatory Railway Reminder**: Prompt user to set up Railway Cron Service `admin-update-cron` schedule to `0 4 * * *` (Daily at 4 AM UTC) and `backend-updater-cron` schedule to `*/15 * * * *` (Every 15 minutes)
+- [x] Build background feed pre-computer module generating `fixtures_feed_cache.json` (`backend/services/feed_builder.py`)
+- [x] Configure twice-weekly heavy enrichment schedule (narratives, ELOs, watchability scores) on Mondays and Fridays
+- [x] Configure daily lightweight score/status updates for pre-calculated JSON feed
+- [x] **Mandatory Railway Reminder**: Prompt user to set up Railway Cron Service `admin-update-cron` schedule to `0 4 * * *` (Daily at 4 AM UTC) and `backend-updater-cron` schedule to `*/15 * * * *` (Every 15 minutes)

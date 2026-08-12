@@ -321,14 +321,79 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
             
     target_tz = get_timezone(tz_str)
     
-    if tournament_id is not None:
-        fixtures = crud_fixture.get_all_fixtures(db, tournament_id=tournament_id)
-        tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all()
-    else:
-        fixtures = crud_fixture.get_all_fixtures(db, tournament_id=None)
-        tts = db.query(TournamentTeam).all()
+    # Fast path for global feed using pre-calculated JSON cache
+    if tournament_id is None:
+        from backend.services.feed_builder import load_precalculated_feed_cache, build_fixtures_feed_cache
+        feed_cache = load_precalculated_feed_cache()
+        if not feed_cache:
+            feed_cache = build_fixtures_feed_cache(db)
+            
+        cached_list = feed_cache.get("fixtures", []) if feed_cache else []
         
-    # Preload maps to avoid N+1 queries
+        today_fixtures = []
+        tomorrow_fixtures = []
+        week_fixtures = []
+        finished_fixtures = []
+        scheduled_fixtures = []
+        
+        today_date = datetime.now(target_tz).date()
+        tomorrow_date = today_date + timedelta(days=1)
+        max_date = today_date + timedelta(days=8)
+        
+        for fdata in cached_list:
+            dt_str = fdata.get("date")
+            if dt_str:
+                dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+                dt_tz = dt.astimezone(target_tz)
+                match_date = dt_tz.date()
+                fdata["date"] = dt_tz.isoformat()
+            else:
+                match_date = today_date
+                
+            if fdata.get("status") == "Finished":
+                finished_fixtures.append(fdata)
+                continue
+                
+            scheduled_fixtures.append((match_date, fdata))
+            
+            if match_date == today_date:
+                today_fixtures.append(fdata)
+            elif match_date == tomorrow_date:
+                tomorrow_fixtures.append(fdata)
+            elif tomorrow_date < match_date <= max_date:
+                week_fixtures.append(fdata)
+                
+        is_offseason = False
+        offseason_notice = None
+        
+        if not today_fixtures and not tomorrow_fixtures and not week_fixtures and scheduled_fixtures:
+            is_offseason = True
+            first_match_date = scheduled_fixtures[0][0]
+            for m_date, f_data in scheduled_fixtures:
+                if m_date == first_match_date:
+                    today_fixtures.append(f_data)
+                elif m_date == first_match_date + timedelta(days=1):
+                    tomorrow_fixtures.append(f_data)
+                elif first_match_date + timedelta(days=1) < m_date <= first_match_date + timedelta(days=8):
+                    week_fixtures.append(f_data)
+            offseason_notice = f"Off-season: Showing next upcoming match block starting {first_match_date.strftime('%b %d, %Y')}."
+
+        payload = {
+            "today": today_fixtures,
+            "tomorrow": tomorrow_fixtures,
+            "this_week": week_fixtures,
+            "finished": finished_fixtures[:30],
+            "is_offseason": is_offseason,
+            "offseason_notice": offseason_notice
+        }
+        if use_cache:
+            _FIXTURES_CACHE[cache_key] = (now, payload)
+        return payload
+
+    # Specific tournament fallback path
+    fixtures = crud_fixture.get_all_fixtures(db, tournament_id=tournament_id)
+    tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all()
+        
     contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(
         PlayerContract.is_active == True
     ).all()
@@ -336,11 +401,8 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
     for c in contracts:
         team_players_map.setdefault(c.team_id, []).append(c.player)
         
-    team_group_map = {}
-    for tt in tts:
-        team_group_map[(tt.tournament_id, tt.team_id)] = tt.group_name
+    team_group_map = {(tt.tournament_id, tt.team_id): tt.group_name for tt in tts}
 
-        
     today_fixtures = []
     tomorrow_fixtures = []
     week_fixtures = []

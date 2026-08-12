@@ -279,6 +279,14 @@ def init_db():
     # Schema changes are managed via Alembic migrations.
     # We still run create_all to ensure simple initializations (e.g. in tests) succeed.
     Base.metadata.create_all(bind=engine)
+    if engine.name == "sqlite":
+        with engine.connect() as conn:
+            try:
+                import sqlalchemy
+                conn.execute(sqlalchemy.text("ALTER TABLE teams ADD COLUMN logo_url VARCHAR;"))
+                conn.commit()
+            except Exception:
+                pass
 
 def get_db():
     db = SessionLocal()
