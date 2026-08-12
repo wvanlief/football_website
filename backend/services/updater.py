@@ -200,11 +200,12 @@ def update_results_and_odds(db: Session) -> dict:
 
     for tourney in tournaments:
         comp = tourney.competition
-        try:
-            tourney_fixtures = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).all()
-            update_odds_from_api(tourney_fixtures, db, sport_key=comp.odds_api_sport_key or "soccer_fifa_world_cup")
-        except Exception as e:
-            print(f"Warning: Failed to update odds for tournament {tourney.id}: {e}")
+        if comp and comp.odds_api_sport_key:
+            try:
+                tourney_fixtures = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).all()
+                update_odds_from_api(tourney_fixtures, db, sport_key=comp.odds_api_sport_key)
+            except Exception as e:
+                print(f"Warning: Failed to update odds for tournament {tourney.id}: {e}")
 
     try:
         propagate_knockout_fixtures(db)
@@ -224,6 +225,12 @@ def update_results_and_odds(db: Session) -> dict:
     db.commit()
 
     simulation_status = "Simulation temporarily disabled"
+
+    try:
+        from backend.services.feed_builder import build_fixtures_feed_cache
+        build_fixtures_feed_cache(db)
+    except Exception as e:
+        print(f"Warning: Failed to rebuild feed cache: {e}")
 
     return {
         "status": "success",

@@ -4,10 +4,10 @@
 
 **Blocked by:** 04 — Pre-Calculated Feed Generator & Railway Service Configuration Reminder
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Inject pre-computed JSON into `index.html` template via `<script id="initial-fixtures-data">`
-- [ ] Refactor `frontend/js/app.js` to parse embedded JSON on `DOMContentLoaded` without secondary API fetch
-- [ ] Resolve viewer timezone via browser `Intl.DateTimeFormat` and sort matches into local "Today", "Tomorrow", "This Week"
-- [ ] Verify region filtering (`All`, `Europe >`, `Americas >`) and country search execute in 0ms in-memory
-- [ ] Verify page load completes in <10ms with zero skeleton loading screens
+- [x] Inject pre-computed JSON into `index.html` template via `<script id="initial-fixtures-data">`
+- [x] Refactor `frontend/js/app.js` to parse embedded JSON on `DOMContentLoaded` without secondary API fetch
+- [x] Resolve viewer timezone via browser `Intl.DateTimeFormat` and sort matches into local "Today", "Tomorrow", "This Week"
+- [x] Verify region filtering (`All`, `Europe >`, `Americas >`) and country search execute in 0ms in-memory
+- [x] Verify page load completes in <10ms with zero skeleton loading screens

@@ -18,9 +18,41 @@ NO_CACHE_HEADERS = {
     "Expires": "0"
 }
 
-@router.get("/")
-def get_index():
-    return FileResponse("frontend/index.html", headers=NO_CACHE_HEADERS)
+import json
+import os
+from fastapi import Depends
+from fastapi.responses import HTMLResponse, FileResponse
+from sqlalchemy.orm import Session
+
+from backend.database import get_db
+from backend.services.feed_builder import load_precalculated_feed_cache, build_fixtures_feed_cache
+
+@router.get("/", response_class=HTMLResponse)
+def get_index(db: Session = Depends(get_db)):
+    html_path = "frontend/index.html"
+    if not os.path.exists(html_path):
+        return FileResponse(html_path, headers=NO_CACHE_HEADERS)
+        
+    with open(html_path, "r", encoding="utf-8") as f:
+        html_content = f.read()
+        
+    feed_data = load_precalculated_feed_cache()
+    if not feed_data:
+        try:
+            feed_data = build_fixtures_feed_cache(db)
+        except Exception as e:
+            print(f"Warning: Failed to build feed cache for index hydration: {e}")
+            feed_data = {"fixtures": []}
+            
+    json_str = json.dumps(feed_data, ensure_ascii=False)
+    hydration_script = f'<script id="initial-fixtures-data" type="application/json">{json_str}</script>\n'
+    
+    if "</head>" in html_content:
+        html_content = html_content.replace("</head>", f"{hydration_script}</head>", 1)
+    else:
+        html_content = hydration_script + html_content
+        
+    return HTMLResponse(content=html_content, headers=NO_CACHE_HEADERS)
 
 @router.get("/recommended")
 def get_recommended_page():

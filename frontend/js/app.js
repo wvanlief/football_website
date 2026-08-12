@@ -168,7 +168,93 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Fetch and Load Fixtures
 
+    function processHydratedFixtures(fixturesList, userTz) {
+        let todayFixtures = [];
+        let tomorrowFixtures = [];
+        let weekFixtures = [];
+        let finishedFixtures = [];
+        let scheduledFixtures = [];
+
+        let now = new Date();
+        let todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+        
+        let tomorrowDate = new Date(now);
+        tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+        let tomorrowStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(tomorrowDate);
+
+        let maxDate = new Date(now);
+        maxDate.setDate(maxDate.getDate() + 8);
+        let maxDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(maxDate);
+
+        (fixturesList || []).forEach(fdata => {
+            let matchDateStr = todayStr;
+            if (fdata.date) {
+                try {
+                    let d = new Date(fdata.date);
+                    matchDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+                } catch(e) {}
+            }
+
+            if (fdata.status === "Finished") {
+                finishedFixtures.push(fdata);
+                return;
+            }
+
+            scheduledFixtures.push({ matchDateStr, fdata });
+
+            if (matchDateStr === todayStr) {
+                todayFixtures.push(fdata);
+            } else if (matchDateStr === tomorrowStr) {
+                tomorrowFixtures.push(fdata);
+            } else if (matchDateStr > tomorrowStr && matchDateStr <= maxDateStr) {
+                weekFixtures.push(fdata);
+            }
+        });
+
+        let isOffseason = false;
+        let offseasonNotice = null;
+
+        if (todayFixtures.length === 0 && tomorrowFixtures.length === 0 && weekFixtures.length === 0 && scheduledFixtures.length > 0) {
+            isOffseason = true;
+            let firstMatchDate = scheduledFixtures[0].matchDateStr;
+            scheduledFixtures.forEach(item => {
+                if (item.matchDateStr === firstMatchDate) {
+                    todayFixtures.push(item.fdata);
+                }
+            });
+            offseasonNotice = `Off-season: Showing next upcoming match block starting ${firstMatchDate}.`;
+        }
+
+        return {
+            today: todayFixtures,
+            tomorrow: tomorrowFixtures,
+            this_week: weekFixtures,
+            finished: finishedFixtures.slice(0, 30),
+            is_offseason: isOffseason,
+            offseason_notice: offseasonNotice
+        };
+    }
+
     async function fetchFixtures() {
+        const todayHeader = document.querySelector('#col-today h2');
+        const tomorrowHeader = document.querySelector('#col-tomorrow h2');
+        if (todayHeader) todayHeader.textContent = getFormattedDateString(resolvedTimezone, 0);
+        if (tomorrowHeader) tomorrowHeader.textContent = getFormattedDateString(resolvedTimezone, 1);
+
+        const hydratedElement = document.getElementById('initial-fixtures-data');
+        if (hydratedElement && hydratedElement.textContent.trim()) {
+            try {
+                const parsed = JSON.parse(hydratedElement.textContent);
+                if (parsed && parsed.fixtures && parsed.fixtures.length > 0) {
+                    activeFixtures = processHydratedFixtures(parsed.fixtures, resolvedTimezone);
+                    renderAllColumns();
+                    return;
+                }
+            } catch(e) {
+                console.warn("Failed to parse inline hydrated fixtures:", e);
+            }
+        }
+
         const cacheKey = 'findfootball-cached-fixtures-v5';
         const cachedSession = sessionStorage.getItem(cacheKey);
 
@@ -187,11 +273,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             });
         }
-
-        const todayHeader = document.querySelector('#col-today h2');
-        const tomorrowHeader = document.querySelector('#col-tomorrow h2');
-        if (todayHeader) todayHeader.textContent = getFormattedDateString(resolvedTimezone, 0);
-        if (tomorrowHeader) tomorrowHeader.textContent = getFormattedDateString(resolvedTimezone, 1);
 
         try {
             const res = await fetch(`/api/fixtures?tz=${encodeURIComponent(resolvedTimezone)}`);
