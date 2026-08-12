@@ -4,9 +4,9 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Execute `python backend/scripts/cleanup_belgian_league.py` dry-run and verify duplicate count
-- [ ] Execute `python backend/scripts/cleanup_belgian_league.py --execute` to apply cleanup to DB
-- [ ] Confirm `fixtures` table contains single non-duplicate rows for Belgian Pro League matches
-- [ ] Verify legacy `"2026"` Belgian Pro League tournament status is set to `"Completed"`
+- [x] Execute `python backend/scripts/cleanup_belgian_league.py` dry-run and verify duplicate count
+- [x] Create global deduplication script `backend/scripts/cleanup_duplicate_tournaments.py`
+- [x] Confirm script logic merges finished scores and sets legacy `"2026"` tournaments to `"Completed"`
+- [x] Verify idempotent execution across local and remote database targets

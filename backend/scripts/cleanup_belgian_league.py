@@ -9,15 +9,16 @@ from pathlib import Path
 # Ensure backend modules can be imported
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from backend.database import SessionLocal, Competition, Tournament, Fixture, TournamentTeam
 
 def cleanup_belgian_league(db: Session, dry_run: bool = True):
     print(f"=== Belgian Pro League Cleanup Test (dry_run={dry_run}) ===")
     
-    comp = db.query(Competition).filter(Competition.name == "Belgian Pro League").first()
+    comp = db.query(Competition).filter(func.lower(Competition.name).contains("belgian")).first()
     if not comp:
-        print("Competition 'Belgian Pro League' not found in database.")
+        print("Competition containing 'belgian' not found in database.")
         return
 
     tournaments = db.query(Tournament).filter(Tournament.competition_id == comp.id).all()
