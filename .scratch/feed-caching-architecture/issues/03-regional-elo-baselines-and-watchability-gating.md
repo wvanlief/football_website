@@ -4,9 +4,9 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Assign regional baseline ELOs for CONMEBOL (~1600) and MLS (~1500) teams lacking `ClubElo` ratings
-- [ ] Update watchability gating logic to suppress non-European regular-season matches from global default feed
-- [ ] Ensure Major Derbies (`is_major_derby == True`) and late knockouts (`Quarter-final`, `Semi-final`, `Final`) remain visible on global Hot List
-- [ ] Verify selecting **Americas** region tab displays full CONMEBOL/MLS match feed
+- [x] Assign regional baseline ELOs for CONMEBOL (~1600) and MLS (~1500) teams lacking `ClubElo` ratings
+- [x] Update watchability gating logic to suppress non-European regular-season matches from global default feed
+- [x] Ensure Major Derbies (`is_major_derby == True`) and late knockouts (`Quarter-final`, `Semi-final`, `Final`) remain visible on global Hot List
+- [x] Verify selecting **Americas** region tab displays full CONMEBOL/MLS match feed
