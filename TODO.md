@@ -4,7 +4,7 @@
  - Where is the matrix for european leagues ?
  - Why does the group page displays all competitions? Same for bracket
  - In calendar, the only matches with 75+ watchability are only 3 manchester united matches
- - Fix ELO 1500 for smaller teams  
+ - Fix ELO 1500 for smaller teams (In-house ELO calculation engine for non-European clubs: CONMEBOL, MLS, CAF, AFC based on match results)  
 
 ## Prio 2
  - Export Good matches to social media (Insta/ Tik Tok)
