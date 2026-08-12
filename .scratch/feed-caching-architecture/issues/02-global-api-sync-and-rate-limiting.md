@@ -4,9 +4,9 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Update `rate_limiter.py` to support `10 calls/min` and `100 calls/day` for `api_football`
-- [ ] Refactor `update_results_and_odds()` to query global `GET /fixtures?date=TODAY` in 1 API call
-- [ ] Ensure live score updater (`update_live_scores()`) queries `GET /fixtures?live=all` only during active match windows
-- [ ] Verify daily API consumption drops from 33+ calls down to 2–5 calls per day
+- [x] Update `rate_limiter.py` to support `10 calls/min` and `100 calls/day` for `api_football`
+- [x] Refactor `update_results_and_odds()` to query global `GET /fixtures?date=TODAY` in 1 API call
+- [x] Ensure live score updater (`update_live_scores()`) queries `GET /fixtures?live=all` only during active match windows
+- [x] Verify daily API consumption drops from 33+ calls down to 2–5 calls per day

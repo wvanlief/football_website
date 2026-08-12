@@ -9,8 +9,8 @@ class APIRateLimiter:
     Enforces user-configured aggressive safeguards to prevent external API quota exhaustion.
     """
     LIMITS: Dict[str, Dict[str, int]] = {
-        "api_football": {"per_min": 1, "per_day": 50},
-        "football_data_org": {"per_min": 1, "per_day": 50},
+        "api_football": {"per_min": 10, "per_day": 100},
+        "football_data_org": {"per_min": 10, "per_day": 100},
         "the_odds_api": {"per_min": 2, "per_day": 30},
         "clubelo": {"per_min": 2, "per_day": 20},
         "eloratings": {"per_min": 2, "per_day": 20},
