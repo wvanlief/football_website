@@ -30,8 +30,8 @@ def _get_cache_path(url: str, headers: dict = None) -> str:
 def fetch_url_with_retry(
     url: str,
     headers: dict = None,
-    timeout: int = 20,
-    retries: int = 5,
+    timeout: int = 10,
+    retries: int = 3,
     backoff_factor: float = 1.5,
     use_cache: bool = True,
     provider: str = None
@@ -117,8 +117,8 @@ def fetch_url_with_retry(
 def fetch_json_with_retry(
     url: str,
     headers: dict = None,
-    timeout: int = 20,
-    retries: int = 5,
+    timeout: int = 10,
+    retries: int = 3,
     backoff_factor: float = 1.5,
     use_cache: bool = True,
     provider: str = None

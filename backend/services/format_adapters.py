@@ -10,7 +10,7 @@ from backend.utils import fetch_json_with_retry
 from backend.services.ingestion import NameNormalizer
 from backend.services.odds import calculate_default_odds
 from backend.services.settling import settle_result
-from backend.services.elo import fetch_clubelo_ratings, fetch_current_elo_ratings
+import backend.services.elo as elo_service
 from backend.scoring import update_fixture_score
 
 
@@ -319,7 +319,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                 last_club_sync = db.query(EloHistory).join(Team).filter(Team.elo_source == "clubelo").order_by(EloHistory.recorded_at.desc()).first()
                 if not last_club_sync or last_club_sync.recorded_at.date() < now_time.date():
                     print("Syncing Elo ratings from ClubElo...")
-                    club_ratings = fetch_clubelo_ratings()
+                    club_ratings = elo_service.fetch_clubelo_ratings()
                     if club_ratings:
                         review_path = "backend/data/elo_name_review.json"
                         name_map = {}
