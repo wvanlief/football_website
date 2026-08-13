@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let tomorrowStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(tomorrowDate);
 
         let maxDate = new Date(now);
-        maxDate.setDate(maxDate.getDate() + 8);
+        maxDate.setDate(maxDate.getDate() + 30);
         let maxDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(maxDate);
 
         (fixturesList || []).forEach(fdata => {
@@ -200,7 +200,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            scheduledFixtures.push({ matchDateStr, fdata });
+            if (matchDateStr >= todayStr) {
+                scheduledFixtures.push({ matchDateStr, fdata });
+            }
 
             if (matchDateStr === todayStr) {
                 todayFixtures.push(fdata);
@@ -388,7 +390,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 : '';
 
             const card = document.createElement('div');
+            const compName = match.competition_name || '';
+            const matchRegion = match.region || (['Copa Libertadores', 'Copa Sudamericana', 'Brasileirão', 'MLS', 'Major League Soccer', 'Argentina', 'Liga Profesional', 'CONCACAF'].some(c => compName.includes(c)) ? 'Americas' : 'Europe');
             card.className = `match-card ${ratingClass}`;
+            card.setAttribute('data-region', matchRegion);
+            card.setAttribute('data-competition', compName);
             card.innerHTML = `
                 <div class="card-flag-bg home-flag-bg" style="background-image: url('${getFlagUrl(match.home_team, 'w320')}');"></div>
                 <div class="card-flag-bg away-flag-bg" style="background-image: url('${getFlagUrl(match.away_team, 'w320')}');"></div>
@@ -873,12 +879,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Expose global filterMatchesByName function for Drawer & Navigation controls
     window.filterMatchesByName = function(leagueName) {
         const cards = document.querySelectorAll('.match-card');
+        const lname = (leagueName || '').toLowerCase();
+
         cards.forEach(card => {
-            if (!leagueName || leagueName === 'all') {
+            if (!leagueName || lname === 'all') {
                 card.style.display = '';
                 return;
             }
-            if (leagueName === 'hot') {
+            if (lname === 'hot') {
                 const scoreEl = card.querySelector('.score-badge, .score-val');
                 let score = 0;
                 if (scoreEl) {
@@ -889,8 +897,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            const cardRegion = (card.getAttribute('data-region') || '').toLowerCase();
             const text = (card.textContent).toLowerCase();
-            if (text.includes(leagueName.toLowerCase())) {
+
+            if (lname === 'europe') {
+                const isEurope = cardRegion === 'europe' || ['england', 'spain', 'italy', 'germany', 'belgium', 'netherlands', 'france', 'champions', 'europa', 'nations league', 'pro league', 'eredivisie', 'premier', 'la liga', 'serie a', 'bundesliga', 'copa del rey', 'fa cup', 'dfb pokal', 'coppa italia'].some(k => text.includes(k));
+                card.style.display = isEurope ? '' : 'none';
+                return;
+            }
+
+            if (lname === 'americas') {
+                const isAmericas = cardRegion === 'americas' || ['americas', 'libertadores', 'sudamericana', 'brasileirão', 'mls', 'argentina', 'brazil', 'liga profesional', 'copa argentina', 'copa do brasil', 'concacaf'].some(k => text.includes(k));
+                card.style.display = isAmericas ? '' : 'none';
+                return;
+            }
+
+            if (text.includes(lname)) {
                 card.style.display = '';
             } else {
                 card.style.display = 'none';

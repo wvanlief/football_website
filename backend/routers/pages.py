@@ -37,12 +37,12 @@ def get_index(db: Session = Depends(get_db)):
         html_content = f.read()
         
     feed_data = load_precalculated_feed_cache()
-    if not feed_data:
+    if not feed_data or feed_data.get("total_fixtures", 0) == 0:
         try:
             feed_data = build_fixtures_feed_cache(db)
         except Exception as e:
             print(f"Warning: Failed to build feed cache for index hydration: {e}")
-            feed_data = {"fixtures": []}
+            feed_data = {"total_fixtures": 0, "fixtures": []}
             
     json_str = json.dumps(feed_data, ensure_ascii=False)
     hydration_script = f'<script id="initial-fixtures-data" type="application/json">{json_str}</script>\n'

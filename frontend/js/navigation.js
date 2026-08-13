@@ -275,6 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (typeof window.filterMatchesByName === 'function') window.filterMatchesByName('all');
                 } else {
                     if (subEl) subEl.style.display = 'inline-flex';
+                    if (typeof window.filterMatchesByName === 'function') window.filterMatchesByName(geoKey);
                     if (chipsEl) {
                         chipsEl.innerHTML = GEO_DATA[geoKey].countries.map(c => `
                             <button class="facet-chip sub-chip" data-country="${c.name}">

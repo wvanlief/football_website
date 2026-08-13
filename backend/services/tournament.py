@@ -338,7 +338,7 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
         
         today_date = datetime.now(target_tz).date()
         tomorrow_date = today_date + timedelta(days=1)
-        max_date = today_date + timedelta(days=8)
+        max_date = today_date + timedelta(days=30)
         
         for fdata in cached_list:
             dt_str = fdata.get("date")
@@ -354,7 +354,8 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
                 finished_fixtures.append(fdata)
                 continue
                 
-            scheduled_fixtures.append((match_date, fdata))
+            if match_date >= today_date:
+                scheduled_fixtures.append((match_date, fdata))
             
             if match_date == today_date:
                 today_fixtures.append(fdata)
