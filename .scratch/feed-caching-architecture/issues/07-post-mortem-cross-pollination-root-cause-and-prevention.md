@@ -4,9 +4,9 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** completed
 
-- [ ] Audit `seeder.py`, `ingestor.py`, and `updater.py` for league ID mapping leaks
-- [ ] Add strict league/competition ID validation safeguards to `backend/services/format_adapters.py` and `updater.py`
-- [ ] Ensure `sync_fixtures()` verifies `league_id` matches competition `api_id` before inserting fixtures into a tournament
-- [ ] Document post-mortem root cause analysis and prevention guardrails in `docs/adr/0004-ingestion-league-isolation-guardrails.md`
+- [x] Audit `seeder.py`, `ingestor.py`, and `updater.py` for league ID mapping leaks
+- [x] Add strict league/competition ID validation safeguards to `backend/services/format_adapters.py` and `updater.py`
+- [x] Ensure `sync_fixtures()` verifies `league_id` matches competition `api_id` before inserting fixtures into a tournament
+- [x] Document post-mortem root cause analysis and prevention guardrails in `docs/adr/0004-ingestion-league-isolation-guardrails.md`

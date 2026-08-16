@@ -201,6 +201,16 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
             league_info = item.get("league", {})
             placeholders = item.get("placeholders", {})
             
+            # League Isolation Guardrail: verify incoming item's league ID matches target competition api_league_id
+            incoming_league_id = league_info.get("id")
+            if incoming_league_id and comp.api_league_id:
+                try:
+                    if int(incoming_league_id) != int(comp.api_league_id):
+                        print(f"Guardrail Skip: Incoming fixture league_id {incoming_league_id} does not match '{comp.name}' (api_id={comp.api_league_id}).")
+                        continue
+                except (ValueError, TypeError):
+                    pass
+            
             api_id = str(f_info.get("id"))
             date_utc_str = f_info.get("date")
             date_utc = datetime.fromisoformat(date_utc_str.replace('Z', '+00:00')) if date_utc_str else now_time

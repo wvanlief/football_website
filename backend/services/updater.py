@@ -92,6 +92,7 @@ def sync_global_date_results(db: Session, target_date: str = None) -> tuple:
             if home_team and away_team and fixture_info.get("date"):
                 match_dt = datetime.fromisoformat(fixture_info["date"].replace("Z", "+00:00"))
                 match_date_str = match_dt.strftime("%Y-%m-%d")
+                incoming_league_id = item.get("league", {}).get("id")
                 
                 candidates = db.query(Fixture).filter(
                     Fixture.home_team_id == home_team.id,
@@ -100,6 +101,14 @@ def sync_global_date_results(db: Session, target_date: str = None) -> tuple:
                 
                 for cand in candidates:
                     if cand.date_utc and cand.date_utc.strftime("%Y-%m-%d") == match_date_str:
+                        # League Isolation Guardrail: verify candidate competition matches incoming API league
+                        cand_api_league = cand.tournament.competition.api_league_id if (cand.tournament and cand.tournament.competition) else None
+                        if cand_api_league and incoming_league_id:
+                            try:
+                                if int(cand_api_league) != int(incoming_league_id):
+                                    continue
+                            except (ValueError, TypeError):
+                                pass
                         fixture = cand
                         break
 
