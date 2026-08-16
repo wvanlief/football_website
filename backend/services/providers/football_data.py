@@ -70,7 +70,7 @@ class FootballDataProvider:
         if params:
             query = "?" + "&".join(f"{k}={v}" for k, v in params.items())
         url = f"https://api.football-data.org/v4/{endpoint}{query}"
-        return fetch_json_with_retry(url, headers=self.get_headers())
+        return fetch_json_with_retry(url, headers=self.get_headers(), provider="football_data_org")
 
     def get_competition_code(self, competition_name: str) -> Optional[str]:
         return COMPETITION_CODE_MAP.get(competition_name)

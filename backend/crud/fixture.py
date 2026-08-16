@@ -2,10 +2,8 @@ from sqlalchemy.orm import Session, joinedload, aliased
 from backend.database import Fixture, Team, Tournament
 
 def get_active_tournament_ids(db: Session) -> list[int]:
-    t_2026 = db.query(Tournament).filter(Tournament.status == "Active", Tournament.season_name == "2026").all()
-    if t_2026:
-        return [t.id for t in t_2026]
-    return [t.id for t in db.query(Tournament).filter(Tournament.status == "Active").all()]
+    tournaments = db.query(Tournament).filter(Tournament.status == "Active").all()
+    return [t.id for t in tournaments]
 
 def get_all_fixtures(db: Session, tournament_id: int = None) -> list[Fixture]:
     q = db.query(Fixture).options(

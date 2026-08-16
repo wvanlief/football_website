@@ -30,20 +30,22 @@ def _get_cache_path(url: str, headers: dict = None) -> str:
 def fetch_url_with_retry(
     url: str,
     headers: dict = None,
-    timeout: int = 20,
-    retries: int = 5,
+    timeout: int = 10,
+    retries: int = 3,
     backoff_factor: float = 1.5,
-    use_cache: bool = True
+    use_cache: bool = True,
+    provider: str = None
 ) -> bytes:
     """
     Fetches the content of a URL with retry logic for transient errors.
     Handles timeouts, connection errors, and SSL handshake/EOF violations.
     Caches successful responses locally when use_cache is True.
+    Enforces global rate limits if provider is specified.
     """
     if headers is None:
         headers = {'User-Agent': 'Mozilla/5.0'}
         
-    # Check cache first
+    # Check cache first (cached hits do not consume API quota)
     if use_cache:
         cache_path = _get_cache_path(url, headers)
         if os.path.exists(cache_path):
@@ -53,6 +55,12 @@ def fetch_url_with_retry(
                 return base64.b64decode(cache_data["content"].encode('utf-8'))
             except Exception as cache_err:
                 print(f"Warning: Failed to read cache file {cache_path}: {cache_err}. Proceeding with live request.")
+
+    # Check rate limiter before making live external call
+    if provider:
+        from backend.services.rate_limiter import rate_limiter
+        if not rate_limiter.try_call(provider):
+            raise RuntimeError(f"Rate limit safeguard triggered for '{provider}'. External network call blocked.")
 
     req = urllib.request.Request(url, headers=headers)
     context = ssl.create_default_context()
@@ -109,18 +117,25 @@ def fetch_url_with_retry(
 def fetch_json_with_retry(
     url: str,
     headers: dict = None,
-    timeout: int = 20,
-    retries: int = 5,
+    timeout: int = 10,
+    retries: int = 3,
     backoff_factor: float = 1.5,
-    use_cache: bool = True
+    use_cache: bool = True,
+    provider: str = None
 ) -> Any:
     """Fetches a URL and parses it as JSON."""
-    content = fetch_url_with_retry(
-        url,
-        headers=headers,
-        timeout=timeout,
-        retries=retries,
-        backoff_factor=backoff_factor,
-        use_cache=use_cache
-    )
-    return json.loads(content.decode('utf-8'))
+    try:
+        content = fetch_url_with_retry(
+            url,
+            headers=headers,
+            timeout=timeout,
+            retries=retries,
+            backoff_factor=backoff_factor,
+            use_cache=use_cache,
+            provider=provider
+        )
+        return json.loads(content.decode('utf-8'))
+    except RuntimeError as r_err:
+        print(f"{r_err}")
+        return {}
+

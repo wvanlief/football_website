@@ -69,6 +69,53 @@ WEIGHT_PRESETS = {
     }
 }
 
+CONMEBOL_COUNTRIES = {"Argentina", "Brazil", "Uruguay", "Colombia", "Chile", "Paraguay", "Ecuador", "Peru", "Bolivia", "Venezuela", "ARG", "BRA", "URU", "COL", "CHI", "PAR", "ECU", "PER", "BOL", "VEN"}
+CONCACAF_COUNTRIES = {"USA", "Canada", "Mexico", "Costa Rica", "Jamaica", "Panama", "USA", "CAN", "MEX", "CRC", "JAM", "PAN"}
+
+def get_regional_baseline_elo(team: Team, comp_name: str = "") -> float:
+    """Returns baseline ELO for unranked clubs based on region/country."""
+    if team and team.elo and team.elo != 1500:
+        return float(team.elo)
+    
+    c_code = team.country_code if (team and team.country_code) else ""
+    t_name = team.name if team else ""
+    
+    if c_code in CONMEBOL_COUNTRIES or "Libertadores" in comp_name or "Sudamericana" in comp_name or "Argentina" in comp_name or "Brasil" in comp_name:
+        return 1620.0
+    if c_code in CONCACAF_COUNTRIES or "MLS" in comp_name or "CONCACAF" in comp_name:
+        return 1520.0
+    return 1500.0
+
+def is_hot_list_eligible(fixture: Fixture, home_team: Team, away_team: Team) -> bool:
+    """
+    Determines whether a fixture is eligible for the default global Hot List feed.
+    European matches are eligible by default.
+    Non-European matches are suppressed UNLESS:
+    1. Flagged as a Major Derby (is_major_derby)
+    2. Late-stage knockout (Quarter-final, Semi-final, Final)
+    """
+    comp = fixture.tournament.competition if (fixture and fixture.tournament) else None
+    comp_name = comp.name if comp else ""
+    
+    is_non_european = comp_name in (
+        "Copa Libertadores", "Copa Sudamericana", "MLS", "US Open Cup", 
+        "Copa Argentina", "Copa do Brasil", "CONCACAF Champions Cup"
+    ) or (home_team and home_team.country_code in CONMEBOL_COUNTRIES.union(CONCACAF_COUNTRIES))
+    
+    if not is_non_european:
+        return True
+        
+    derbies = get_derbies()
+    for d in derbies:
+        t1, t2 = d.get("teams", [])
+        if (home_team.name == t1 and away_team.name == t2) or (home_team.name == t2 and away_team.name == t1):
+            return True
+            
+    if fixture.stage in ("Quarter-final", "Semi-final", "Final", "3rd Place", "Finals"):
+        return True
+        
+    return False
+
 def calculate_watchability(
     fixture: Fixture, 
     home_team: Team, 
@@ -81,6 +128,7 @@ def calculate_watchability(
     Weights can be customized dynamically or resolved based on competition format presets.
     """
     comp = fixture.tournament.competition if (fixture.tournament and fixture.tournament.competition) else None
+    comp_name = comp.name if comp else ""
     
     if weights is None:
         format_engine = comp.format_engine if comp else "group_knockout"
@@ -88,13 +136,16 @@ def calculate_watchability(
         
     reasons = []
     
-    # 1. ELO Score (Proximity & Average Quality)
-    elo_diff = abs(home_team.elo - away_team.elo)
+    # 1. ELO Score (Proximity & Average Quality) with Regional Baselines
+    h_elo = get_regional_baseline_elo(home_team, comp_name)
+    a_elo = get_regional_baseline_elo(away_team, comp_name)
+    
+    elo_diff = abs(h_elo - a_elo)
     # Proximity: 100 is identical ELO, 500 difference is 0.
     elo_proximity = max(0.0, 100.0 - (elo_diff / 5.0))
     
     # Average Quality: Reward matches between high-ELO teams.
-    elo_avg = (home_team.elo + away_team.elo) / 2.0
+    elo_avg = (h_elo + a_elo) / 2.0
     elo_quality = min(100.0, max(0.0, (elo_avg - 1400) / 7.0)) # Scale 1400-2100 to 0-100
     
     # ELO combined score: 70% proximity (similar strength), 30% elite clash quality
@@ -357,6 +408,7 @@ def calculate_watchability(
         "odds_score": round(odds_score, 1),
         "form_score": round(form_score, 1),
         "narrative_score": round(narrative_score, 1),
+        "hot_list_eligible": is_hot_list_eligible(fixture, home_team, away_team),
         "reasons": reasons
     }
 

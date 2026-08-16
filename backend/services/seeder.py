@@ -84,7 +84,7 @@ def call_football_api(endpoint: str, params: dict = None) -> dict:
         "x-apisports-key": api_key,
         "User-Agent": "Mozilla/5.0"
     }
-    return fetch_json_with_retry(url, headers=headers)
+    return fetch_json_with_retry(url, headers=headers, provider="api_football")
 
 def get_fallback_matches():
     base_date = datetime(2026, 6, 11, 12, 0, 0, tzinfo=ZoneInfo("America/New_York")).astimezone(ZoneInfo("UTC"))

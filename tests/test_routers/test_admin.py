@@ -56,3 +56,15 @@ def test_admin_update_live_success(mock_update_live, client):
     assert data["simulation"] == "Skipped"
     mock_update_live.assert_called_once_with(mock_update_live.call_args[0][0], force=False)
 
+def test_admin_update_async_success(client):
+    response = client.post("/api/admin/update?async=true", headers={"X-Admin-Token": "test-admin-token"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "processing"
+
+def test_admin_update_live_background_success(client):
+    response = client.post("/api/admin/update-live?background=true", headers={"X-Admin-Token": "test-admin-token"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "processing"
+

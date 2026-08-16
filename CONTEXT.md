@@ -15,16 +15,17 @@
   - `cup`: Pure knockout bracket tree (R1 through Final), group standings tab disabled.
   - `group_knockout` / `nations_league`: Group tables + Knockout Bracket Tree.
 
-## Performance & Caching
-- **API Payload Caching**: In-memory response caching (60s TTL) for heavy endpoints (`/api/fixtures`, `/api/fixtures/recommended`).
-## Multi-Source Data Ingestion & Failover
-- **Priority Fallback Chain**: Match fixtures, schedules, and scores are ingested using an ordered provider hierarchy (`Football-Data.org` -> `API-Football` -> `TheSportsDB`). If a higher-priority provider encounters rate limits, errors, or downtime, the engine fails over to the next provider seamlessly.
-- **External Entity Mapping Tables**: Decouple provider IDs from domain models using `ExternalTeamMapping` and `ExternalCompetitionMapping` tables (`(provider_name, external_id) -> internal_id`). This allows adding new API providers dynamically without schema migrations on `teams` or `competitions`.
-- **Live Scoring Scope**: Live score polling remains unchanged for now, using the current lightweight single-source update engine.
-- **Local Asset Isolation**: Team crest badges remain locally cached on disk (`/static/badges/`), independent of provider availability.
+## Performance & Pre-Calculated Feed Caching
+- **Pre-Calculated Feed JSON**: `/api/fixtures` reads from a pre-built static JSON document (`fixtures_feed_cache.json`) built by a background worker. Zero live DB scans on HTTP requests.
+- **Twice-Weekly Heavy Enrichment**: Heavy fixture enrichment (narrative scoring, ELO calculations, competitiveness) runs twice a week (Monday/Friday). Score updates read existing pre-computed fields.
 
-- **Categorized Competition Selector**: Grouped switcher (Top 5 Leagues, European Cups, International & Domestic Cups) replacing flat horizontal text scrolling pills.
-- **Calendar Segmentation**: Gameweek/Weekly date blocks with team crests (`logo_url`) and a High-Watchability filter toggle ($\ge 75\%$).
+## Global API Sync & Quota Management
+- **Single-Call Daily Sync**: Schedules and results update via single global date calls (`GET /fixtures?date=TODAY`). Individual per-league looping is disabled.
+- **Live Score Polling**: 15-minute polling intervals during active match windows using `GET /fixtures?live=all`.
+
+## Watchability Gating & Regional Baselines
+- **Regional ELO Baselines**: CONMEBOL clubs (~1600) and MLS (~1500) use regional baselines until custom in-house ELO engine is implemented.
+- **Non-European Watchability Gating**: Regular non-European matches are suppressed from the global Hot List unless tagged as **Major Derbies**, late-stage knockouts, or filtered via the **Americas** region tab.
 
 
 

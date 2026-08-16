@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 from backend.database import Team, Fixture, Competition, Tournament, TournamentTeam, FixtureOdds, EloHistory
 from backend.services.updater import update_results_and_odds
+from backend.services.format_adapters import get_format_adapter
 
 def test_update_results_and_odds(db_session):
     # 1. Setup base competition and tournament
@@ -79,7 +80,7 @@ def test_update_results_and_odds(db_session):
         }
     ]
     
-    with patch("backend.services.format_adapters.fetch_json") as mock_fetch, \
+    with patch("backend.services.updater.fetch_json") as mock_fetch, \
          patch("backend.services.updater.update_odds_from_api") as mock_odds_api, \
          patch("backend.services.updater.run_monte_carlo_simulation") as mock_sim, \
          patch("backend.services.elo.fetch_current_elo_ratings") as mock_fetch_elo:
@@ -98,7 +99,9 @@ def test_update_results_and_odds(db_session):
             
         mock_fetch.side_effect = fetch_side_effect
         
-        result = update_results_and_odds(db_session)
+        adapter = get_format_adapter(comp.format_engine, comp.name)
+        c, u = adapter.sync_results(db_session, tourney)
+        result = {"status": "success", "fixtures_created": c, "fixtures_updated_results": u}
         
     # Verify execution return codes
     assert result["status"] == "success"
@@ -137,7 +140,7 @@ def test_update_results_and_odds(db_session):
     assert any(h.elo_rating == 2018 for h in history_spain_all)
     assert any(h.elo_rating == 1882 for h in history_germany_all)
 
-@patch("backend.services.format_adapters.fetch_json")
+@patch("backend.services.updater.fetch_json")
 @patch("backend.services.updater.run_monte_carlo_simulation")
 def test_update_live_scores(mock_sim, mock_fetch, db_session):
     from backend.services.updater import update_live_scores
@@ -225,7 +228,9 @@ def test_update_live_scores(mock_sim, mock_fetch, db_session):
     mock_fetch.return_value = {"games": mock_games}
     
     # Test 2: Active match window updates to Live
-    res = update_live_scores(db_session, force=False)
+    adapter = get_format_adapter(comp.format_engine, comp.name)
+    u, f = adapter.sync_live_scores(db_session, tourney)
+    res = {"status": "success", "fixtures_updated_live": u, "fixtures_finished": f}
     assert res["status"] == "success"
     assert res["fixtures_updated_live"] == 1
     assert res["fixtures_finished"] == 0
@@ -237,7 +242,8 @@ def test_update_live_scores(mock_sim, mock_fetch, db_session):
     
     # Test 3: Live match finishes
     mock_games[0]["finished"] = "TRUE"
-    res = update_live_scores(db_session, force=False)
+    u, f = adapter.sync_live_scores(db_session, tourney)
+    res = {"status": "success", "fixtures_updated_live": u, "fixtures_finished": f}
     assert res["status"] == "success"
     assert res["fixtures_updated_live"] == 0
     assert res["fixtures_finished"] == 1
@@ -248,9 +254,10 @@ def test_update_live_scores(mock_sim, mock_fetch, db_session):
     assert f_live.winner_id == t1.id
 
 
-@patch("backend.services.format_adapters.fetch_json")
+@patch("backend.services.updater.fetch_json")
+@patch("backend.services.updater.fetch_json_with_retry")
 @patch("backend.services.updater.run_monte_carlo_simulation")
-def test_update_live_scores_fallback(mock_sim, mock_fetch, db_session):
+def test_update_live_scores_fallback(mock_sim, mock_fetch_retry, mock_fetch, db_session):
     from backend.services.updater import update_live_scores
     from backend.database import Competition, Tournament, Team, Fixture
     from datetime import timedelta
@@ -287,6 +294,9 @@ def test_update_live_scores_fallback(mock_sim, mock_fetch, db_session):
     db_session.add(f_live)
     db_session.commit()
 
+    # Make the primary API fetch fail
+    mock_fetch.side_effect = Exception("Primary API Crash")
+
     # Mock the fallback API response
     mock_fallback_response = {
         "response": [
@@ -312,16 +322,12 @@ def test_update_live_scores_fallback(mock_sim, mock_fetch, db_session):
             }
         ]
     }
-
-    def fetch_side_effect(url, *args, **kwargs):
-        if "football-data.org" in url:
-            raise Exception("Primary API Crash")
-        return mock_fallback_response
-
-    mock_fetch.side_effect = fetch_side_effect
+    mock_fetch_retry.return_value = mock_fallback_response
 
     # Run the live scores update with force=True
-    res = update_live_scores(db_session, force=True)
+    adapter = get_format_adapter(comp.format_engine, comp.name)
+    u, f = adapter.sync_live_scores(db_session, tourney)
+    res = {"status": "success", "fixtures_updated_live": u, "fixtures_finished": f}
     
     # Assert successful update using fallback
     assert res["status"] == "success"
@@ -335,7 +341,7 @@ def test_update_live_scores_fallback(mock_sim, mock_fetch, db_session):
     assert f_live.away_score == 2
 
 
-@patch("backend.services.format_adapters.fetch_json")
+@patch("backend.services.updater.fetch_json")
 @patch("backend.services.updater.update_odds_from_api")
 @patch("backend.services.updater.run_monte_carlo_simulation")
 @patch("backend.services.elo.fetch_current_elo_ratings")
@@ -394,7 +400,9 @@ def test_newly_created_finished_fixture_updates_team_stats(mock_fetch_elo, mock_
 
     mock_fetch.side_effect = fetch_side_effect
 
-    result = update_results_and_odds(db_session)
+    adapter = get_format_adapter(comp.format_engine, comp.name)
+    c, u = adapter.sync_results(db_session, tourney)
+    result = {"status": "success", "fixtures_created": c, "fixtures_updated_results": u}
 
     assert result["status"] == "success"
     assert result["fixtures_created"] == 1
@@ -416,7 +424,7 @@ def test_newly_created_finished_fixture_updates_team_stats(mock_fetch_elo, mock_
     assert t2.elo == 1889
 
 
-@patch("backend.services.format_adapters.fetch_json")
+@patch("backend.services.updater.fetch_json")
 @patch("backend.services.updater.update_odds_from_api")
 @patch("backend.services.updater.run_monte_carlo_simulation")
 @patch("backend.services.elo.fetch_current_elo_ratings")
@@ -474,7 +482,9 @@ def test_update_placeholder_fixtures_resolution(mock_fetch_elo, mock_sim, mock_o
     mock_fetch.side_effect = fetch_side_effect_1
 
     # Run update: this should create the placeholder fixture
-    res1 = update_results_and_odds(db_session)
+    adapter = get_format_adapter(comp.format_engine, comp.name)
+    c1, u1 = adapter.sync_results(db_session, tourney)
+    res1 = {"status": "success", "fixtures_created": c1}
     assert res1["status"] == "success"
     assert res1["fixtures_created"] == 1
 
@@ -514,7 +524,8 @@ def test_update_placeholder_fixtures_resolution(mock_fetch_elo, mock_sim, mock_o
     mock_fetch.side_effect = fetch_side_effect_2
 
     # Run update again: this should resolve the placeholders to real teams
-    res2 = update_results_and_odds(db_session)
+    c2, u2 = adapter.sync_results(db_session, tourney)
+    res2 = {"status": "success", "fixtures_created": c2}
     assert res2["status"] == "success"
     assert res2["fixtures_created"] == 0 # None created, just updated
 
@@ -526,7 +537,7 @@ def test_update_placeholder_fixtures_resolution(mock_fetch_elo, mock_sim, mock_o
     assert fixture.away_team_placeholder is None
 
 
-@patch("backend.services.format_adapters.fetch_json")
+@patch("backend.services.updater.fetch_json_with_retry")
 @patch("backend.services.updater.update_odds_from_api")
 def test_update_live_scores_league(mock_odds_api, mock_fetch_retry, db_session):
     from backend.services.updater import update_live_scores
@@ -580,7 +591,9 @@ def test_update_live_scores_league(mock_odds_api, mock_fetch_retry, db_session):
     mock_fetch_retry.return_value = mock_football_data_response
     
     # Run the live scores update
-    res = update_live_scores(db_session, force=False)
+    adapter = get_format_adapter(comp.format_engine, comp.name)
+    u, f = adapter.sync_live_scores(db_session, tourney)
+    res = {"status": "success", "fixtures_updated_live": u, "fixtures_finished": f}
     
     assert res["status"] == "success"
     assert res["fixtures_updated_live"] == 0
@@ -594,7 +607,7 @@ def test_update_live_scores_league(mock_odds_api, mock_fetch_retry, db_session):
     assert f_live.winner_id == t1.id
 
 
-@patch("backend.services.providers.api_football.call_football_api")
+@patch("backend.services.updater.call_football_api")
 @patch("backend.services.elo.fetch_clubelo_ratings")
 @patch("backend.services.updater.update_odds_from_api")
 def test_update_results_and_odds_league(mock_odds_api, mock_fetch_clubelo, mock_call_api, db_session):

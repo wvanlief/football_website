@@ -168,7 +168,95 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Fetch and Load Fixtures
 
+    function processHydratedFixtures(fixturesList, userTz) {
+        let todayFixtures = [];
+        let tomorrowFixtures = [];
+        let weekFixtures = [];
+        let finishedFixtures = [];
+        let scheduledFixtures = [];
+
+        let now = new Date();
+        let todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+        
+        let tomorrowDate = new Date(now);
+        tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+        let tomorrowStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(tomorrowDate);
+
+        let maxDate = new Date(now);
+        maxDate.setDate(maxDate.getDate() + 30);
+        let maxDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(maxDate);
+
+        (fixturesList || []).forEach(fdata => {
+            let matchDateStr = todayStr;
+            if (fdata.date) {
+                try {
+                    let d = new Date(fdata.date);
+                    matchDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+                } catch(e) {}
+            }
+
+            if (fdata.status === "Finished") {
+                finishedFixtures.push(fdata);
+                return;
+            }
+
+            if (matchDateStr >= todayStr) {
+                scheduledFixtures.push({ matchDateStr, fdata });
+            }
+
+            if (matchDateStr === todayStr) {
+                todayFixtures.push(fdata);
+            } else if (matchDateStr === tomorrowStr) {
+                tomorrowFixtures.push(fdata);
+            } else if (matchDateStr > tomorrowStr && matchDateStr <= maxDateStr) {
+                weekFixtures.push(fdata);
+            }
+        });
+
+        let isOffseason = false;
+        let offseasonNotice = null;
+
+        if (todayFixtures.length === 0 && tomorrowFixtures.length === 0 && weekFixtures.length === 0 && scheduledFixtures.length > 0) {
+            isOffseason = true;
+            let firstMatchDate = scheduledFixtures[0].matchDateStr;
+            scheduledFixtures.forEach(item => {
+                if (item.matchDateStr === firstMatchDate) {
+                    todayFixtures.push(item.fdata);
+                }
+            });
+            offseasonNotice = `Off-season: Showing next upcoming match block starting ${firstMatchDate}.`;
+        }
+
+        return {
+            today: todayFixtures,
+            tomorrow: tomorrowFixtures,
+            this_week: weekFixtures,
+            finished: finishedFixtures.slice(0, 30),
+            is_offseason: isOffseason,
+            offseason_notice: offseasonNotice
+        };
+    }
+
     async function fetchFixtures() {
+        const todayHeader = document.querySelector('#col-today h2');
+        const tomorrowHeader = document.querySelector('#col-tomorrow h2');
+        if (todayHeader) todayHeader.textContent = getFormattedDateString(resolvedTimezone, 0);
+        if (tomorrowHeader) tomorrowHeader.textContent = getFormattedDateString(resolvedTimezone, 1);
+
+        const hydratedElement = document.getElementById('initial-fixtures-data');
+        if (hydratedElement && hydratedElement.textContent.trim()) {
+            try {
+                const parsed = JSON.parse(hydratedElement.textContent);
+                if (parsed && parsed.fixtures && parsed.fixtures.length > 0) {
+                    activeFixtures = processHydratedFixtures(parsed.fixtures, resolvedTimezone);
+                    renderAllColumns();
+                    return;
+                }
+            } catch(e) {
+                console.warn("Failed to parse inline hydrated fixtures:", e);
+            }
+        }
+
         const cacheKey = 'findfootball-cached-fixtures-v5';
         const cachedSession = sessionStorage.getItem(cacheKey);
 
@@ -187,11 +275,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             });
         }
-
-        const todayHeader = document.querySelector('#col-today h2');
-        const tomorrowHeader = document.querySelector('#col-tomorrow h2');
-        if (todayHeader) todayHeader.textContent = getFormattedDateString(resolvedTimezone, 0);
-        if (tomorrowHeader) tomorrowHeader.textContent = getFormattedDateString(resolvedTimezone, 1);
 
         try {
             const res = await fetch(`/api/fixtures?tz=${encodeURIComponent(resolvedTimezone)}`);
@@ -307,7 +390,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 : '';
 
             const card = document.createElement('div');
+            const compName = match.competition_name || '';
+            const matchRegion = match.region || (['Copa Libertadores', 'Copa Sudamericana', 'Brasileirão', 'MLS', 'Major League Soccer', 'Argentina', 'Liga Profesional', 'CONCACAF'].some(c => compName.includes(c)) ? 'Americas' : 'Europe');
             card.className = `match-card ${ratingClass}`;
+            card.setAttribute('data-region', matchRegion);
+            card.setAttribute('data-competition', compName);
             card.innerHTML = `
                 <div class="card-flag-bg home-flag-bg" style="background-image: url('${getFlagUrl(match.home_team, 'w320')}');"></div>
                 <div class="card-flag-bg away-flag-bg" style="background-image: url('${getFlagUrl(match.away_team, 'w320')}');"></div>
@@ -792,12 +879,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Expose global filterMatchesByName function for Drawer & Navigation controls
     window.filterMatchesByName = function(leagueName) {
         const cards = document.querySelectorAll('.match-card');
+        const lname = (leagueName || '').toLowerCase();
+
         cards.forEach(card => {
-            if (!leagueName || leagueName === 'all') {
+            if (!leagueName || lname === 'all') {
                 card.style.display = '';
                 return;
             }
-            if (leagueName === 'hot') {
+            if (lname === 'hot') {
                 const scoreEl = card.querySelector('.score-badge, .score-val');
                 let score = 0;
                 if (scoreEl) {
@@ -808,8 +897,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            const cardRegion = (card.getAttribute('data-region') || '').toLowerCase();
             const text = (card.textContent).toLowerCase();
-            if (text.includes(leagueName.toLowerCase())) {
+
+            if (lname === 'europe') {
+                const isEurope = cardRegion === 'europe' || ['england', 'spain', 'italy', 'germany', 'belgium', 'netherlands', 'france', 'champions', 'europa', 'nations league', 'pro league', 'eredivisie', 'premier', 'la liga', 'serie a', 'bundesliga', 'copa del rey', 'fa cup', 'dfb pokal', 'coppa italia'].some(k => text.includes(k));
+                card.style.display = isEurope ? '' : 'none';
+                return;
+            }
+
+            if (lname === 'americas') {
+                const isAmericas = cardRegion === 'americas' || ['americas', 'libertadores', 'sudamericana', 'brasileirão', 'mls', 'argentina', 'brazil', 'liga profesional', 'copa argentina', 'copa do brasil', 'concacaf'].some(k => text.includes(k));
+                card.style.display = isAmericas ? '' : 'none';
+                return;
+            }
+
+            if (text.includes(lname)) {
                 card.style.display = '';
             } else {
                 card.style.display = 'none';
