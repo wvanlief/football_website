@@ -1,8 +1,8 @@
-from typing import Optional
+from typing import Optional, Union
 from sqlalchemy.orm import Session
 from backend.database import Team, Competition, ExternalTeamMapping, ExternalCompetitionMapping
 
-def get_team_by_external_id(db: Session, provider_name: str, external_id: str | int) -> Optional[Team]:
+def get_team_by_external_id(db: Session, provider_name: str, external_id: Union[str, int]) -> Optional[Team]:
     """Retrieves internal Team entity by external provider ID."""
     ext_id_str = str(external_id)
     mapping = db.query(ExternalTeamMapping).filter(
@@ -13,7 +13,7 @@ def get_team_by_external_id(db: Session, provider_name: str, external_id: str | 
         return mapping.team
     return None
 
-def link_team_external_id(db: Session, team_id: int, provider_name: str, external_id: str | int) -> ExternalTeamMapping:
+def link_team_external_id(db: Session, team_id: int, provider_name: str, external_id: Union[str, int]) -> ExternalTeamMapping:
     """Links or updates an external provider ID for an internal team."""
     ext_id_str = str(external_id)
     mapping = db.query(ExternalTeamMapping).filter(
@@ -33,7 +33,7 @@ def link_team_external_id(db: Session, team_id: int, provider_name: str, externa
         db.flush()
     return mapping
 
-def get_competition_by_external_id(db: Session, provider_name: str, external_id: str | int) -> Optional[Competition]:
+def get_competition_by_external_id(db: Session, provider_name: str, external_id: Union[str, int]) -> Optional[Competition]:
     """Retrieves internal Competition entity by external provider ID."""
     ext_id_str = str(external_id)
     mapping = db.query(ExternalCompetitionMapping).filter(
@@ -44,7 +44,7 @@ def get_competition_by_external_id(db: Session, provider_name: str, external_id:
         return mapping.competition
     return None
 
-def link_competition_external_id(db: Session, competition_id: int, provider_name: str, external_id: str | int) -> ExternalCompetitionMapping:
+def link_competition_external_id(db: Session, competition_id: int, provider_name: str, external_id: Union[str, int]) -> ExternalCompetitionMapping:
     """Links or updates an external provider ID for an internal competition."""
     ext_id_str = str(external_id)
     mapping = db.query(ExternalCompetitionMapping).filter(
