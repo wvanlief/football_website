@@ -24,10 +24,8 @@ from backend.services.format_adapters import (
 
 from backend.services.elo import fetch_current_elo_ratings, fetch_clubelo_ratings
 from backend.services.seeder import call_football_api
-from backend.utils import fetch_json_with_retry, fetch_url_with_retry
+from backend.utils import fetch_json_with_retry, fetch_url_with_retry, fetch_json
 
-def fetch_json(url: str, use_cache: bool = True) -> list:
-    return fetch_json_with_retry(url, use_cache=use_cache)
 
 def normalize_team_name(name: str) -> str:
     return NameNormalizer().normalize(name)

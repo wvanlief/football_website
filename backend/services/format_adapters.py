@@ -6,13 +6,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from backend.database import Team, Fixture, Tournament, Competition, FixtureOdds, EloHistory
-from backend.utils import fetch_json_with_retry
 from backend.services.ingestion import NameNormalizer
 from backend.services.odds import calculate_default_odds
 from backend.services.settling import settle_result
 import backend.services.elo as elo_service
 from backend.scoring import update_fixture_score
 
+
+DEFAULT_SEASON_FALLBACK = 2026
 
 STAGE_MAPPING = {
     "group": "Group Stage",
@@ -87,9 +88,6 @@ def map_api_football_round_to_type_key(round_str: str) -> str:
         return "final"
     return "group"
 
-def fetch_json(url: str, use_cache: bool = True) -> list:
-    return fetch_json_with_retry(url, use_cache=use_cache)
-
 
 class BaseFormatAdapter:
     """Abstract base adapter for format-specific result and live score updates."""
@@ -131,7 +129,10 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
         try:
             api_season = int(tourney.season_name.split("/")[0])
         except (ValueError, AttributeError):
-            api_season = 2026
+            api_season = DEFAULT_SEASON_FALLBACK
+            season_val = getattr(tourney, "season_name", None)
+            print(f"Warning: Failed to parse api_season from tourney.season_name='{season_val}'. Defaulting to {DEFAULT_SEASON_FALLBACK}.")
+
             
         print(f"Fetching fixtures from API-Football for comp='{comp.name}' (league={league_id}, season={api_season})...")
         
