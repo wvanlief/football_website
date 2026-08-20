@@ -88,9 +88,6 @@ def map_api_football_round_to_type_key(round_str: str) -> str:
         return "final"
     return "group"
 
-def fetch_json(url: str, use_cache: bool = True) -> list:
-    return fetch_json_with_retry(url, use_cache=use_cache)
-
 
 class BaseFormatAdapter:
     """Abstract base adapter for format-specific result and live score updates."""

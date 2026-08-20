@@ -29,6 +29,8 @@ test_football_games.db
 # Generated Data & Cache
 backend/data/cache/
 backend/data/fixtures_feed_cache.json
-backend/static/badges/
+backend/static/badges/*
+!backend/static/badges/default.png
+!backend/static/badges/.gitkeep
 
 
