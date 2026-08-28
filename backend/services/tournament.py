@@ -338,7 +338,7 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
         
         today_date = datetime.now(target_tz).date()
         tomorrow_date = today_date + timedelta(days=1)
-        max_date = today_date + timedelta(days=30)
+        max_date = today_date + timedelta(days=8)
         
         for fdata in cached_list:
             dt_str = fdata.get("date")
@@ -369,14 +369,32 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
         
         if not today_fixtures and not tomorrow_fixtures and not week_fixtures and scheduled_fixtures:
             is_offseason = True
+            scheduled_fixtures.sort(key=lambda x: x[0])
             first_match_date = scheduled_fixtures[0][0]
             upcoming_block = []
             for m_date, f_data in scheduled_fixtures:
                 if first_match_date <= m_date <= first_match_date + timedelta(days=8):
                     upcoming_block.append(f_data)
             upcoming_block.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
-            week_fixtures = upcoming_block
+            week_fixtures = upcoming_block[:8]
             offseason_notice = f"Off-season: Showing next upcoming matches starting {first_match_date.strftime('%b %d, %Y')}."
+        else:
+            today_fixtures.sort(key=lambda x: x.get("date") or "")
+            tomorrow_fixtures.sort(key=lambda x: x.get("date") or "")
+            
+            # Upcoming Gems: Filter by watchability score >= 70 (Recommended / Must Watch) and rank descending
+            high_quality_gems = [
+                f for f in week_fixtures
+                if f.get("watchability", {}).get("overall", 0) >= 70.0
+            ]
+            high_quality_gems.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
+            
+            if len(high_quality_gems) >= 3:
+                week_fixtures = high_quality_gems[:8]
+            else:
+                # Quiet week fallback: top highest-rated matches in the 7-day window
+                week_fixtures.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
+                week_fixtures = week_fixtures[:5]
 
         payload = {
             "today": today_fixtures,
@@ -446,21 +464,33 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
         matchday_end = earliest_date + timedelta(days=3)
         
         upcoming_block = [data for m_date, data in scheduled_fixtures if earliest_date <= m_date <= matchday_end]
-        upcoming_block.sort(key=lambda x: x["watchability"]["overall"], reverse=True)
-        week_fixtures = upcoming_block
+        upcoming_block.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
+        week_fixtures = upcoming_block[:8]
         is_offseason = True
         formatted_start = earliest_date.strftime("%B %d, %Y")
         offseason_notice = f"Off-Season: Showing upcoming Gameweek 1 blockbusters starting {formatted_start}"
+    else:
+        # Upcoming Gems: Filter by watchability score >= 70 (Recommended / Must Watch) and rank descending
+        high_quality_gems = [
+            f for f in week_fixtures
+            if f.get("watchability", {}).get("overall", 0) >= 70.0
+        ]
+        high_quality_gems.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
+        
+        if len(high_quality_gems) >= 3:
+            week_fixtures = high_quality_gems[:8]
+        else:
+            week_fixtures.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
+            week_fixtures = week_fixtures[:5]
         
     today_fixtures.sort(key=lambda x: x["date"])
     tomorrow_fixtures.sort(key=lambda x: x["date"])
-    week_fixtures.sort(key=lambda x: x["watchability"]["overall"], reverse=True)
     finished_fixtures.sort(key=lambda x: x["date"], reverse=True)
     
     result = {
         "today": today_fixtures,
         "tomorrow": tomorrow_fixtures,
-        "this_week": week_fixtures[:5],
+        "this_week": week_fixtures,
         "finished": finished_fixtures,
         "is_offseason": is_offseason,
         "offseason_notice": offseason_notice,
