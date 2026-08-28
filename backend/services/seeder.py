@@ -430,9 +430,9 @@ def seed_all_default_competitions(db: Session) -> dict:
             ("Ligue 1", "League", "league", 61, "2026/27", 2026, 2, 90),
 
             # European Cups
-            ("UEFA Champions League", "Cup", "group_knockout", 2, "2026/27", 2026, 0, 80),
-            ("UEFA Europa League", "Cup", "group_knockout", 3, "2026/27", 2026, 0, 60),
-            ("UEFA Conference League", "Cup", "group_knockout", 848, "2026/27", 2026, 0, 50),
+            ("UEFA Champions League", "Cup", "league_phase_knockout", 2, "2026/27", 2026, 0, 80),
+            ("UEFA Europa League", "Cup", "league_phase_knockout", 3, "2026/27", 2026, 0, 60),
+            ("UEFA Conference League", "Cup", "league_phase_knockout", 848, "2026/27", 2026, 0, 50),
 
             # Domestic Cups (Big 5)
             ("FA Cup", "Cup", "cup", 45, "2026/27", 2026, 0, 30),
@@ -920,3 +920,181 @@ def seed_competition(
     recalculate_standings(db, tourney.id)
     db.commit()
     print(f"Successfully seeded competition {competition_name} for season {season}.")
+
+
+def seed_european_cups(db: Session) -> dict:
+    """
+    Seeds the 3 UEFA European competitions (Champions League, Europa League, Conference League)
+    for the 2026/27 season using the official 36-team Swiss league phase draw dataset.
+    """
+    import json
+    from pathlib import Path
+    
+    results = {}
+    normalizer = NameNormalizer()
+    draw_file = Path(__file__).resolve().parent.parent / "data" / "european_draw_2026.json"
+    
+    if not draw_file.exists():
+        print(f"Error: {draw_file} not found.")
+        return {"status": "error", "message": f"{draw_file} not found"}
+        
+    with open(draw_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+        
+    for comp_name, comp_data in data.items():
+        try:
+            api_league_id = comp_data.get("api_league_id")
+            comp_type = comp_data.get("competition_type", "Cup")
+            format_engine = comp_data.get("format_engine", "league_phase_knockout")
+            season = comp_data.get("season", "2026/27")
+            home_adv = comp_data.get("home_advantage_elo", 80)
+            
+            comp = db.query(Competition).filter(Competition.name == comp_name).first()
+            if not comp:
+                comp = Competition(
+                    name=comp_name,
+                    type=comp_type,
+                    format_engine=format_engine,
+                    home_advantage_elo=home_adv,
+                    api_league_id=api_league_id
+                )
+                db.add(comp)
+                db.flush()
+            else:
+                comp.format_engine = format_engine
+                comp.api_league_id = api_league_id
+                comp.home_advantage_elo = home_adv
+                db.flush()
+                
+            tourney = db.query(Tournament).filter(
+                Tournament.competition_id == comp.id,
+                Tournament.season_name == season
+            ).first()
+            if not tourney:
+                tourney = Tournament(
+                    competition_id=comp.id,
+                    season_name=season,
+                    status="Active"
+                )
+                db.add(tourney)
+                db.flush()
+            else:
+                tourney.status = "Active"
+                db.flush()
+                
+            # Seed / Upsert Teams
+            team_map = {}
+            for t_info in comp_data.get("teams", []):
+                t_name = normalizer.normalize(t_info["name"])
+                country = t_info.get("country")
+                elo = t_info.get("elo", 1700)
+                
+                db_team = db.query(Team).filter(Team.name == t_name).first()
+                if not db_team:
+                    db_team = Team(
+                        name=t_name,
+                        country_code=country,
+                        team_type="Club",
+                        elo_source="clubelo",
+                        elo=elo,
+                        form_score=min(95.0, max(45.0, 50.0 + (elo - 1500) * 0.05)),
+                        win_streak=0,
+                        draw_streak=0,
+                        loss_streak=0
+                    )
+                    db.add(db_team)
+                    db.flush()
+                else:
+                    if country and not db_team.country_code:
+                        db_team.country_code = country
+                    if elo and (not db_team.elo or db_team.elo == 1500):
+                        db_team.elo = elo
+                    db.flush()
+                    
+                team_map[t_name] = db_team
+                
+                # Link TournamentTeam
+                tt = db.query(TournamentTeam).filter(
+                    TournamentTeam.tournament_id == tourney.id,
+                    TournamentTeam.team_id == db_team.id
+                ).first()
+                if not tt:
+                    tt = TournamentTeam(
+                        tournament_id=tourney.id,
+                        team_id=db_team.id,
+                        group_name=None,
+                        tournament_status="Active"
+                    )
+                    db.add(tt)
+            db.flush()
+            
+            # Seed / Upsert Fixtures
+            fixtures_saved = []
+            for f_info in comp_data.get("fixtures", []):
+                h_name = normalizer.normalize(f_info["home"])
+                a_name = normalizer.normalize(f_info["away"])
+                h_team = team_map.get(h_name) or db.query(Team).filter(Team.name == h_name).first()
+                a_team = team_map.get(a_name) or db.query(Team).filter(Team.name == a_name).first()
+                
+                if not h_team or not a_team:
+                    continue
+                    
+                matchday = f_info.get("matchday")
+                date_utc_str = f_info.get("date_utc")
+                date_utc = datetime.fromisoformat(date_utc_str.replace("Z", "+00:00"))
+                
+                fixture = db.query(Fixture).filter(
+                    Fixture.tournament_id == tourney.id,
+                    Fixture.home_team_id == h_team.id,
+                    Fixture.away_team_id == a_team.id
+                ).first()
+                
+                if not fixture:
+                    fixture = Fixture(
+                        tournament_id=tourney.id,
+                        home_team_id=h_team.id,
+                        away_team_id=a_team.id,
+                        date_utc=date_utc,
+                        stage="League Phase",
+                        matchday_number=matchday,
+                        status="Scheduled"
+                    )
+                    db.add(fixture)
+                    db.flush()
+                else:
+                    fixture.date_utc = date_utc
+                    fixture.stage = "League Phase"
+                    fixture.matchday_number = matchday
+                    db.flush()
+                    
+                # Odds
+                if not fixture.odds_history:
+                    h_elo = h_team.elo if h_team else 1500
+                    a_elo = a_team.elo if a_team else 1500
+                    h_odds, d_odds, a_odds = calculate_default_odds(h_elo, a_elo, home_advantage=home_adv)
+                    init_odds = FixtureOdds(
+                        fixture_id=fixture.id,
+                        recorded_at=fixture.date_utc - timedelta(days=2),
+                        odds_home=h_odds,
+                        odds_draw=d_odds,
+                        odds_away=a_odds
+                    )
+                    db.add(init_odds)
+                    
+                db.flush()
+                update_fixture_score(fixture, db)
+                fixtures_saved.append(fixture)
+                
+            from backend.services.standings import recalculate_standings
+            recalculate_standings(db, tourney.id)
+            db.commit()
+            
+            results[comp_name] = f"Successfully seeded {len(comp_data.get('teams', []))} teams and {len(fixtures_saved)} fixtures"
+            print(f"[{comp_name}] {results[comp_name]}")
+        except Exception as e:
+            db.rollback()
+            results[comp_name] = f"Error: {e}"
+            print(f"Error seeding {comp_name}: {e}")
+            
+    return results
+
