@@ -1,7 +1,7 @@
 import os
 import json
 import time
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session, joinedload
 
@@ -193,12 +193,19 @@ def propagate_knockout_fixtures(db: Session):
             db.add(db_odds)
 
 def get_timezone(tz_str: str) -> ZoneInfo:
+    """
+    Returns a ZoneInfo object for the given timezone string, falling back to UTC if invalid.
+    """
     try:
         return ZoneInfo(tz_str)
     except Exception:
         return ZoneInfo("UTC")
 
 def resolve_placeholder_name(db: Session, placeholder: str, tournament_id: int) -> str:
+    """
+    Resolves a placeholder string (e.g., 'Winner Match 78') into a human-readable description.
+    For match references, looks up the referenced fixture and returns participating team names.
+    """
     if not placeholder:
         return "TBD"
     import re
@@ -216,11 +223,16 @@ def resolve_placeholder_name(db: Session, placeholder: str, tournament_id: int) 
             if h_name and a_name:
                 # Simplify common labels to make them shorter
                 def simplify(name):
+                    """Simplifies group placeholder labels by removing redundant text."""
                     return name.replace("Runner-up Group ", "Runner-up ").replace("Winner Group ", "Winner ")
                 return f"{placeholder} ({simplify(h_name)} or {simplify(a_name)})"
     return placeholder
 
 def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_map: dict = None, team_group_map: dict = None) -> dict:
+    """
+    Enriches a Fixture model into a dictionary with formatted dates, team details, players, and watchability scores.
+    Optimized for N+1 query prevention via optional preloaded maps.
+    """
     dt = f.date_utc
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=ZoneInfo("UTC"))
@@ -311,6 +323,10 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
     }
 
 def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) -> dict:
+    """
+    Returns fixtures grouped by time buckets (today, tomorrow, this_week, finished).
+    Includes off-season detection and uses in-memory caching for performance.
+    """
     use_cache = os.getenv("TESTING") != "True"
     cache_key = (tz_str, tournament_id)
     now = time.time()
@@ -321,8 +337,8 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
             
     target_tz = get_timezone(tz_str)
     
-    # Fast path for global feed using pre-calculated JSON cache
-    if tournament_id is None:
+    # Fast path for global feed using pre-calculated JSON cache (bypassed in test environment)
+    if tournament_id is None and use_cache:
         from backend.services.feed_builder import load_precalculated_feed_cache, build_fixtures_feed_cache
         feed_cache = load_precalculated_feed_cache()
         if not feed_cache:
@@ -370,14 +386,13 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
         if not today_fixtures and not tomorrow_fixtures and not week_fixtures and scheduled_fixtures:
             is_offseason = True
             first_match_date = scheduled_fixtures[0][0]
+            upcoming_block = []
             for m_date, f_data in scheduled_fixtures:
-                if m_date == first_match_date:
-                    today_fixtures.append(f_data)
-                elif m_date == first_match_date + timedelta(days=1):
-                    tomorrow_fixtures.append(f_data)
-                elif first_match_date + timedelta(days=1) < m_date <= first_match_date + timedelta(days=8):
-                    week_fixtures.append(f_data)
-            offseason_notice = f"Off-season: Showing next upcoming match block starting {first_match_date.strftime('%b %d, %Y')}."
+                if first_match_date <= m_date <= first_match_date + timedelta(days=8):
+                    upcoming_block.append(f_data)
+            upcoming_block.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
+            week_fixtures = upcoming_block
+            offseason_notice = f"Off-season: Showing next upcoming matches starting {first_match_date.strftime('%b %d, %Y')}."
 
         payload = {
             "today": today_fixtures,
@@ -385,7 +400,8 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
             "this_week": week_fixtures,
             "finished": finished_fixtures[:30],
             "is_offseason": is_offseason,
-            "offseason_notice": offseason_notice
+            "offseason_notice": offseason_notice,
+            "updated_at": feed_cache.get("updated_at") if feed_cache else datetime.now(timezone.utc).isoformat()
         }
         if use_cache:
             _FIXTURES_CACHE[cache_key] = (now, payload)
@@ -463,13 +479,18 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
         "this_week": week_fixtures[:5],
         "finished": finished_fixtures,
         "is_offseason": is_offseason,
-        "offseason_notice": offseason_notice
+        "offseason_notice": offseason_notice,
+        "updated_at": datetime.now(timezone.utc).isoformat()
     }
     if use_cache:
         _FIXTURES_CACHE[cache_key] = (now, result)
     return result
 
 def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None, min_score: float = 75.0) -> list:
+    """
+    Returns a list of high-watchability fixtures exceeding the minimum score threshold.
+    Preloads player and group data to avoid N+1 queries.
+    """
     use_cache = os.getenv("TESTING") != "True"
     cache_key = (tz_str, tournament_id, min_score)
     now = time.time()
@@ -507,6 +528,10 @@ def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None
 
 
 def get_country_details(db: Session, country_name: str, tz_str: str, tournament_id: int = None) -> dict:
+    """
+    Returns detailed information about a country/team including Elo, group standings, form, players, and future matches.
+    Returns None if the team is not found.
+    """
     target_tz = get_timezone(tz_str)
     team = crud_team.get_team_by_name(db, country_name)
     if not team:
@@ -619,6 +644,10 @@ def get_country_details(db: Session, country_name: str, tz_str: str, tournament_
 
 
 def get_all_third_placed_teams(db: Session, tournament_id: int = None) -> list:
+    """
+    Returns a list of all third-placed teams across groups, sorted by points, goal difference, and Elo.
+    Includes qualification probabilities from simulation results if available.
+    """
     if tournament_id is None:
         active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
         tournament_id = active_tourney.id if active_tourney else None
@@ -668,6 +697,10 @@ def get_all_third_placed_teams(db: Session, tournament_id: int = None) -> list:
 
 
 def get_group_details(db: Session, group_letter: str, tz_str: str, tournament_id: int = None) -> dict:
+    """
+    Returns detailed standings and fixtures for a specific group.
+    Includes qualification probabilities and points needed for top 2 finish.
+    """
     target_tz = get_timezone(tz_str)
     
     if tournament_id is None:
@@ -749,6 +782,10 @@ def get_group_details(db: Session, group_letter: str, tz_str: str, tournament_id
     }
 
 def get_calendar_fixtures(db: Session, tz_str: str, tournament_id: int = None, start_date_str: str = None, end_date_str: str = None) -> list:
+    """
+    Returns fixtures within a date range (defaults to 30 days past, 60 days future).
+    Returns lightweight fixture data suitable for calendar views.
+    """
     target_tz = get_timezone(tz_str)
     today_dt = datetime.now(target_tz)
     
@@ -831,6 +868,10 @@ def get_calendar_fixtures(db: Session, tz_str: str, tournament_id: int = None, s
 
 
 def get_fixture_details_by_id(db: Session, fixture_id: int, tz_str: str) -> dict:
+    """
+    Returns enriched fixture details for a specific fixture ID.
+    Returns None if the fixture is not found.
+    """
     target_tz = get_timezone(tz_str)
     f = db.query(Fixture).filter(Fixture.id == fixture_id).first()
     if not f:

@@ -2,9 +2,14 @@ from sqlalchemy.orm import Session
 from backend.database import Team, TournamentTeam
 
 def get_team_by_name(db: Session, name: str) -> Team:
+    """Returns a team by exact name match, or None if not found."""
     return db.query(Team).filter(Team.name == name).first()
 
 def get_teams_by_group(db: Session, group_name: str, tournament_id: int = None) -> list[Team]:
+    """
+    Returns all teams in a specific group.
+    Supports Nations League division+group format (e.g., 'A1' = division A, group 1).
+    """
     from backend.database import Tournament
     is_nations_league = False
     if tournament_id is not None:
@@ -27,6 +32,10 @@ def get_teams_by_group(db: Session, group_name: str, tournament_id: int = None) 
     return q.all()
 
 def count_teams_in_group(db: Session, group_name: str, tournament_id: int = None) -> int:
+    """
+    Returns the number of teams in a specific group.
+    Supports Nations League division+group format (e.g., 'A1' = division A, group 1).
+    """
     from backend.database import Tournament
     is_nations_league = False
     if tournament_id is not None:
@@ -49,6 +58,7 @@ def count_teams_in_group(db: Session, group_name: str, tournament_id: int = None
     return q.count()
 
 def get_all_teams(db: Session, tournament_id: int = None) -> list[Team]:
+    """Returns all teams, optionally filtered by tournament participation."""
     if tournament_id is not None:
         return db.query(Team).join(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all()
     return db.query(Team).all()

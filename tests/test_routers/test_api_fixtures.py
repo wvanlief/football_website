@@ -8,6 +8,8 @@ def test_get_fixtures_empty(client):
     assert "today" in data
     assert "tomorrow" in data
     assert "this_week" in data
+    assert "updated_at" in data
+    assert data["updated_at"] is not None
     assert len(data["today"]) == 0
 
 def test_get_fixtures_with_data(client, db_session):

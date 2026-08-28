@@ -117,6 +117,10 @@ def recalculate_standings(db: Session, tournament_id: int):
 
 
 def calculate_standings(db: Session, group_letter: str, tournament_id: int = None) -> list:
+    """
+    Calculates live standings for a specific group by aggregating finished fixtures.
+    Returns a list of team standings dictionaries sorted by points, goal difference, and goals for.
+    """
     if tournament_id is None:
         active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
         tournament_id = active_tourney.id if active_tourney else None
@@ -191,6 +195,10 @@ def calculate_standings(db: Session, group_letter: str, tournament_id: int = Non
 
 
 def calculate_points_needed_to_guarantee_top_2(db: Session, team_name: str, group_letter: str, tournament_id: int = None) -> int:
+    """
+    Calculates the minimum points needed for a team to mathematically guarantee a top 2 finish in their group.
+    Uses Monte Carlo simulation of remaining fixtures to determine the worst-case scenario.
+    """
     if tournament_id is None:
         active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
         tournament_id = active_tourney.id if active_tourney else None

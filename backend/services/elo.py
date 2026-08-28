@@ -188,6 +188,36 @@ def review_elo_matches(db: Session, output_path: str = "backend/data/elo_name_re
         
     print(f"Generated ELO review file: {output_path}")
 
+def record_elo_history(db: Session, team_id: int, elo_rating: int, recorded_at: datetime = None) -> EloHistory:
+    """
+    Records an EloHistory snapshot for a team, deduplicating by calendar date.
+    If an entry already exists for the team on the same date, it updates the elo_rating rather than creating duplicates.
+    """
+    if recorded_at is None:
+        recorded_at = datetime.now(timezone.utc)
+
+    target_date = recorded_at.date() if isinstance(recorded_at, datetime) else recorded_at
+
+    existing = db.query(EloHistory).filter(EloHistory.team_id == team_id).all()
+    same_date_entry = None
+    for entry in existing:
+        if entry.recorded_at and entry.recorded_at.date() == target_date:
+            same_date_entry = entry
+            break
+
+    if same_date_entry:
+        same_date_entry.elo_rating = elo_rating
+        same_date_entry.recorded_at = recorded_at
+        return same_date_entry
+    else:
+        history = EloHistory(
+            team_id=team_id,
+            recorded_at=recorded_at,
+            elo_rating=elo_rating
+        )
+        db.add(history)
+        return history
+
 def apply_elo_matches(db: Session, file_path: str):
     """Applies verified ELO mappings from elo_name_review.json to DB."""
     if not os.path.exists(file_path):
@@ -210,12 +240,7 @@ def apply_elo_matches(db: Session, file_path: str):
                 team.elo = elo
                 team.form_score = round(min(95.0, max(45.0, 50.0 + (elo - 1500) * 0.05)), 1)
                 
-                history = EloHistory(
-                    team_id=team.id,
-                    recorded_at=now_time,
-                    elo_rating=elo
-                )
-                db.add(history)
+                record_elo_history(db, team.id, elo, now_time)
                 count += 1
                 print(f"Applied ELO {elo} to {api_name} (mapped from {clubelo_name})")
                 

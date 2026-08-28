@@ -11,6 +11,7 @@ router = APIRouter(prefix="/api/admin", tags=["Admin"])
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "dev-admin-token")
 
 def verify_admin_token(x_admin_token: str = Header(None, alias="X-Admin-Token")):
+    """Dependency to verify admin token from X-Admin-Token header."""
     if not x_admin_token or x_admin_token != ADMIN_TOKEN:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

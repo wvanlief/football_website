@@ -12,7 +12,7 @@ from backend.scoring import update_fixture_score
 from backend.utils import fetch_json_with_retry
 from backend.services.ingestion import NameNormalizer, COUNTRY_ISO_MAP
 from backend.services.odds import calculate_default_odds, update_odds_from_api
-from backend.services.elo import fetch_current_elo_ratings
+from backend.services.elo import fetch_current_elo_ratings, record_elo_history
 from backend.services.settling import settle_result
 
 NATIONAL_TEAM_ISO_CODES = COUNTRY_ISO_MAP
@@ -70,7 +70,10 @@ SPOTLIGHT_PLAYERS = {
 }
 
 def call_football_api(endpoint: str, params: dict = None) -> dict:
-    """Helper to query the API-Football API."""
+    """
+    Helper to query the API-Football API.
+    Requires FOOTBALL_API_KEY or API_FOOTBALL_KEY environment variable.
+    """
     api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
     if not api_key:
         raise ValueError("FOOTBALL_API_KEY/API_FOOTBALL_KEY is not configured in the environment.")
@@ -87,6 +90,9 @@ def call_football_api(endpoint: str, params: dict = None) -> dict:
     return fetch_json_with_retry(url, headers=headers, provider="api_football")
 
 def get_fallback_matches():
+    """
+    Returns a hardcoded list of World Cup 2026 group stage matches for offline/testing scenarios.
+    """
     base_date = datetime(2026, 6, 11, 12, 0, 0, tzinfo=ZoneInfo("America/New_York")).astimezone(ZoneInfo("UTC"))
     return [
         {"id": "1", "home": "Mexico", "away": "South Africa", "stage": "Group Stage", "date": base_date.isoformat(), "status": "Scheduled"},
@@ -143,7 +149,7 @@ def seed_database(db: Session):
             form_score = min(95.0, max(45.0, 50.0 + (elo - 1500) * 0.05))
             win_streak = 4 if elo > 2000 else (2 if elo > 1850 else 0)
             
-            country_code = NATIONAL_TEAM_ISO_CODES.get(name) or name[:3].upper()
+            country_code = NameNormalizer().get_country_code(name)
             db_team = db.query(Team).filter(Team.name == name).first()
             if not db_team:
                 db_team = Team(
@@ -177,12 +183,7 @@ def seed_database(db: Session):
                 )
                 db.add(db_tourney_team)
             
-            db_elo_hist = EloHistory(
-                team_id=db_team.id,
-                recorded_at=datetime.now(timezone.utc),
-                elo_rating=elo
-            )
-            db.add(db_elo_hist)
+            record_elo_history(db, db_team.id, elo, datetime.now(timezone.utc))
             
             team_map[str(id_counter)] = name
             id_counter += 1
@@ -352,27 +353,33 @@ def seed_database(db: Session):
             a_elo = live_elo.get(a_team, 1700)
             odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo)
             
-            fixture = Fixture(
-                tournament_id=tourney.id,
-                home_team_id=db_teams_by_name[h_team],
-                away_team_id=db_teams_by_name[a_team],
-                api_id=str(f["id"]),
-                date_utc=dt_utc,
-                stage=f["stage"],
-                status=f["status"],
-                winner_id=None
-            )
-            db.add(fixture)
-            db.flush()
-            
-            init_odds = FixtureOdds(
-                fixture_id=fixture.id,
-                recorded_at=dt_utc - timedelta(days=2),
-                odds_home=odds_h,
-                odds_draw=odds_d,
-                odds_away=odds_a
-            )
-            db.add(init_odds)
+            fixture = db.query(Fixture).filter(
+                Fixture.tournament_id == tourney.id,
+                Fixture.api_id == str(f["id"])
+            ).first()
+
+            if not fixture:
+                fixture = Fixture(
+                    tournament_id=tourney.id,
+                    home_team_id=db_teams_by_name[h_team],
+                    away_team_id=db_teams_by_name[a_team],
+                    api_id=str(f["id"]),
+                    date_utc=dt_utc,
+                    stage=f["stage"],
+                    status=f["status"],
+                    winner_id=None
+                )
+                db.add(fixture)
+                db.flush()
+                
+                init_odds = FixtureOdds(
+                    fixture_id=fixture.id,
+                    recorded_at=dt_utc - timedelta(days=2),
+                    odds_home=odds_h,
+                    odds_draw=odds_d,
+                    odds_away=odds_a
+                )
+                db.add(init_odds)
             fixtures_to_save.append(fixture)
             
     db.commit()
@@ -539,7 +546,7 @@ def fetch_and_seed_teams(
         country_name = t_info.get("country", "")
         country_code = t_info.get("code")
         if not country_code and country_name:
-            country_code = country_name[:3].upper()
+            country_code = normalizer.get_country_code(country_name)
             
         db_team = None
         if api_team_id:
