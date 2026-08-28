@@ -296,6 +296,43 @@ def test_db_driven_propagation(db_session):
     assert f_target.home_team_id == t_home.id
     assert f_target.home_team_placeholder is None
 
+def test_get_grouped_fixtures_offseason_empty_today_tomorrow(db_session):
+    from datetime import timedelta, timezone
+    from backend.services.tournament import get_grouped_fixtures
+
+    comp = Competition(name="Future Cup", type="International")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+
+    t1 = Team(name="Team A", elo=1500)
+    t2 = Team(name="Team B", elo=1500)
+    db_session.add_all([t1, t2])
+    db_session.flush()
+
+    # Fixture 60 days in the future
+    future_date = datetime.now(timezone.utc) + timedelta(days=60)
+    f = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=t1.id,
+        away_team_id=t2.id,
+        stage="Group Stage",
+        status="Scheduled",
+        date_utc=future_date
+    )
+    db_session.add(f)
+    db_session.commit()
+
+    grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id)
+    assert grouped["is_offseason"] is True
+    assert len(grouped["today"]) == 0
+    assert len(grouped["tomorrow"]) == 0
+    assert len(grouped["this_week"]) >= 1
+    assert grouped["offseason_notice"] is not None
+
+
 
 
 

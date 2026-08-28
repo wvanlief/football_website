@@ -416,17 +416,46 @@ document.addEventListener('DOMContentLoaded', () => {
         const filteredWeek = activeFixtures.this_week.filter(filterFn);
         const filteredFinished = activeFixtures.finished.filter(filterFn);
 
-        renderColumn(lists.today, filteredToday, false);
-        renderColumn(lists.tomorrow, filteredTomorrow, false);
-        renderColumn(lists.this_week, filteredWeek, true);
+        renderColumn(lists.today, filteredToday, false, 'Today');
+        renderColumn(lists.tomorrow, filteredTomorrow, false, 'Tomorrow');
+        renderColumn(lists.this_week, filteredWeek, true, 'This Week');
         renderResultsBar(filteredFinished);
     }
 
     // Render a list of fixtures in a column
-    function renderColumn(container, fixtures, showDate = false) {
+    function renderColumn(container, fixtures, showDate = false, columnType = '') {
         container.innerHTML = '';
         if (fixtures.length === 0) {
-            container.innerHTML = '<div class="loading-spinner"><p>No matches scheduled.</p></div>';
+            const isFiltered = activeCompFilter && activeCompFilter !== 'all' && activeCompFilter !== 'upcoming';
+            const filterLabel = activeCompFilter === 'hot' ? 'Hot Matches' : activeCompFilter;
+            
+            let messageTitle = 'No Matches Scheduled';
+            let messageSub = 'Check upcoming fixtures in This Week or explore the Calendar.';
+            let iconClass = 'fa-regular fa-calendar-xmark';
+
+            if (isFiltered) {
+                messageTitle = 'No Matches in This View';
+                messageSub = `No ${columnType ? columnType + ' ' : ''}fixtures found for "${filterLabel}".`;
+                iconClass = 'fa-solid fa-filter-circle-xmark';
+            } else if (columnType === 'Today') {
+                messageTitle = 'No Matches Today';
+                messageSub = 'No live or scheduled matches today. Check upcoming fixtures.';
+                iconClass = 'fa-regular fa-calendar';
+            } else if (columnType === 'Tomorrow') {
+                messageTitle = 'No Matches Tomorrow';
+                messageSub = 'No matches scheduled tomorrow. Check upcoming fixtures.';
+                iconClass = 'fa-regular fa-calendar-days';
+            }
+
+            container.innerHTML = `
+                <div class="empty-state-card glass">
+                    <div class="empty-state-icon-wrapper">
+                        <i class="${iconClass}"></i>
+                    </div>
+                    <h4>${messageTitle}</h4>
+                    <p>${messageSub}</p>
+                </div>
+            `;
             return;
         }
 

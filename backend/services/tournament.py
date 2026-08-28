@@ -370,14 +370,13 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
         if not today_fixtures and not tomorrow_fixtures and not week_fixtures and scheduled_fixtures:
             is_offseason = True
             first_match_date = scheduled_fixtures[0][0]
+            upcoming_block = []
             for m_date, f_data in scheduled_fixtures:
-                if m_date == first_match_date:
-                    today_fixtures.append(f_data)
-                elif m_date == first_match_date + timedelta(days=1):
-                    tomorrow_fixtures.append(f_data)
-                elif first_match_date + timedelta(days=1) < m_date <= first_match_date + timedelta(days=8):
-                    week_fixtures.append(f_data)
-            offseason_notice = f"Off-season: Showing next upcoming match block starting {first_match_date.strftime('%b %d, %Y')}."
+                if first_match_date <= m_date <= first_match_date + timedelta(days=8):
+                    upcoming_block.append(f_data)
+            upcoming_block.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
+            week_fixtures = upcoming_block
+            offseason_notice = f"Off-season: Showing next upcoming matches starting {first_match_date.strftime('%b %d, %Y')}."
 
         payload = {
             "today": today_fixtures,
