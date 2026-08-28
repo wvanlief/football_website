@@ -143,7 +143,7 @@ def seed_database(db: Session):
             form_score = min(95.0, max(45.0, 50.0 + (elo - 1500) * 0.05))
             win_streak = 4 if elo > 2000 else (2 if elo > 1850 else 0)
             
-            country_code = NATIONAL_TEAM_ISO_CODES.get(name) or name[:3].upper()
+            country_code = NameNormalizer().get_country_code(name)
             db_team = db.query(Team).filter(Team.name == name).first()
             if not db_team:
                 db_team = Team(
@@ -539,7 +539,7 @@ def fetch_and_seed_teams(
         country_name = t_info.get("country", "")
         country_code = t_info.get("code")
         if not country_code and country_name:
-            country_code = country_name[:3].upper()
+            country_code = normalizer.get_country_code(country_name)
             
         db_team = None
         if api_team_id:
