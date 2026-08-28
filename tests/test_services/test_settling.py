@@ -105,3 +105,37 @@ def test_settle_result_draw(db_session):
     assert t1.win_streak == 0
     assert t2.draw_streak == 1
     assert t2.win_streak == 0
+
+def test_settle_result_none_scores(db_session):
+    tourney = _setup_tournament(db_session)
+
+    t1 = Team(name="Team G", elo=1500, win_streak=1, draw_streak=0, loss_streak=0)
+    t2 = Team(name="Team H", elo=1500, win_streak=2, draw_streak=0, loss_streak=0)
+    db_session.add_all([t1, t2])
+    db_session.flush()
+
+    fixture = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=t1.id,
+        away_team_id=t2.id,
+        home_team_placeholder="Winner Match 1",
+        away_team_placeholder="Winner Match 2",
+        stage="Round of 16",
+        status="Scheduled",
+        date_utc=datetime.now(timezone.utc)
+    )
+    fixture.home_team = t1
+    fixture.away_team = t2
+    db_session.add(fixture)
+    db_session.flush()
+
+    # Settle without scores (e.g. edge case or pending score feed)
+    settle_result(fixture, None, None)
+
+    assert fixture.status == "Finished"
+    assert fixture.home_score is None
+    assert fixture.away_score is None
+    assert fixture.winner_id is None
+    assert fixture.home_team_placeholder is None
+    assert fixture.away_team_placeholder is None
+

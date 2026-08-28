@@ -321,8 +321,8 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
             
     target_tz = get_timezone(tz_str)
     
-    # Fast path for global feed using pre-calculated JSON cache
-    if tournament_id is None:
+    # Fast path for global feed using pre-calculated JSON cache (bypassed in test environment)
+    if tournament_id is None and use_cache:
         from backend.services.feed_builder import load_precalculated_feed_cache, build_fixtures_feed_cache
         feed_cache = load_precalculated_feed_cache()
         if not feed_cache:

@@ -31,7 +31,7 @@ def update_team_streaks(home_team: Team, away_team: Team, outcome: float):
         away_team.win_streak = 0
         away_team.loss_streak = 0
 
-def settle_result(fixture: Fixture, home_score: int, away_score: int) -> None:
+def settle_result(fixture: Fixture, home_score: Optional[int], away_score: Optional[int]) -> None:
     """
     Settles a completed fixture by updating scores, status, winner, placeholders, and team streaks.
     """
@@ -48,21 +48,27 @@ def settle_result(fixture: Fixture, home_score: int, away_score: int) -> None:
         fixture.home_team_placeholder = None
         fixture.away_team_placeholder = None
 
-        if home_score > away_score:
-            outcome = 1.0
-            fixture.winner_id = home_team.id
-        elif home_score < away_score:
-            outcome = 0.0
-            fixture.winner_id = away_team.id
-        else:
-            outcome = 0.5
-            fixture.winner_id = None
+        if home_score is not None and away_score is not None:
+            if home_score > away_score:
+                outcome = 1.0
+                fixture.winner_id = home_team.id
+            elif home_score < away_score:
+                outcome = 0.0
+                fixture.winner_id = away_team.id
+            else:
+                outcome = 0.5
+                fixture.winner_id = None
 
-        update_team_streaks(home_team, away_team, outcome)
+            update_team_streaks(home_team, away_team, outcome)
+        else:
+            fixture.winner_id = None
     else:
-        if home_score > away_score:
-            fixture.winner_id = fixture.home_team_id
-        elif home_score < away_score:
-            fixture.winner_id = fixture.away_team_id
+        if home_score is not None and away_score is not None:
+            if home_score > away_score:
+                fixture.winner_id = fixture.home_team_id
+            elif home_score < away_score:
+                fixture.winner_id = fixture.away_team_id
+            else:
+                fixture.winner_id = None
         else:
             fixture.winner_id = None
