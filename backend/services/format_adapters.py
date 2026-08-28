@@ -52,7 +52,10 @@ LEAGUE_MAPPING = {
 }
 
 def parse_match_date(date_str: str, stadium_id: str) -> datetime:
-    """Parses a local date string and stadium ID into a UTC datetime."""
+    """
+    Parses a local date string and stadium ID into a UTC datetime.
+    Uses stadium timezone mappings for accurate conversion.
+    """
     if not date_str or not isinstance(date_str, str):
         return datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc)
     try:
@@ -69,6 +72,9 @@ def parse_match_date(date_str: str, stadium_id: str) -> datetime:
 
 
 def map_api_football_round_to_type_key(round_str: str) -> str:
+    """
+    Maps API-Football round strings (e.g., 'Round of 16', 'Quarter-finals') to internal stage keys.
+    """
     if not round_str:
         return "group"
     r = round_str.lower()
@@ -92,11 +98,17 @@ def map_api_football_round_to_type_key(round_str: str) -> str:
 class BaseFormatAdapter:
     """Abstract base adapter for format-specific result and live score updates."""
     def sync_results(self, db: Session, tourney: Tournament) -> tuple[int, int]:
-        """Syncs results for a tournament. Returns (fixtures_created, fixtures_updated)."""
+        """
+        Syncs results for a tournament. Returns (fixtures_created, fixtures_updated).
+        Must be implemented by subclasses.
+        """
         raise NotImplementedError
 
     def sync_live_scores(self, db: Session, tourney: Tournament) -> tuple[int, int]:
-        """Syncs live scores for a tournament. Returns (fixtures_updated_live, fixtures_finished)."""
+        """
+        Syncs live scores for a tournament. Returns (fixtures_updated_live, fixtures_finished).
+        Must be implemented by subclasses.
+        """
         raise NotImplementedError
 
 
@@ -107,6 +119,11 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
     Uses competition's api_league_id to dynamically query external APIs.
     """
     def sync_results(self, db: Session, tourney: Tournament) -> tuple[int, int]:
+        """
+        Syncs fixture results from API-Football for a tournament.
+        Creates new fixtures and updates existing ones with scores and status.
+        Returns (fixtures_created, fixtures_updated).
+        """
         comp = tourney.competition
         if not comp:
             return 0, 0
@@ -356,6 +373,11 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
         return fixtures_created, fixtures_updated_results
 
     def sync_live_scores(self, db: Session, tourney: Tournament) -> tuple[int, int]:
+        """
+        Syncs live match scores for a tournament from multiple data sources.
+        Attempts Football-Data.org API first, then falls back to testing hooks.
+        Returns (fixtures_updated_live, fixtures_finished).
+        """
         comp = tourney.competition
         if not comp:
             return 0, 0
@@ -602,7 +624,10 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
 
 
 def get_format_adapter(format_engine: str, competition_name: str = "") -> BaseFormatAdapter:
-    """Factory method returning the unified CompetitionSyncAdapter for data ingestion."""
+    """
+    Factory method returning the unified CompetitionSyncAdapter for data ingestion.
+    Format engine and competition name are accepted for backward compatibility but are no longer used.
+    """
     return CompetitionSyncAdapter()
 
 # Backward-compatibility aliases (ensures zero breaking changes for existing imports)
