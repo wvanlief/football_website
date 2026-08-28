@@ -325,7 +325,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                         if fetched_elo is not None and team.elo != fetched_elo:
                             team.elo = fetched_elo
                             team.form_score = round(min(95.0, max(45.0, 50.0 + (fetched_elo - 1500) * 0.05)), 1)
-                            db.add(EloHistory(team_id=team.id, recorded_at=now_time, elo_rating=fetched_elo))
+                            elo_service.record_elo_history(db, team.id, fetched_elo, now_time)
             else:
                 last_club_sync = db.query(EloHistory).join(Team).filter(Team.elo_source == "clubelo").order_by(EloHistory.recorded_at.desc()).first()
                 if not last_club_sync or last_club_sync.recorded_at.date() < now_time.date():
@@ -347,7 +347,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                             if fetched_elo is not None and team.elo != fetched_elo:
                                 team.elo = fetched_elo
                                 team.form_score = round(min(95.0, max(45.0, 50.0 + (fetched_elo - 1500) * 0.05)), 1)
-                                db.add(EloHistory(team_id=team.id, recorded_at=now_time, elo_rating=fetched_elo))
+                                elo_service.record_elo_history(db, team.id, fetched_elo, now_time)
                                 teams_updated += 1
                         print(f"Successfully synced ClubElo ratings. Updated {teams_updated} teams.")
         except Exception as e:
