@@ -81,6 +81,48 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedTimezone = 'local';
     let resolvedTimezone = 'UTC';
     let activeCompFilter = 'all';
+    let lastFeedUpdatedAt = null;
+
+    function formatRelativeTime(dateStr) {
+        if (!dateStr) return 'Live Sync';
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return 'Live Sync';
+        const now = new Date();
+        const diffSeconds = Math.max(0, Math.floor((now - date) / 1000));
+        
+        if (diffSeconds < 60) {
+            return 'Data updated just now';
+        }
+        const diffMinutes = Math.floor(diffSeconds / 60);
+        if (diffMinutes === 1) {
+            return 'Data updated 1 min ago';
+        }
+        if (diffMinutes < 60) {
+            return `Data updated ${diffMinutes} min ago`;
+        }
+        const diffHours = Math.floor(diffMinutes / 60);
+        if (diffHours === 1) {
+            return 'Data updated 1 hr ago';
+        }
+        if (diffHours < 24) {
+            return `Data updated ${diffHours} hrs ago`;
+        }
+        const diffDays = Math.floor(diffHours / 24);
+        return `Data updated ${diffDays}d ago`;
+    }
+
+    function updateFreshnessIndicator() {
+        const freshnessEl = document.getElementById('freshness-text');
+        if (!freshnessEl) return;
+        if (!lastFeedUpdatedAt) {
+            freshnessEl.textContent = 'Live Sync';
+            return;
+        }
+        freshnessEl.textContent = formatRelativeTime(lastFeedUpdatedAt);
+    }
+
+    // Periodically update freshness relative text
+    setInterval(updateFreshnessIndicator, 30000);
 
     // Initialize Page
     selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
@@ -263,6 +305,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cachedSession) {
             try {
                 activeFixtures = JSON.parse(cachedSession);
+                if (activeFixtures && activeFixtures.updated_at) {
+                    lastFeedUpdatedAt = activeFixtures.updated_at;
+                    updateFreshnessIndicator();
+                }
                 renderAllColumns();
             } catch (e) {}
         } else {
@@ -280,6 +326,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`/api/fixtures?tz=${encodeURIComponent(resolvedTimezone)}`);
             const data = await res.json();
             activeFixtures = data;
+            if (data && data.updated_at) {
+                lastFeedUpdatedAt = data.updated_at;
+                updateFreshnessIndicator();
+            }
             sessionStorage.setItem(cacheKey, JSON.stringify(data));
             renderAllColumns();
         } catch (err) {

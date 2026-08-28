@@ -1,7 +1,7 @@
 import os
 import json
 import time
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session, joinedload
 
@@ -385,7 +385,8 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
             "this_week": week_fixtures,
             "finished": finished_fixtures[:30],
             "is_offseason": is_offseason,
-            "offseason_notice": offseason_notice
+            "offseason_notice": offseason_notice,
+            "updated_at": feed_cache.get("updated_at") if feed_cache else datetime.now(timezone.utc).isoformat()
         }
         if use_cache:
             _FIXTURES_CACHE[cache_key] = (now, payload)
@@ -463,7 +464,8 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
         "this_week": week_fixtures[:5],
         "finished": finished_fixtures,
         "is_offseason": is_offseason,
-        "offseason_notice": offseason_notice
+        "offseason_notice": offseason_notice,
+        "updated_at": datetime.now(timezone.utc).isoformat()
     }
     if use_cache:
         _FIXTURES_CACHE[cache_key] = (now, result)
