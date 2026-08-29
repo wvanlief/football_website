@@ -29,16 +29,16 @@ from backend.utils import fetch_json_with_retry, fetch_url_with_retry, fetch_jso
 
 
 def normalize_team_name(name: str) -> str:
-    """Normalizes a team name using the NameNormalizer singleton."""
+    """Normalizes a team name using the NameNormalizer."""
     return NameNormalizer().normalize(name)
 
 def matches_team_name(db_name: str, api_name: str) -> bool:
-    """Checks if two team names match using fuzzy matching logic."""
+    """Checks if two team names match using fuzzy matching and alias mapping."""
     return NameNormalizer().match_names(db_name, api_name)
 
 def sync_global_date_results(db: Session, target_date: str) -> tuple:
     """
-    Fetches global match fixtures for a specific date using a single API call (GET /fixtures?date=YYYY-MM-DD).
+    Fetches global match fixtures for a specific date using 1 single API call (GET /fixtures?date=YYYY-MM-DD).
     Updates statuses, scores, and links to database fixtures. Returns (created_count, updated_count).
     """
     print(f"Fetching global results from API-Football for date={target_date}...")
@@ -136,7 +136,7 @@ def sync_global_date_results(db: Session, target_date: str) -> tuple:
 
 def sync_global_live_scores(db: Session) -> tuple:
     """
-    Fetches all live match scores globally in a single API call (GET /fixtures?live=all).
+    Fetches all live match scores globally in 1 single API call (GET /fixtures?live=all).
     Returns (updated_count, finished_count).
     """
     print("Fetching global live matches from API-Football (GET /fixtures?live=all)...")
@@ -198,8 +198,8 @@ def sync_global_live_scores(db: Session) -> tuple:
 
 def update_results_and_odds(db: Session) -> dict:
     """
-    Main daily update task that fetches results for today and yesterday via global API calls,
-    updates odds history, recalculates standings, and rebuilds cached feeds.
+    Main daily update task. Queries global results in single-call API requests for today (and yesterday),
+    updates odds history, and recalculates standings.
     """
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     yesterday_str = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -266,8 +266,7 @@ def update_results_and_odds(db: Session) -> dict:
 
 def update_live_scores(db: Session, force: bool = False) -> dict:
     """
-    Lightweight updater for live scores that only queries the API when matches are scheduled or live,
-    unless forced. Returns status and counts of updated/finished fixtures.
+    Lightweight updater for live scores. Only queries when matches are scheduled/live.
     """
     now_time = datetime.now(timezone.utc)
     

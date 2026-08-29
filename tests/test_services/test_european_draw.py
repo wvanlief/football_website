@@ -68,3 +68,17 @@ def test_seed_european_cups(db_session):
     
     uecl_comp = db_session.query(Competition).filter(Competition.name == "UEFA Conference League").first()
     assert uecl_comp.format_engine == "league_phase_knockout"
+
+    # 5. Verify idempotency: second run creates no duplicate rows
+    comp_count = db_session.query(Competition).count()
+    team_count = db_session.query(Team).count()
+    tt_count = db_session.query(TournamentTeam).count()
+    fixture_count = db_session.query(Fixture).count()
+
+    results2 = seed_european_cups(db_session)
+    assert "UEFA Champions League" in results2
+    assert db_session.query(Competition).count() == comp_count
+    assert db_session.query(Team).count() == team_count
+    assert db_session.query(TournamentTeam).count() == tt_count
+    assert db_session.query(Fixture).count() == fixture_count
+

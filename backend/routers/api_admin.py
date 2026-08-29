@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/admin", tags=["Admin"])
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "dev-admin-token")
 
 def verify_admin_token(x_admin_token: str = Header(None, alias="X-Admin-Token")):
-    """Validates the admin token from request headers, raising 401 if invalid or missing."""
+    """Dependency to verify admin token from X-Admin-Token header."""
     if not x_admin_token or x_admin_token != ADMIN_TOKEN:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -19,7 +19,6 @@ def verify_admin_token(x_admin_token: str = Header(None, alias="X-Admin-Token"))
         )
 
 def _bg_update_results():
-    """Background worker function to execute update_results_and_odds in a new session."""
     db = SessionLocal()
     try:
         update_results_and_odds(db)
@@ -29,7 +28,6 @@ def _bg_update_results():
         db.close()
 
 def _bg_update_live(force: bool):
-    """Background worker function to execute live score updates with optional force flag."""
     db = SessionLocal()
     try:
         update_live_scores(db, force=force)

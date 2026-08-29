@@ -55,7 +55,8 @@ def test_league_id_guardrail_prevents_cross_pollination(db_session):
 
     adapter = CompetitionSyncAdapter()
 
-    with patch("backend.services.updater.call_football_api", return_value=mismatched_payload):
+    with patch("backend.services.updater.call_football_api", return_value=mismatched_payload), \
+         patch("backend.services.elo.fetch_clubelo_ratings", return_value={}):
         created, updated = adapter.sync_results(db_session, tourney)
 
     # 3. Assert guardrail skipped the mismatched World Cup fixture
@@ -85,7 +86,8 @@ def test_league_id_guardrail_prevents_cross_pollination(db_session):
         ]
     }
 
-    with patch("backend.services.updater.call_football_api", return_value=matching_payload):
+    with patch("backend.services.updater.call_football_api", return_value=matching_payload), \
+         patch("backend.services.elo.fetch_clubelo_ratings", return_value={}):
         created, updated = adapter.sync_results(db_session, tourney)
 
     # 5. Assert matching fixture was created

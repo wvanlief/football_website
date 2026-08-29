@@ -70,7 +70,10 @@ SPOTLIGHT_PLAYERS = {
 }
 
 def call_football_api(endpoint: str, params: dict = None) -> dict:
-    """Helper to query the API-Football API."""
+    """
+    Helper to query the API-Football API.
+    Requires FOOTBALL_API_KEY or API_FOOTBALL_KEY environment variable.
+    """
     api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
     if not api_key:
         raise ValueError("FOOTBALL_API_KEY/API_FOOTBALL_KEY is not configured in the environment.")
@@ -87,7 +90,9 @@ def call_football_api(endpoint: str, params: dict = None) -> dict:
     return fetch_json_with_retry(url, headers=headers, provider="api_football")
 
 def get_fallback_matches():
-    """Returns a hardcoded list of fallback World Cup matches for offline/testing scenarios."""
+    """
+    Returns a hardcoded list of World Cup 2026 group stage matches for offline/testing scenarios.
+    """
     base_date = datetime(2026, 6, 11, 12, 0, 0, tzinfo=ZoneInfo("America/New_York")).astimezone(ZoneInfo("UTC"))
     return [
         {"id": "1", "home": "Mexico", "away": "South Africa", "stage": "Group Stage", "date": base_date.isoformat(), "status": "Scheduled"},
@@ -967,6 +972,13 @@ def seed_european_cups(db: Session) -> dict:
                 comp.home_advantage_elo = home_adv
                 db.flush()
                 
+            # Deactivate older active seasons for the same competition
+            db.query(Tournament).filter(
+                Tournament.competition_id == comp.id,
+                Tournament.season_name != season,
+                Tournament.status == "Active"
+            ).update({"status": "Completed"})
+
             tourney = db.query(Tournament).filter(
                 Tournament.competition_id == comp.id,
                 Tournament.season_name == season
@@ -1072,7 +1084,7 @@ def seed_european_cups(db: Session) -> dict:
                 if not fixture.odds_history:
                     h_elo = h_team.elo if h_team else 1500
                     a_elo = a_team.elo if a_team else 1500
-                    h_odds, d_odds, a_odds = calculate_default_odds(h_elo, a_elo, home_advantage=home_adv)
+                    h_odds, d_odds, a_odds = calculate_default_odds(h_elo, a_elo, home_advantage=home_adv, neutral_venue=False)
                     init_odds = FixtureOdds(
                         fixture_id=fixture.id,
                         recorded_at=fixture.date_utc - timedelta(days=2),
