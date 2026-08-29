@@ -70,7 +70,10 @@ SPOTLIGHT_PLAYERS = {
 }
 
 def call_football_api(endpoint: str, params: dict = None) -> dict:
-    """Helper to query the API-Football API."""
+    """
+    Helper to query the API-Football API.
+    Requires FOOTBALL_API_KEY or API_FOOTBALL_KEY environment variable.
+    """
     api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
     if not api_key:
         raise ValueError("FOOTBALL_API_KEY/API_FOOTBALL_KEY is not configured in the environment.")
@@ -87,6 +90,9 @@ def call_football_api(endpoint: str, params: dict = None) -> dict:
     return fetch_json_with_retry(url, headers=headers, provider="api_football")
 
 def get_fallback_matches():
+    """
+    Returns a hardcoded list of World Cup 2026 group stage matches for offline/testing scenarios.
+    """
     base_date = datetime(2026, 6, 11, 12, 0, 0, tzinfo=ZoneInfo("America/New_York")).astimezone(ZoneInfo("UTC"))
     return [
         {"id": "1", "home": "Mexico", "away": "South Africa", "stage": "Group Stage", "date": base_date.isoformat(), "status": "Scheduled"},

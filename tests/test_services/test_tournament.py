@@ -324,6 +324,7 @@ def test_get_grouped_fixtures_offseason_empty_today_tomorrow(db_session):
     )
     db_session.add(f)
     db_session.commit()
+
     grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id)
     assert grouped["is_offseason"] is True
     assert len(grouped["today"]) == 0
@@ -373,8 +374,6 @@ def test_upcoming_gems_watchability_filter(db_session):
     assert gems[0]["watchability"]["overall"] == 88.0
     assert gems[1]["watchability"]["overall"] == 79.0
     assert gems[2]["watchability"]["overall"] == 72.0
-
-
 
 
 

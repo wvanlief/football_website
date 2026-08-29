@@ -127,6 +127,10 @@ class CacheAdapter:
         self.cache_dir = cache_dir
 
     def get_cache_path(self, url: str, headers: Optional[dict] = None) -> str:
+        """
+        Generates a date-prefixed cache file path for a URL and headers combination.
+        Uses MD5 hash to ensure unique cache keys.
+        """
         headers_str = json.dumps(headers or {}, sort_keys=True)
         hash_input = f"{url}||{headers_str}".encode('utf-8')
         h = hashlib.md5(hash_input).hexdigest()
@@ -135,9 +139,14 @@ class CacheAdapter:
         return os.path.join(self.cache_dir, filename)
 
     def fetch_json(self, url: str, headers: Optional[dict] = None, use_cache: bool = True) -> Any:
+        """
+        Fetches JSON from a URL with retry logic and optional caching.
+        Delegates to fetch_json_with_retry utility function.
+        """
         return fetch_json_with_retry(url, headers=headers, use_cache=use_cache)
 
     def is_cached(self, url: str, headers: Optional[dict] = None) -> bool:
+        """Checks if a cached response exists for the given URL and headers."""
         path = self.get_cache_path(url, headers)
         return os.path.exists(path)
 
@@ -224,10 +233,12 @@ class IngestorService:
         self.normalizer = normalizer or NameNormalizer()
 
     def seed_world_cup(self, db):
+        """Seeds the World Cup 2026 tournament into the database."""
         from backend.services.seeder import seed_database
         return seed_database(db)
 
     def seed_competition(self, db, competition_name: str, season: str):
+        """Seeds a specific competition and season into the database."""
         from backend.services.seeder import seed_competition
         return seed_competition(db, competition_name, season)
 

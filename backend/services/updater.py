@@ -29,9 +29,11 @@ from backend.utils import fetch_json_with_retry, fetch_url_with_retry, fetch_jso
 
 
 def normalize_team_name(name: str) -> str:
+    """Normalizes a team name using the NameNormalizer."""
     return NameNormalizer().normalize(name)
 
 def matches_team_name(db_name: str, api_name: str) -> bool:
+    """Checks if two team names match using fuzzy matching and alias mapping."""
     return NameNormalizer().match_names(db_name, api_name)
 
 def sync_global_date_results(db: Session, target_date: str) -> tuple:

@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from backend.database import Player, PlayerContract, Team
 
 def get_players_by_team(db: Session, team_name: str, contract_type: str = "Country") -> list[Player]:
+    """Returns all active players for a team, filtered by contract type (Country/Club)."""
     return db.query(Player).join(PlayerContract).join(Team).filter(
         (Team.name == team_name) & 
         (PlayerContract.type == contract_type) & 
@@ -9,6 +10,7 @@ def get_players_by_team(db: Session, team_name: str, contract_type: str = "Count
     ).all()
 
 def get_top_players_by_team(db: Session, team_name: str, contract_type: str = "Country", limit: int = 3) -> list[Player]:
+    """Returns the top N players for a team, sorted by form score, filtered by contract type."""
     return db.query(Player).join(PlayerContract).join(Team).filter(
         (Team.name == team_name) & 
         (PlayerContract.type == contract_type) & 
