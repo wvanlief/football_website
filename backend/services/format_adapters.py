@@ -69,6 +69,7 @@ def parse_match_date(date_str: str, stadium_id: str) -> datetime:
 
 
 def map_api_football_round_to_type_key(round_str: str) -> str:
+    """Maps API-Football round strings to standardized stage type keys."""
     if not round_str:
         return "group"
     r = round_str.lower()
@@ -107,10 +108,14 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
     Uses competition's api_league_id to dynamically query external APIs.
     """
     def sync_results(self, db: Session, tourney: Tournament) -> tuple[int, int]:
+        """
+        Syncs match results for a tournament from API-Football or fallback sources.
+        Returns (fixtures_created, fixtures_updated).
+        """
         comp = tourney.competition
         if not comp:
             return 0, 0
-            
+
         now_time = datetime.now(timezone.utc)
         normalizer = NameNormalizer()
         fixtures_created = 0
@@ -356,6 +361,10 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
         return fixtures_created, fixtures_updated_results
 
     def sync_live_scores(self, db: Session, tourney: Tournament) -> tuple[int, int]:
+        """
+        Syncs live match scores for a tournament from multiple data providers.
+        Returns (fixtures_updated, fixtures_finished).
+        """
         comp = tourney.competition
         if not comp:
             return 0, 0

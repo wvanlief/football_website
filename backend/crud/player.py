@@ -2,15 +2,17 @@ from sqlalchemy.orm import Session
 from backend.database import Player, PlayerContract, Team
 
 def get_players_by_team(db: Session, team_name: str, contract_type: str = "Country") -> list[Player]:
+    """Returns all active players associated with a team by name and contract type."""
     return db.query(Player).join(PlayerContract).join(Team).filter(
-        (Team.name == team_name) & 
-        (PlayerContract.type == contract_type) & 
+        (Team.name == team_name) &
+        (PlayerContract.type == contract_type) &
         (PlayerContract.is_active == True)
     ).all()
 
 def get_top_players_by_team(db: Session, team_name: str, contract_type: str = "Country", limit: int = 3) -> list[Player]:
+    """Returns the top players for a team sorted by form score, limited to a specified count."""
     return db.query(Player).join(PlayerContract).join(Team).filter(
-        (Team.name == team_name) & 
-        (PlayerContract.type == contract_type) & 
+        (Team.name == team_name) &
+        (PlayerContract.type == contract_type) &
         (PlayerContract.is_active == True)
     ).order_by(Player.form_score.desc()).limit(limit).all()

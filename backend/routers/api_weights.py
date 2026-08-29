@@ -12,4 +12,5 @@ scoring_weights = {
 
 @router.get("/api/weights")
 def get_weights():
+    """Returns the static scoring weights configuration for watchability calculations."""
     return scoring_weights

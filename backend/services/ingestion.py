@@ -124,9 +124,11 @@ class CacheAdapter:
     Supports date-prefixed namespacing and explicit cache control.
     """
     def __init__(self, cache_dir: str = os.path.join("backend", "data", "cache")):
+        """Initializes the cache adapter with a specified cache directory."""
         self.cache_dir = cache_dir
 
     def get_cache_path(self, url: str, headers: Optional[dict] = None) -> str:
+        """Generates a date-prefixed cache file path based on URL and headers hash."""
         headers_str = json.dumps(headers or {}, sort_keys=True)
         hash_input = f"{url}||{headers_str}".encode('utf-8')
         h = hashlib.md5(hash_input).hexdigest()
@@ -135,9 +137,11 @@ class CacheAdapter:
         return os.path.join(self.cache_dir, filename)
 
     def fetch_json(self, url: str, headers: Optional[dict] = None, use_cache: bool = True) -> Any:
+        """Fetches JSON from a URL using the cache-aware retry utility."""
         return fetch_json_with_retry(url, headers=headers, use_cache=use_cache)
 
     def is_cached(self, url: str, headers: Optional[dict] = None) -> bool:
+        """Checks if a cached response exists for the given URL and headers."""
         path = self.get_cache_path(url, headers)
         return os.path.exists(path)
 
@@ -159,6 +163,7 @@ class NameNormalizer:
     Provides team name normalization, ISO country code mapping, and fuzzy name matching.
     """
     def __init__(self, iso_map: Optional[Dict[str, str]] = None):
+        """Initializes the name normalizer with an optional custom ISO country code mapping."""
         self.iso_map = iso_map if iso_map is not None else COUNTRY_ISO_MAP
 
     def get_country_code(self, team_name: str) -> Optional[str]:
@@ -220,14 +225,17 @@ class IngestorService:
     High-level service interface for data ingestion and database seeding.
     """
     def __init__(self, cache_adapter: Optional[CacheAdapter] = None, normalizer: Optional[NameNormalizer] = None):
+        """Initializes the ingestor service with optional cache adapter and name normalizer."""
         self.cache = cache_adapter or CacheAdapter()
         self.normalizer = normalizer or NameNormalizer()
 
     def seed_world_cup(self, db):
+        """Seeds the World Cup 2026 tournament data."""
         from backend.services.seeder import seed_database
         return seed_database(db)
 
     def seed_competition(self, db, competition_name: str, season: str):
+        """Seeds a specific competition for a given season."""
         from backend.services.seeder import seed_competition
         return seed_competition(db, competition_name, season)
 

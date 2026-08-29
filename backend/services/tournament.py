@@ -193,12 +193,17 @@ def propagate_knockout_fixtures(db: Session):
             db.add(db_odds)
 
 def get_timezone(tz_str: str) -> ZoneInfo:
+    """Returns a ZoneInfo object for the given timezone string, defaulting to UTC if invalid."""
     try:
         return ZoneInfo(tz_str)
     except Exception:
         return ZoneInfo("UTC")
 
 def resolve_placeholder_name(db: Session, placeholder: str, tournament_id: int) -> str:
+    """
+    Resolves placeholder text (e.g., 'Winner Group A', 'Match 73') into a more descriptive label
+    by looking up referenced fixtures and their potential teams.
+    """
     if not placeholder:
         return "TBD"
     import re
@@ -216,11 +221,16 @@ def resolve_placeholder_name(db: Session, placeholder: str, tournament_id: int) 
             if h_name and a_name:
                 # Simplify common labels to make them shorter
                 def simplify(name):
+                    """Shortens common placeholder name patterns for readability."""
                     return name.replace("Runner-up Group ", "Runner-up ").replace("Winner Group ", "Winner ")
                 return f"{placeholder} ({simplify(h_name)} or {simplify(a_name)})"
     return placeholder
 
 def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_map: dict = None, team_group_map: dict = None) -> dict:
+    """
+    Converts a Fixture database model into a rich dictionary with formatted dates, team details,
+    players, odds, and watchability scores for API responses.
+    """
     dt = f.date_utc
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=ZoneInfo("UTC"))
@@ -311,6 +321,10 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
     }
 
 def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) -> dict:
+    """
+    Returns fixtures grouped by today, tomorrow, this_week, and finished.
+    Includes off-season detection and uses cached feed data for global queries.
+    """
     use_cache = os.getenv("TESTING") != "True"
     cache_key = (tz_str, tournament_id)
     now = time.time()
@@ -318,7 +332,7 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
         cached_time, cached_payload = _FIXTURES_CACHE[cache_key]
         if now - cached_time < _CACHE_TTL:
             return cached_payload
-            
+
     target_tz = get_timezone(tz_str)
     
     # Fast path for global feed using pre-calculated JSON cache (bypassed in test environment)
@@ -471,6 +485,7 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
     return result
 
 def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None, min_score: float = 75.0) -> list:
+    """Returns a list of enriched fixture dictionaries with watchability score above the threshold."""
     use_cache = os.getenv("TESTING") != "True"
     cache_key = (tz_str, tournament_id, min_score)
     now = time.time()
@@ -478,7 +493,7 @@ def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None
         cached_time, cached_payload = _RECOMMENDED_CACHE[cache_key]
         if now - cached_time < _CACHE_TTL:
             return cached_payload
-            
+
     target_tz = get_timezone(tz_str)
     
     if tournament_id is not None:
@@ -508,11 +523,15 @@ def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None
 
 
 def get_country_details(db: Session, country_name: str, tz_str: str, tournament_id: int = None) -> dict:
+    """
+    Returns detailed information for a specific team including group standings, players,
+    form, and future fixtures.
+    """
     target_tz = get_timezone(tz_str)
     team = crud_team.get_team_by_name(db, country_name)
     if not team:
         return None
-        
+
     if tournament_id is None:
         active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
         tournament_id = active_tourney.id if active_tourney else None
@@ -620,10 +639,14 @@ def get_country_details(db: Session, country_name: str, tz_str: str, tournament_
 
 
 def get_all_third_placed_teams(db: Session, tournament_id: int = None) -> list:
+    """
+    Returns a ranked list of all third-placed teams across all groups with their standings
+    and qualification probabilities.
+    """
     if tournament_id is None:
         active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
         tournament_id = active_tourney.id if active_tourney else None
-        
+
     groups = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
     third_placed = []
     
@@ -669,12 +692,16 @@ def get_all_third_placed_teams(db: Session, tournament_id: int = None) -> list:
 
 
 def get_group_details(db: Session, group_letter: str, tz_str: str, tournament_id: int = None) -> dict:
+    """
+    Returns complete group details including standings, fixtures, and qualification probabilities
+    for all teams in a specific group.
+    """
     target_tz = get_timezone(tz_str)
-    
+
     if tournament_id is None:
         active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
         tournament_id = active_tourney.id if active_tourney else None
-        
+
     contract_type = "Country"
     if tournament_id:
         tourney = db.query(Tournament).filter(Tournament.id == tournament_id).first()
@@ -750,13 +777,17 @@ def get_group_details(db: Session, group_letter: str, tz_str: str, tournament_id
     }
 
 def get_calendar_fixtures(db: Session, tz_str: str, tournament_id: int = None, start_date_str: str = None, end_date_str: str = None) -> list:
+    """
+    Returns fixtures within a date range for calendar views, defaulting to a 90-day window
+    (30 days back, 60 days forward).
+    """
     target_tz = get_timezone(tz_str)
     today_dt = datetime.now(target_tz)
-    
+
     if tournament_id is None:
         active_tourney = db.query(Tournament).filter(Tournament.status == "Active").first()
         tournament_id = active_tourney.id if active_tourney else None
-        
+
     # Default to 30 days back, 60 days forward (90 days total window)
     if start_date_str:
         try:
@@ -832,6 +863,7 @@ def get_calendar_fixtures(db: Session, tz_str: str, tournament_id: int = None, s
 
 
 def get_fixture_details_by_id(db: Session, fixture_id: int, tz_str: str) -> dict:
+    """Returns enriched fixture details for a specific fixture ID."""
     target_tz = get_timezone(tz_str)
     f = db.query(Fixture).filter(Fixture.id == fixture_id).first()
     if not f:

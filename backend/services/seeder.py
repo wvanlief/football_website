@@ -87,6 +87,7 @@ def call_football_api(endpoint: str, params: dict = None) -> dict:
     return fetch_json_with_retry(url, headers=headers, provider="api_football")
 
 def get_fallback_matches():
+    """Returns a hardcoded list of fallback World Cup matches for offline/testing scenarios."""
     base_date = datetime(2026, 6, 11, 12, 0, 0, tzinfo=ZoneInfo("America/New_York")).astimezone(ZoneInfo("UTC"))
     return [
         {"id": "1", "home": "Mexico", "away": "South Africa", "stage": "Group Stage", "date": base_date.isoformat(), "status": "Scheduled"},
