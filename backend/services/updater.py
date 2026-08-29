@@ -25,31 +25,28 @@ from backend.services.format_adapters import (
 
 from backend.services.elo import fetch_current_elo_ratings, fetch_clubelo_ratings
 from backend.services.seeder import call_football_api
-from backend.utils import fetch_json_with_retry, fetch_url_with_retry
+from backend.services.settling import settle_result
+from backend.utils import fetch_json_with_retry, fetch_url_with_retry, fetch_json
 
-def fetch_json(url: str, use_cache: bool = True) -> list:
-    return fetch_json_with_retry(url, use_cache=use_cache)
 
 def normalize_team_name(name: str) -> str:
+    """Normalizes a team name using the NameNormalizer."""
     return NameNormalizer().normalize(name)
 
 def matches_team_name(db_name: str, api_name: str) -> bool:
+    """Checks if two team names match using fuzzy matching and alias mapping."""
     return NameNormalizer().match_names(db_name, api_name)
 
-def sync_global_date_results(db: Session, target_date: str = None) -> tuple:
+def sync_global_date_results(db: Session, target_date: str) -> tuple:
     """
-    Fetches global match fixtures for a specific date (default TODAY) in 1 single API call
-    and updates scores/statuses in PostgreSQL.
-    Returns (created_count, updated_count).
+    Fetches global match fixtures for a specific date using 1 single API call (GET /fixtures?date=YYYY-MM-DD).
+    Updates statuses, scores, and links to database fixtures. Returns (created_count, updated_count).
     """
-    if not target_date:
-        target_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
     print(f"Fetching global results from API-Football for date={target_date}...")
     try:
         res = call_football_api("fixtures", {"date": target_date})
     except Exception as e:
-        print(f"Error fetching global date fixtures for date={target_date}: {e}")
+        print(f"Error fetching global results for date {target_date}: {e}")
         return 0, 0
 
     if not res or not isinstance(res, dict) or "response" not in res:
@@ -115,15 +112,20 @@ def sync_global_date_results(db: Session, target_date: str = None) -> tuple:
 
         if fixture:
             changed = False
-            if fixture.status != new_status:
-                fixture.status = new_status
-                changed = True
-            if home_goals is not None and fixture.home_score != home_goals:
-                fixture.home_score = home_goals
-                changed = True
-            if away_goals is not None and fixture.away_score != away_goals:
-                fixture.away_score = away_goals
-                changed = True
+            if new_status == "Finished":
+                if fixture.status != "Finished" or fixture.home_score != home_goals or fixture.away_score != away_goals:
+                    settle_result(fixture, home_goals if home_goals is not None else fixture.home_score, away_goals if away_goals is not None else fixture.away_score)
+                    changed = True
+            else:
+                if fixture.status != new_status:
+                    fixture.status = new_status
+                    changed = True
+                if home_goals is not None and fixture.home_score != home_goals:
+                    fixture.home_score = home_goals
+                    changed = True
+                if away_goals is not None and fixture.away_score != away_goals:
+                    fixture.away_score = away_goals
+                    changed = True
                 
             if changed:
                 if fixture.status == "Finished":
@@ -173,17 +175,22 @@ def sync_global_live_scores(db: Session) -> tuple:
         fixture = db.query(Fixture).filter(Fixture.api_id == api_id).first()
         if fixture:
             changed = False
-            if fixture.status != new_status:
-                if new_status == "Finished":
+            if new_status == "Finished":
+                if fixture.status != "Finished":
                     fixtures_finished += 1
-                fixture.status = new_status
-                changed = True
-            if home_goals is not None and fixture.home_score != home_goals:
-                fixture.home_score = home_goals
-                changed = True
-            if away_goals is not None and fixture.away_score != away_goals:
-                fixture.away_score = away_goals
-                changed = True
+                if fixture.status != "Finished" or fixture.home_score != home_goals or fixture.away_score != away_goals:
+                    settle_result(fixture, home_goals if home_goals is not None else fixture.home_score, away_goals if away_goals is not None else fixture.away_score)
+                    changed = True
+            else:
+                if fixture.status != new_status:
+                    fixture.status = new_status
+                    changed = True
+                if home_goals is not None and fixture.home_score != home_goals:
+                    fixture.home_score = home_goals
+                    changed = True
+                if away_goals is not None and fixture.away_score != away_goals:
+                    fixture.away_score = away_goals
+                    changed = True
                 
             if changed:
                 if fixture.status == "Finished":
@@ -207,6 +214,15 @@ def update_results_and_odds(db: Session) -> dict:
 
     fixtures_created = c1 + c2
     fixtures_updated_results = u1 + u2
+
+    # Fallback to tournament adapters if global date sync did not find/update fixtures
+    if fixtures_created == 0 and fixtures_updated_results == 0:
+        tournaments = db.query(Tournament).filter(Tournament.status == "Active").all()
+        for tourney in tournaments:
+            adapter = get_format_adapter(tourney.competition.format_engine if tourney.competition else "", tourney.competition.name if tourney.competition else "")
+            c, u = adapter.sync_results(db, tourney)
+            fixtures_created += c
+            fixtures_updated_results += u
 
     tournaments = db.query(Tournament).filter(Tournament.status == "Active").all()
     if not tournaments:
@@ -276,6 +292,15 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
         return {"status": "skipped", "message": "No active match window."}
         
     updated, finished = sync_global_live_scores(db)
+
+    # Fallback to tournament adapters if global sync did not update any fixtures
+    if updated == 0 and finished == 0:
+        tournaments = db.query(Tournament).filter(Tournament.status == "Active").all()
+        for tourney in tournaments:
+            adapter = get_format_adapter(tourney.competition.format_engine if tourney.competition else "", tourney.competition.name if tourney.competition else "")
+            u, f = adapter.sync_live_scores(db, tourney)
+            updated += u
+            finished += f
 
     if finished > 0 or updated > 0:
         try:

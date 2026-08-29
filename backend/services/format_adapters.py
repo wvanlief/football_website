@@ -6,13 +6,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from backend.database import Team, Fixture, Tournament, Competition, FixtureOdds, EloHistory
-from backend.utils import fetch_json_with_retry
 from backend.services.ingestion import NameNormalizer
 from backend.services.odds import calculate_default_odds
 from backend.services.settling import settle_result
 import backend.services.elo as elo_service
 from backend.scoring import update_fixture_score
 
+
+DEFAULT_SEASON_FALLBACK = 2026
 
 STAGE_MAPPING = {
     "group": "Group Stage",
@@ -51,7 +52,10 @@ LEAGUE_MAPPING = {
 }
 
 def parse_match_date(date_str: str, stadium_id: str) -> datetime:
-    """Parses a local date string and stadium ID into a UTC datetime."""
+    """
+    Parses a local date string and stadium ID into a UTC datetime.
+    Uses stadium timezone mappings for accurate conversion.
+    """
     if not date_str or not isinstance(date_str, str):
         return datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc)
     try:
@@ -68,6 +72,9 @@ def parse_match_date(date_str: str, stadium_id: str) -> datetime:
 
 
 def map_api_football_round_to_type_key(round_str: str) -> str:
+    """
+    Maps API-Football round strings (e.g., 'Round of 16', 'Quarter-finals') to internal stage keys.
+    """
     if not round_str:
         return "group"
     r = round_str.lower()
@@ -87,18 +94,21 @@ def map_api_football_round_to_type_key(round_str: str) -> str:
         return "final"
     return "group"
 
-def fetch_json(url: str, use_cache: bool = True) -> list:
-    return fetch_json_with_retry(url, use_cache=use_cache)
-
 
 class BaseFormatAdapter:
     """Abstract base adapter for format-specific result and live score updates."""
     def sync_results(self, db: Session, tourney: Tournament) -> tuple[int, int]:
-        """Syncs results for a tournament. Returns (fixtures_created, fixtures_updated)."""
+        """
+        Syncs results for a tournament. Returns (fixtures_created, fixtures_updated).
+        Must be implemented by subclasses.
+        """
         raise NotImplementedError
 
     def sync_live_scores(self, db: Session, tourney: Tournament) -> tuple[int, int]:
-        """Syncs live scores for a tournament. Returns (fixtures_updated_live, fixtures_finished)."""
+        """
+        Syncs live scores for a tournament. Returns (fixtures_updated_live, fixtures_finished).
+        Must be implemented by subclasses.
+        """
         raise NotImplementedError
 
 
@@ -109,6 +119,11 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
     Uses competition's api_league_id to dynamically query external APIs.
     """
     def sync_results(self, db: Session, tourney: Tournament) -> tuple[int, int]:
+        """
+        Syncs fixture results from API-Football for a tournament.
+        Creates new fixtures and updates existing ones with scores and status.
+        Returns (fixtures_created, fixtures_updated).
+        """
         comp = tourney.competition
         if not comp:
             return 0, 0
@@ -131,7 +146,10 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
         try:
             api_season = int(tourney.season_name.split("/")[0])
         except (ValueError, AttributeError):
-            api_season = 2026
+            api_season = DEFAULT_SEASON_FALLBACK
+            season_val = getattr(tourney, "season_name", None)
+            print(f"Warning: Failed to parse api_season from tourney.season_name='{season_val}'. Defaulting to {DEFAULT_SEASON_FALLBACK}.")
+
             
         print(f"Fetching fixtures from API-Football for comp='{comp.name}' (league={league_id}, season={api_season})...")
         
@@ -333,7 +351,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                         if fetched_elo is not None and team.elo != fetched_elo:
                             team.elo = fetched_elo
                             team.form_score = round(min(95.0, max(45.0, 50.0 + (fetched_elo - 1500) * 0.05)), 1)
-                            db.add(EloHistory(team_id=team.id, recorded_at=now_time, elo_rating=fetched_elo))
+                            elo_service.record_elo_history(db, team.id, fetched_elo, now_time)
             else:
                 last_club_sync = db.query(EloHistory).join(Team).filter(Team.elo_source == "clubelo").order_by(EloHistory.recorded_at.desc()).first()
                 if not last_club_sync or last_club_sync.recorded_at.date() < now_time.date():
@@ -355,7 +373,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                             if fetched_elo is not None and team.elo != fetched_elo:
                                 team.elo = fetched_elo
                                 team.form_score = round(min(95.0, max(45.0, 50.0 + (fetched_elo - 1500) * 0.05)), 1)
-                                db.add(EloHistory(team_id=team.id, recorded_at=now_time, elo_rating=fetched_elo))
+                                elo_service.record_elo_history(db, team.id, fetched_elo, now_time)
                                 teams_updated += 1
                         print(f"Successfully synced ClubElo ratings. Updated {teams_updated} teams.")
         except Exception as e:
@@ -365,6 +383,11 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
         return fixtures_created, fixtures_updated_results
 
     def sync_live_scores(self, db: Session, tourney: Tournament) -> tuple[int, int]:
+        """
+        Syncs live match scores for a tournament from multiple data sources.
+        Attempts Football-Data.org API first, then falls back to testing hooks.
+        Returns (fixtures_updated_live, fixtures_finished).
+        """
         comp = tourney.competition
         if not comp:
             return 0, 0
@@ -617,7 +640,10 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
 
 
 def get_format_adapter(format_engine: str, competition_name: str = "") -> BaseFormatAdapter:
-    """Factory method returning the unified CompetitionSyncAdapter for data ingestion."""
+    """
+    Factory method returning the unified CompetitionSyncAdapter for data ingestion.
+    Format engine and competition name are accepted for backward compatibility but are no longer used.
+    """
     return CompetitionSyncAdapter()
 
 # Backward-compatibility aliases (ensures zero breaking changes for existing imports)

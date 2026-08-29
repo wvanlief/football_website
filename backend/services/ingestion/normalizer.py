@@ -20,6 +20,7 @@ COUNTRY_ISO_MAP: Dict[str, str] = {
     "Norway": "NOR",
     "Japan": "JPN",
     "Turkey": "TUR",
+    "Türkiye": "TUR",
     "Uruguay": "URU",
     "Switzerland": "SUI",
     "Senegal": "SEN",
@@ -69,6 +70,51 @@ COUNTRY_ISO_MAP: Dict[str, str] = {
     "Peru": "PER",
     "Venezuela": "VEN",
     "Bolivia": "BOL",
+    "Sweden": "SWE",
+    "Greece": "GRE",
+    "Romania": "ROU",
+    "Hungary": "HUN",
+    "Slovakia": "SVK",
+    "Slovenia": "SVN",
+    "Albania": "ALB",
+    "Georgia": "GEO",
+    "Ireland": "IRL",
+    "Republic of Ireland": "IRL",
+    "Northern Ireland": "NIR",
+    "Finland": "FIN",
+    "Iceland": "ISL",
+    "North Macedonia": "MKD",
+    "Montenegro": "MNE",
+    "Bulgaria": "BUL",
+    "Israel": "ISR",
+    "Cyprus": "CYP",
+    "Luxembourg": "LUX",
+    "Armenia": "ARM",
+    "Azerbaijan": "AZE",
+    "Kazakhstan": "KAZ",
+    "Nigeria": "NGA",
+    "Cameroon": "CMR",
+    "Mali": "MLI",
+    "DR Congo": "COD",
+    "Congo DR": "COD",
+    "Burkina Faso": "BFA",
+    "Guinea": "GUI",
+    "Zambia": "ZAM",
+    "Angola": "ANG",
+    "Costa Rica": "CRC",
+    "Honduras": "HON",
+    "El Salvador": "SLV",
+    "Trinidad and Tobago": "TRI",
+    "Guatemala": "GUA",
+    "United Arab Emirates": "UAE",
+    "UAE": "UAE",
+    "China": "CHN",
+    "India": "IND",
+    "Oman": "OMA",
+    "Bahrain": "BHR",
+    "Thailand": "THA",
+    "Vietnam": "VIE",
+    "Indonesia": "IDN",
 }
 
 class CacheAdapter:
@@ -80,6 +126,10 @@ class CacheAdapter:
         self.cache_dir = cache_dir
 
     def get_cache_path(self, url: str, headers: Optional[dict] = None) -> str:
+        """
+        Generates a date-prefixed cache file path for a URL and headers combination.
+        Uses MD5 hash to ensure unique cache keys.
+        """
         headers_str = json.dumps(headers or {}, sort_keys=True)
         hash_input = f"{url}||{headers_str}".encode('utf-8')
         h = hashlib.md5(hash_input).hexdigest()
@@ -88,9 +138,14 @@ class CacheAdapter:
         return os.path.join(self.cache_dir, filename)
 
     def fetch_json(self, url: str, headers: Optional[dict] = None, use_cache: bool = True) -> Any:
+        """
+        Fetches JSON from a URL with retry logic and optional caching.
+        Delegates to fetch_json_with_retry utility function.
+        """
         return fetch_json_with_retry(url, headers=headers, use_cache=use_cache)
 
     def is_cached(self, url: str, headers: Optional[dict] = None) -> bool:
+        """Checks if a cached response exists for the given URL and headers."""
         path = self.get_cache_path(url, headers)
         return os.path.exists(path)
 
@@ -177,9 +232,11 @@ class IngestorService:
         self.normalizer = normalizer or NameNormalizer()
 
     def seed_world_cup(self, db):
+        """Seeds the World Cup 2026 tournament into the database."""
         from backend.services.seeder import seed_database
         return seed_database(db)
 
     def seed_competition(self, db, competition_name: str, season: str):
+        """Seeds a specific competition and season into the database."""
         from backend.services.seeder import seed_competition
         return seed_competition(db, competition_name, season)

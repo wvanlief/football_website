@@ -139,3 +139,6 @@ def fetch_json_with_retry(
         print(f"{r_err}")
         return {}
 
+fetch_json = fetch_json_with_retry
+
+
