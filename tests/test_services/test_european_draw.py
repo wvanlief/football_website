@@ -81,4 +81,3 @@ def test_seed_european_cups(db_session):
     assert db_session.query(Team).count() == team_count
     assert db_session.query(TournamentTeam).count() == tt_count
     assert db_session.query(Fixture).count() == fixture_count
-

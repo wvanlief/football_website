@@ -333,6 +333,48 @@ def test_get_grouped_fixtures_offseason_empty_today_tomorrow(db_session):
     assert grouped["offseason_notice"] is not None
 
 
+def test_upcoming_gems_watchability_filter(db_session):
+    from datetime import timedelta, timezone
+    from backend.services.tournament import get_grouped_fixtures
+
+    comp = Competition(name="Gems League", type="League", format_engine="league")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+
+    teams = [Team(name=f"Team {i}", elo=1500 + i * 50) for i in range(8)]
+    db_session.add_all(teams)
+    db_session.flush()
+
+    # 4 upcoming matches in 3 days
+    match_date = datetime.now(timezone.utc) + timedelta(days=3)
+    
+    # 3 High quality gems + 1 low quality match
+    scores = [88.0, 79.0, 72.0, 45.0]
+    for idx, score in enumerate(scores):
+        f = Fixture(
+            tournament_id=tourney.id,
+            home_team_id=teams[idx * 2].id,
+            away_team_id=teams[idx * 2 + 1].id,
+            stage="Regular Season",
+            status="Scheduled",
+            date_utc=match_date + timedelta(hours=idx),
+            watchability_score=score
+        )
+        db_session.add(f)
+    db_session.commit()
+
+    grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id)
+    gems = grouped["this_week"]
+    
+    # Assert low score (45.0) was filtered out and gems are sorted descending
+    assert len(gems) == 3
+    assert gems[0]["watchability"]["overall"] == 88.0
+    assert gems[1]["watchability"]["overall"] == 79.0
+    assert gems[2]["watchability"]["overall"] == 72.0
+
 
 
 
