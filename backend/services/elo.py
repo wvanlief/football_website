@@ -188,7 +188,7 @@ def review_elo_matches(db: Session, output_path: str = "backend/data/elo_name_re
         
     print(f"Generated ELO review file: {output_path}")
 
-def record_elo_history(db: Session, team_id: int, elo_rating: int, recorded_at: datetime = None) -> EloHistory:
+def record_elo_history(db: Session, team_id: int, elo_rating: int, recorded_at: datetime | None = None) -> EloHistory:
     """
     Records an EloHistory snapshot for a team, deduplicating by calendar date.
     If an entry already exists for the team on the same date, it updates the elo_rating rather than creating duplicates.

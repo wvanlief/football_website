@@ -14,6 +14,7 @@ from backend.database import SessionLocal
 from backend.services.seeder import seed_european_cups
 
 def main():
+    """Main entry point for seeding European Competitions (UCL, UEL, UECL) draw data."""
     print("--- Seeding 2026/27 European Competitions Draw Data ---")
     db = SessionLocal()
     try:

@@ -972,6 +972,13 @@ def seed_european_cups(db: Session) -> dict:
                 comp.home_advantage_elo = home_adv
                 db.flush()
                 
+            # Deactivate older active seasons for the same competition
+            db.query(Tournament).filter(
+                Tournament.competition_id == comp.id,
+                Tournament.season_name != season,
+                Tournament.status == "Active"
+            ).update({"status": "Completed"})
+
             tourney = db.query(Tournament).filter(
                 Tournament.competition_id == comp.id,
                 Tournament.season_name == season
@@ -1077,7 +1084,7 @@ def seed_european_cups(db: Session) -> dict:
                 if not fixture.odds_history:
                     h_elo = h_team.elo if h_team else 1500
                     a_elo = a_team.elo if a_team else 1500
-                    h_odds, d_odds, a_odds = calculate_default_odds(h_elo, a_elo, home_advantage=home_adv)
+                    h_odds, d_odds, a_odds = calculate_default_odds(h_elo, a_elo, home_advantage=home_adv, neutral_venue=False)
                     init_odds = FixtureOdds(
                         fixture_id=fixture.id,
                         recorded_at=fixture.date_utc - timedelta(days=2),
