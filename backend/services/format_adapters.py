@@ -164,6 +164,14 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
         if not res or not isinstance(res, dict) or "response" not in res or not res.get("response"):
             try:
                 raw_games = updater_module.fetch_json("https://api.football-data.org/v4/games")
+                raw_teams = []
+                try:
+                    res_teams = updater_module.fetch_json("https://api.football-data.org/v4/teams")
+                    raw_teams = res_teams.get("teams") if isinstance(res_teams, dict) else (res_teams if isinstance(res_teams, list) else [])
+                except Exception:
+                    pass
+                team_id_to_name = {str(t.get("id")): t.get("name_en") for t in raw_teams if isinstance(t, dict) and "id" in t} if raw_teams else {}
+
                 if isinstance(raw_games, dict) and "games" in raw_games:
                     games_list = raw_games["games"]
                     converted = []
@@ -176,10 +184,12 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                     for g in games_list:
                         h_id = str(g.get("home_team_id", ""))
                         a_id = str(g.get("away_team_id", ""))
+                        h_name_from_map = team_id_to_name.get(h_id)
+                        a_name_from_map = team_id_to_name.get(a_id)
                         h_label = g.get("home_team_label")
                         a_label = g.get("away_team_label")
-                        h_team = db_teams_by_name.get(g.get("home_team_name_en")) or db_teams_by_id.get(h_id)
-                        a_team = db_teams_by_name.get(g.get("away_team_name_en")) or db_teams_by_id.get(a_id)
+                        h_team = db_teams_by_name.get(g.get("home_team_name_en")) or (db_teams_by_name.get(h_name_from_map) if h_name_from_map else None) or db_teams_by_id.get(h_id)
+                        a_team = db_teams_by_name.get(g.get("away_team_name_en")) or (db_teams_by_name.get(a_name_from_map) if a_name_from_map else None) or db_teams_by_id.get(a_id)
 
                         converted.append({
                             "fixture": {
@@ -333,8 +343,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
 
         try:
             if comp.type == "International" or "World Cup" in comp.name:
-                import backend.ingestor as ingestor_module
-                live_elo = ingestor_module.fetch_current_elo_ratings()
+                live_elo = elo_service.fetch_current_elo_ratings()
                 if live_elo:
                     db_teams = db.query(Team).all()
                     for team in db_teams:
@@ -370,6 +379,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
         except Exception as e:
             print(f"Warning: Failed to sync Elo ratings: {e}")
 
+        db.commit()
         return fixtures_created, fixtures_updated_results
 
     def sync_live_scores(self, db: Session, tourney: Tournament) -> tuple[int, int]:
@@ -453,6 +463,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                             db.add(matching_fixture)
                             fixtures_updated += 1
 
+                    db.commit()
                     return fixtures_updated, fixtures_finished
             except Exception:
                 pass
@@ -471,6 +482,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                         Fixture.status != "Finished"
                     ).all()
                     
+                    db_teams_map = {t.id: t.name for t in db.query(Team).all()}
                     for m in api_matches:
                         api_home = m.get("homeTeam", {}).get("name")
                         api_away = m.get("awayTeam", {}).get("name")
@@ -478,8 +490,10 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                         
                         matching_fixture = None
                         for f in db_tourney_fixtures:
-                            if f.home_team and f.away_team:
-                                if normalizer.match_names(f.home_team.name, api_home) and normalizer.match_names(f.away_team.name, api_away):
+                            f_h = db_teams_map.get(f.home_team_id, "") or (f.home_team.name if f.home_team else "")
+                            f_a = db_teams_map.get(f.away_team_id, "") or (f.away_team.name if f.away_team else "")
+                            if f_h and f_a:
+                                if normalizer.match_names(f_h, api_home) and normalizer.match_names(f_a, api_away):
                                     matching_fixture = f
                                     break
                                     
@@ -504,6 +518,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                             matching_fixture.home_score = None
                             matching_fixture.away_score = None
 
+                    db.commit()
                     return fixtures_updated, fixtures_finished
             except Exception as e:
                 print(f"Error fetching live scores from Football-Data.org: {e}")
@@ -616,6 +631,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                         matching_fixture.away_score = feed_a
                         fixtures_updated += 1
 
+                db.commit()
                 return fixtures_updated, fixtures_finished
         except Exception:
             pass

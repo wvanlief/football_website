@@ -41,7 +41,7 @@ def test_seed_competition_primary_football_data(mock_fd_fetch, db_session):
 
 
 @patch("backend.services.providers.football_data.FootballDataProvider.fetch_fixtures")
-@patch("backend.services.seeder.call_football_api")
+@patch("backend.services.providers.api_football.call_football_api")
 def test_seed_competition_failover_to_api_football(mock_api_football, mock_fd_fetch, db_session):
     # Primary Football-Data.org returns 0 fixtures (e.g. unmapped or offline)
     mock_fd_fetch.return_value = []
@@ -85,7 +85,7 @@ def test_seed_competition_failover_to_api_football(mock_api_football, mock_fd_fe
 
 
 @patch("backend.services.providers.football_data.FootballDataProvider.fetch_fixtures")
-@patch("backend.services.seeder.call_football_api")
+@patch("backend.services.providers.api_football.call_football_api")
 def test_seed_competition_api_football_suspended_graceful_handling(mock_api_football, mock_fd_fetch, db_session):
     # Both APIs return 0 / error payloads
     mock_fd_fetch.return_value = []

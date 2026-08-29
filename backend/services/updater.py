@@ -10,6 +10,7 @@ from backend.database import Team, Fixture, Tournament, Competition, SessionLoca
 from backend.scoring import update_fixture_score
 from backend.services.ingestion import NameNormalizer
 from backend.services.odds import update_odds_from_api, calculate_default_odds
+from backend.services.settling import settle_result
 from backend.services.tournament import propagate_knockout_fixtures, invalidate_fixtures_cache
 
 from backend.services.simulation import run_monte_carlo_simulation
@@ -127,6 +128,8 @@ def sync_global_date_results(db: Session, target_date: str) -> tuple:
                     changed = True
                 
             if changed:
+                if fixture.status == "Finished":
+                    settle_result(fixture, fixture.home_score, fixture.away_score)
                 fixtures_updated += 1
                 update_fixture_score(fixture, db)
 
@@ -190,6 +193,8 @@ def sync_global_live_scores(db: Session) -> tuple:
                     changed = True
                 
             if changed:
+                if fixture.status == "Finished":
+                    settle_result(fixture, fixture.home_score, fixture.away_score)
                 fixtures_updated += 1
                 update_fixture_score(fixture, db)
 
@@ -286,8 +291,6 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
         print("No active match window detected in DB. Skipping live API call.")
         return {"status": "skipped", "message": "No active match window."}
         
-    print(f"Active match window detected ({len(active_fixtures)} scheduled soon/ongoing, {len(live_fixtures)} live). Fetching global live scores...")
-    
     updated, finished = sync_global_live_scores(db)
 
     # Fallback to tournament adapters if global sync did not update any fixtures

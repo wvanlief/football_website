@@ -1,38 +1,45 @@
 import os
+import sys
+from pathlib import Path
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+from fastapi.testclient import TestClient
+
+# Ensure root directory is always on sys.path
+root_dir = str(Path(__file__).resolve().parent.parent)
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
 
 # Set env variables BEFORE importing backend modules
-os.environ["DATABASE_URL"] = "sqlite:///./test_football_games.db"
-os.environ["DATABASE_PUBLIC_URL"] = "sqlite:///./test_football_games.db"
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["DATABASE_PUBLIC_URL"] = "sqlite:///:memory:"
 os.environ["TESTING"] = "True"
 os.environ["ADMIN_TOKEN"] = "test-admin-token"
 
-
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from fastapi.testclient import TestClient
-
-from backend.database import Base, get_db, engine, SessionLocal
+from backend.database import Base, get_db, SessionLocal
 from backend.main import app
 
 @pytest.fixture(scope="function")
 def db_session():
     """
-    Creates a fresh, clean database schema for each test using the test database file.
+    Creates a fresh, clean in-memory database schema for each test.
     """
-    Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
+    test_engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+    Base.metadata.create_all(bind=test_engine)
+    db = TestingSessionLocal()
     try:
         yield db
     finally:
         db.close()
-        Base.metadata.drop_all(bind=engine)
-        # Safely remove the test DB file if it exists to keep workspace clean
-        try:
-            if os.path.exists("./test_football_games.db"):
-                os.remove("./test_football_games.db")
-        except Exception:
-            pass
+        Base.metadata.drop_all(bind=test_engine)
+        test_engine.dispose()
 
 @pytest.fixture(scope="function")
 def client(db_session):
@@ -46,6 +53,9 @@ def client(db_session):
             pass
             
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.clear()
+

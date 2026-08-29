@@ -1,11 +1,10 @@
 import os
 import json
 import hashlib
-import base64
 from datetime import datetime, timezone
 from typing import Any, Optional, Dict
 
-from backend.utils import fetch_url_with_retry, fetch_json_with_retry
+from backend.utils import fetch_json_with_retry
 
 # 3-Letter ISO Country Code Mapping for National Teams
 COUNTRY_ISO_MAP: Dict[str, str] = {
@@ -241,4 +240,3 @@ class IngestorService:
         """Seeds a specific competition and season into the database."""
         from backend.services.seeder import seed_competition
         return seed_competition(db, competition_name, season)
-
