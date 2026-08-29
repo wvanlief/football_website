@@ -267,6 +267,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             offseasonNotice = `Off-season: Showing next upcoming match block starting ${firstMatchDate}.`;
+        } else {
+            let highQualityGems = weekFixtures.filter(f => (f.watchability && f.watchability.overall >= 70.0));
+            highQualityGems.sort((a, b) => ((b.watchability && b.watchability.overall) || 0) - ((a.watchability && a.watchability.overall) || 0));
+            if (highQualityGems.length >= 3) {
+                weekFixtures = highQualityGems.slice(0, 8);
+            } else {
+                weekFixtures.sort((a, b) => ((b.watchability && b.watchability.overall) || 0) - ((a.watchability && a.watchability.overall) || 0));
+                weekFixtures = weekFixtures.slice(0, 5);
+            }
         }
 
         return {
@@ -291,6 +300,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const parsed = JSON.parse(hydratedElement.textContent);
                 if (parsed && parsed.fixtures && parsed.fixtures.length > 0) {
                     activeFixtures = processHydratedFixtures(parsed.fixtures, resolvedTimezone);
+                    if (parsed.updated_at) {
+                        lastFeedUpdatedAt = parsed.updated_at;
+                        updateFreshnessIndicator();
+                    }
                     renderAllColumns();
                     return;
                 }
