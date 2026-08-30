@@ -13,6 +13,9 @@ class WatchabilitySchema(BaseModel):
     odds: float
     form: float
     narrative: float
+    percentile: Optional[float] = None
+    tier: Optional[str] = None
+    context_label: Optional[str] = None
 
 class FixtureOut(BaseModel):
     id: int

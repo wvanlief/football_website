@@ -277,7 +277,11 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
     
     comp_name = comp.name if comp else None
     comp_badge = comp.badge if comp else "⚽"
-    
+    from backend.scoring import calculate_global_percentile, get_score_tier
+    overall_score = f.watchability_score or 0.0
+    global_pct = calculate_global_percentile(overall_score)
+    global_tier = get_score_tier(overall_score)
+
     return {
         "id": f.id,
         "tournament_id": f.tournament_id,
@@ -316,8 +320,11 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
             "overall": f.watchability_score,
             "competitiveness": f.competitiveness_score,
             "odds": f.odds_score,
-                            "form": f.form_score,
-            "narrative": f.narrative_score
+            "form": f.form_score,
+            "narrative": f.narrative_score,
+            "percentile": global_pct,
+            "tier": global_tier,
+            "context_label": None
         },
         "reasons": reasons
     }
@@ -381,6 +388,12 @@ def group_enriched_fixtures(
     # Sort finished descending by date
     finished_fixtures.sort(key=lambda x: x.get("date") or "", reverse=True)
 
+    # Assign contextual rank label for today's top match
+    if today_fixtures:
+        best_today = max(today_fixtures, key=lambda x: x.get("watchability", {}).get("overall", 0))
+        if best_today.get("watchability"):
+            best_today["watchability"]["context_label"] = "🔥 #1 Match Today"
+
     is_offseason = False
     offseason_notice = None
 
@@ -396,19 +409,28 @@ def group_enriched_fixtures(
         week_fixtures = upcoming_block[:8]
         offseason_notice = f"Off-season: Showing next upcoming matches starting {first_match_date.strftime('%b %d, %Y')}."
     else:
-        # Upcoming Gems: Filter by watchability score >= 70 (Recommended / Must Watch) and rank descending
-        high_quality_gems = [
+        # Upcoming Recommended+: Filter by watchability score >= 65.0 (Recommended tier / Top 20%) and rank descending
+        high_quality = [
             f for f in week_fixtures
-            if f.get("watchability", {}).get("overall", 0) >= 70.0
+            if f.get("watchability", {}).get("overall", 0) >= 65.0
         ]
-        high_quality_gems.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
+        high_quality.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
 
-        if len(high_quality_gems) >= 3:
-            week_fixtures = high_quality_gems[:8]
+        if len(high_quality) >= 3:
+            week_fixtures = high_quality[:8]
         else:
-            # Quiet week fallback: top highest-rated matches in the 7-day window
+            # Quiet week fallback: top 7 highest-rated matches in the 8-day window
             week_fixtures.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
-            week_fixtures = week_fixtures[:5]
+            week_fixtures = week_fixtures[:7]
+
+    # Assign contextual rank labels for top weekly matches
+    for idx, f in enumerate(week_fixtures):
+        w_obj = f.get("watchability")
+        if w_obj and not w_obj.get("context_label"):
+            if idx == 0:
+                w_obj["context_label"] = "🏆 #1 This Week"
+            elif idx in (1, 2):
+                w_obj["context_label"] = "Top 3 This Week"
 
     return {
         "today": today_fixtures,
@@ -467,13 +489,13 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
         _FIXTURES_CACHE[cache_key] = (now, payload)
     return payload
 
-def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None, min_score: float = 75.0) -> list:
+def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None, min_score: float = 65.0, min_count: int = 7) -> list:
     """
-    Returns a list of high-watchability fixtures exceeding the minimum score threshold.
+    Returns a list of high-watchability fixtures in Recommended+ tier with guaranteed Top 7 fallback.
     Preloads player and group data to avoid N+1 queries.
     """
     use_cache = os.getenv("TESTING") != "True"
-    cache_key = (tz_str, tournament_id, min_score)
+    cache_key = (tz_str, tournament_id, min_score, min_count)
     now = time.time()
     if use_cache and cache_key in _RECOMMENDED_CACHE:
         cached_time, cached_payload = _RECOMMENDED_CACHE[cache_key]
@@ -482,11 +504,41 @@ def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None
             
     target_tz = get_timezone(tz_str)
     
+    # Fast path for global recommended feed using pre-calculated JSON cache
+    if tournament_id is None and use_cache:
+        from backend.services.feed_builder import load_precalculated_feed_cache, build_fixtures_feed_cache
+        feed_cache = load_precalculated_feed_cache()
+        if not feed_cache:
+            feed_cache = build_fixtures_feed_cache(db)
+        if feed_cache:
+            all_cached = feed_cache.get("fixtures", [])
+            now_utc = datetime.now(timezone.utc)
+            future_cached = []
+            for f in all_cached:
+                dt_str = f.get("date")
+                if dt_str:
+                    try:
+                        f_dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+                        if f_dt >= now_utc - timedelta(hours=4):
+                            future_cached.append(f)
+                    except Exception:
+                        future_cached.append(f)
+                else:
+                    future_cached.append(f)
+            
+            recs = [f for f in future_cached if f.get("watchability", {}).get("overall", 0) >= min_score]
+            if len(recs) < min_count:
+                sorted_f = sorted(future_cached, key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
+                recs = sorted_f[:min_count]
+            recs.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
+            _RECOMMENDED_CACHE[cache_key] = (now, recs)
+            return recs
+
     if tournament_id is not None:
-        fixtures = crud_fixture.get_recommended_fixtures(db, tournament_id=tournament_id, min_score=min_score)
+        fixtures = crud_fixture.get_recommended_fixtures(db, tournament_id=tournament_id, min_score=min_score, min_count=min_count)
         tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all()
     else:
-        fixtures = crud_fixture.get_recommended_fixtures(db, tournament_id=None, min_score=min_score)
+        fixtures = crud_fixture.get_recommended_fixtures(db, tournament_id=None, min_score=min_score, min_count=min_count)
         tts = db.query(TournamentTeam).all()
         
     # Preload maps to avoid N+1 queries

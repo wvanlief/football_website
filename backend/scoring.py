@@ -402,15 +402,72 @@ def calculate_watchability(
     # Guarantee 0-100 range
     overall_score = round(min(100.0, max(0.0, overall_score)), 1)
     
+    percentile = calculate_global_percentile(overall_score)
+    tier = get_score_tier(overall_score)
+    
     return {
         "watchability_score": overall_score,
         "competitiveness_score": round(elo_score, 1),
         "odds_score": round(odds_score, 1),
         "form_score": round(form_score, 1),
         "narrative_score": round(narrative_score, 1),
+        "percentile": percentile,
+        "tier": tier,
         "hot_list_eligible": is_hot_list_eligible(fixture, home_team, away_team),
         "reasons": reasons
     }
+
+def calculate_global_percentile(score: float) -> float:
+    """
+    Returns the estimated global percentile (0.0 to 100.0) for a given watchability score
+    based on the calibrated distribution of the global fixture dataset.
+    """
+    if score is None or score <= 0:
+        return 0.0
+    if score >= 100.0:
+        return 100.0
+        
+    anchors = [
+        (0.0, 0.0),
+        (35.0, 5.0),
+        (45.0, 15.0),
+        (50.0, 25.0),
+        (55.0, 38.0),
+        (59.4, 50.0),
+        (65.4, 80.0),
+        (68.6, 90.0),
+        (71.7, 95.0),
+        (80.1, 99.0),
+        (90.0, 99.9),
+        (100.0, 100.0)
+    ]
+    
+    for i in range(len(anchors) - 1):
+        s_low, p_low = anchors[i]
+        s_high, p_high = anchors[i + 1]
+        if s_low <= score <= s_high:
+            ratio = (score - s_low) / (s_high - s_low) if (s_high > s_low) else 0.0
+            return round(p_low + ratio * (p_high - p_low), 1)
+            
+    return 100.0
+
+def get_score_tier(score: float) -> str:
+    """
+    Returns the canonical recommendation tier for a watchability score:
+    - 'Must Watch': Global Top 5% (score >= 71.7)
+    - 'Recommended': Global Top 20% (score >= 65.0)
+    - 'Average': Standard match (score >= 45.0)
+    - 'Skip': Below average match (score < 45.0)
+    """
+    if score is None:
+        return "Average"
+    if score >= 71.7:
+        return "Must Watch"
+    if score >= 65.0:
+        return "Recommended"
+    if score >= 45.0:
+        return "Average"
+    return "Skip"
 
 def update_fixture_score(fixture: Fixture, db: Session, weights: dict = None) -> Fixture:
     """

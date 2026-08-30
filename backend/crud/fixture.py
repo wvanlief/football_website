@@ -92,28 +92,68 @@ def count_fixtures(db: Session) -> int:
     """Returns the total count of all fixtures in the database."""
     return db.query(Fixture).count()
 
-def get_recommended_fixtures(db: Session, tournament_id: int = None, min_score: float = 75.0, include_past: bool = False) -> list[Fixture]:
+def get_recommended_fixtures(
+    db: Session,
+    tournament_id: int = None,
+    min_score: float = 65.0,
+    min_count: int = 0,
+    include_past: bool = False
+) -> list[Fixture]:
     """
-    Returns fixtures with watchability scores above the threshold.
+    Returns fixtures with watchability scores in the Recommended+ tier (>= 65.0).
     Filters to future fixtures only unless include_past=True or in testing mode.
+    If min_count > 0 and fewer than min_count fixtures meet the threshold,
+    falls back to the top min_count highest-rated upcoming fixtures.
     """
     import os
     from datetime import datetime, timezone
-    q = db.query(Fixture).options(
+    
+    base_q = db.query(Fixture).options(
         joinedload(Fixture.home_team),
-        joinedload(Fixture.away_team)
-    ).filter(Fixture.watchability_score >= min_score)
+        joinedload(Fixture.away_team),
+        joinedload(Fixture.tournament).joinedload(Tournament.competition),
+        joinedload(Fixture.odds_history)
+    )
     
     if not include_past and os.getenv("TESTING") != "True":
         now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
-        q = q.filter(Fixture.date_utc >= now_utc)
+        base_q = base_q.filter(Fixture.date_utc >= now_utc)
 
     if tournament_id is not None:
-        q = q.filter(Fixture.tournament_id == tournament_id)
+        base_q = base_q.filter(Fixture.tournament_id == tournament_id)
     else:
         active_ids = get_active_tournament_ids(db)
-        q = q.filter(Fixture.tournament_id.in_(active_ids))
-    return q.all()
+        if not active_ids:
+            active_ids = [t.id for t in db.query(Tournament.id).all()]
+        if active_ids:
+            base_q = base_q.filter(Fixture.tournament_id.in_(active_ids))
+        else:
+            return []
+
+    # 1. Query fixtures meeting the Recommended threshold (>= 65.0 / Top 20%)
+    fixtures = (
+        base_q.filter(Fixture.watchability_score >= min_score)
+        .order_by(Fixture.watchability_score.desc())
+        .all()
+    )
+
+    # 2. Quiet-week fallback: If min_count > 0 and fewer than min_count matches qualify, fetch top min_count matches
+    if min_count > 0 and len(fixtures) < min_count:
+        fallback_fixtures = (
+            base_q.filter(Fixture.watchability_score.isnot(None))
+            .order_by(Fixture.watchability_score.desc())
+            .limit(min_count)
+            .all()
+        )
+        # Combine unique fixtures maintaining highest score order
+        seen_ids = {f.id for f in fixtures}
+        for f in fallback_fixtures:
+            if f.id not in seen_ids:
+                fixtures.append(f)
+                seen_ids.add(f.id)
+        fixtures.sort(key=lambda x: x.watchability_score or 0, reverse=True)
+
+    return fixtures
 
 def get_finished_group_stage_fixtures_for_teams(db: Session, team_names: list[str], tournament_id: int = None, stage: str = "Group Stage") -> list[Fixture]:
     """Returns finished fixtures for a specific stage where both teams are in the provided team list."""

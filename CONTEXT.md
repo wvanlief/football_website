@@ -27,6 +27,17 @@
 - **Regional ELO Baselines**: CONMEBOL clubs (~1600) and MLS (~1500) use regional baselines until custom in-house ELO engine is implemented.
 - **Non-European Watchability Gating**: Regular non-European matches are suppressed from the global Hot List unless tagged as **Major Derbies**, late-stage knockouts, or filtered via the **Americas** region tab.
 
+## Dynamic Watchability Ranking & Tiers
+- **Intrinsic Watchability Score**: The underlying numerical score (0-100) computed from ELO, betting odds, form, and narrative. Treated as a ranking metric rather than a primary user-facing label.
+- **Global Percentile**: Percentile rank representing intrinsic match quality relative to the full season distribution (p80 = Top 20% / ~65.4, p95 = Top 5% / ~71.7, p99 = Top 1% / ~80.1).
+- **Contextual View Rank**: Relative position computed within a specific display horizon (e.g., `#1 Match Today` in the daily bucket; `Top 3 this Week` in weekly views).
+- **Recommendation Tiers**:
+  - `Must Watch`: Global Top 5% (score $\ge 72$) or Top 2 matches in active 8-day window.
+  - `Recommended`: Global Top 20% (score $\ge 65$) or Top 5 matches in active 8-day window.
+  - `Average`: Standard fixtures outside top percentiles.
+  - `Recommended Feed Fallback`: If fewer than 7 matches qualify in the active upcoming window, fallback to the Top 7 highest-rated upcoming matches.
+  - `_Avoid_`: Fixed score cutoffs (e.g. `>= 75.0`), hardcoded static gem thresholds.
+
 
 
 

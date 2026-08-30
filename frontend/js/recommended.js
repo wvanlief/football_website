@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderRecommended() {
         recommendedContainer.innerHTML = '';
         if (!activeFixtures || activeFixtures.length === 0) {
-            recommendedContainer.innerHTML = '<div class="loading-spinner"><p>No fixtures found with watchability index >= 75%.</p></div>';
+            recommendedContainer.innerHTML = '<div class="loading-spinner"><p>No recommended fixtures available right now.</p></div>';
             return;
         }
 
@@ -225,8 +225,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Helper to generate a single match card
     function createMatchCard(match, showRank = false, rank = 1) {
         const ratingClass = getRatingClass(match.watchability.overall);
-        const ratingText = getRatingText(match.watchability.overall);
+        const ratingText = match.watchability.tier || getRatingText(match.watchability.overall);
         const ratingIcon = getRatingIcon(match.watchability.overall);
+        const contextLabel = match.watchability.context_label;
+        const percentile = match.watchability.percentile;
+        const topPctText = percentile ? `Top ${Math.max(1, Math.round(100 - percentile))}%` : '';
 
         const badgeHtml = match.competition_name
             ? `<span class="competition-badge" title="${match.competition_name}">${match.competition_badge || '⚽'} ${match.competition_name}</span>`
@@ -240,14 +243,15 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="card-flag-bg away-flag-bg" style="background-image: url('${getFlagUrl(match.away_team.name, 'w320')}');"></div>
             
             <div class="card-header">
-                <div style="display: flex; gap: 6px; align-items: center;">
+                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
                     <span class="stage-tag">${match.stage}</span>
                     ${badgeHtml}
+                    ${contextLabel ? `<span class="stage-tag" style="background: rgba(255,165,0,0.15); color: #ffaa00; border-color: rgba(255,165,0,0.4); font-weight: 600;"><i class="fa-solid fa-fire"></i> ${contextLabel}</span>` : ''}
                 </div>
                 <div class="header-badges">
                     ${showRank ? `<span class="rank-badge"><i class="fa-solid fa-fire"></i> Rank #${rank}</span>` : ''}
-                    <span class="score-badge ${ratingClass}">
-                        <i class="${ratingIcon}"></i> ${ratingText}
+                    <span class="score-badge ${ratingClass}" title="${topPctText ? topPctText + ' overall' : ratingText}">
+                        <i class="${ratingIcon}"></i> ${ratingText}${topPctText ? ` · ${topPctText}` : ''}
                     </span>
                 </div>
             </div>
@@ -475,23 +479,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getRatingClass(score) {
-        if (score >= 85) return 'must-watch';
-        if (score >= 70) return 'recommended';
-        if (score >= 50) return 'average';
+        if (score >= 71.7) return 'must-watch';
+        if (score >= 65.0) return 'recommended';
+        if (score >= 45.0) return 'average';
         return 'skip';
     }
 
     function getRatingText(score) {
-        if (score >= 85) return 'Must Watch';
-        if (score >= 70) return 'Recommended';
-        if (score >= 50) return 'Average';
+        if (score >= 71.7) return 'Must Watch';
+        if (score >= 65.0) return 'Recommended';
+        if (score >= 45.0) return 'Average';
         return 'Skip';
     }
 
     function getRatingIcon(score) {
-        if (score >= 85) return 'fa-solid fa-trophy';
-        if (score >= 70) return 'fa-solid fa-fire';
-        if (score >= 50) return 'fa-solid fa-chart-simple';
+        if (score >= 71.7) return 'fa-solid fa-trophy';
+        if (score >= 65.0) return 'fa-solid fa-fire';
+        if (score >= 45.0) return 'fa-solid fa-chart-simple';
         return 'fa-solid fa-face-meh';
     }
 
