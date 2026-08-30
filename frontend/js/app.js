@@ -225,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let tomorrowStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(tomorrowDate);
 
         let maxDate = new Date(now);
-        maxDate.setDate(maxDate.getDate() + 30);
+        maxDate.setDate(maxDate.getDate() + 8);
         let maxDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(maxDate);
 
         (fixturesList || []).forEach(fdata => {
@@ -255,18 +255,37 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        // Sort today and tomorrow by ascending kick-off time
+        todayFixtures.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+        tomorrowFixtures.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+        // Sort finished descending by date
+        finishedFixtures.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
         let isOffseason = false;
         let offseasonNotice = null;
 
         if (todayFixtures.length === 0 && tomorrowFixtures.length === 0 && weekFixtures.length === 0 && scheduledFixtures.length > 0) {
             isOffseason = true;
+            scheduledFixtures.sort((a, b) => a.matchDateStr.localeCompare(b.matchDateStr));
             let firstMatchDate = scheduledFixtures[0].matchDateStr;
+            
+            // Calculate 8-day block starting from firstMatchDate
+            let firstDateObj = new Date(firstMatchDate + 'T00:00:00');
+            let blockEndDateObj = new Date(firstDateObj);
+            blockEndDateObj.setDate(blockEndDateObj.getDate() + 8);
+            let blockEndDateStr = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(blockEndDateObj);
+
+            let upcomingBlock = [];
             scheduledFixtures.forEach(item => {
-                if (item.matchDateStr === firstMatchDate) {
-                    todayFixtures.push(item.fdata);
+                if (item.matchDateStr >= firstMatchDate && item.matchDateStr <= blockEndDateStr) {
+                    upcomingBlock.push(item.fdata);
                 }
             });
-            offseasonNotice = `Off-season: Showing next upcoming match block starting ${firstMatchDate}.`;
+            upcomingBlock.sort((a, b) => ((b.watchability && b.watchability.overall) || 0) - ((a.watchability && a.watchability.overall) || 0));
+            weekFixtures = upcomingBlock.slice(0, 8);
+
+            let formattedFirstDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(firstDateObj);
+            offseasonNotice = `Off-season: Showing next upcoming matches starting ${formattedFirstDate}.`;
         } else {
             let highQualityGems = weekFixtures.filter(f => (f.watchability && f.watchability.overall >= 70.0));
             highQualityGems.sort((a, b) => ((b.watchability && b.watchability.overall) || 0) - ((a.watchability && a.watchability.overall) || 0));
