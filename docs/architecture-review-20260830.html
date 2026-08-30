@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Critical Architecture Review — findfootball.games</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      body { font-family: 'Georgia', 'Times New Roman', serif; }
+      h1, h2, h3, h4 { font-family: 'Georgia', serif; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      .badge { display: inline-block; padding: 2px 10px; border-radius: 9999px; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+      .badge-strong { background: #059669; color: white; }
+      .badge-worth { background: #d97706; color: white; }
+      .badge-critical { background: #dc2626; color: white; }
+      .badge-spec { background: #64748b; color: white; }
+      .layer-bar { border-left: 4px solid #334155; padding: 6px 12px; margin: 2px 0; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+      .layer-thin { background: #f1f5f9; }
+      .layer-thick { background: #1e293b; color: #e2e8f0; font-weight: 600; }
+      .layer-faded { background: #f8fafc; color: #94a3b8; font-style: italic; }
+      .dup-row { display: grid; grid-template-columns: 1fr 2fr 4fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid #e2e8f0; font-size: 0.8rem; }
+      .dup-row:last-child { border-bottom: none; }
+      .dup-count { font-weight: 700; color: #dc2626; font-size: 1.1rem; }
+      .ref-code { font-family: monospace; font-size: 0.75rem; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
+      details > summary { cursor: pointer; }
+      details > summary:hover { color: #334155; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900">
+    <main class="max-w-6xl mx-auto px-6 py-12 space-y-14">
+
+      <!-- Header -->
+      <header class="border-b border-slate-200 pb-6">
+        <h1 class="text-3xl font-bold text-slate-800 mb-1">Critical Architecture Review</h1>
+        <p class="text-sm text-slate-500 font-mono">findfootball.games &mdash; 30 Aug 2026 &mdash; Deep Pass</p>
+        <p class="text-sm text-slate-600 mt-3 max-w-3xl">
+          This review traces actual import chains, counts real duplication instances, identifies dead abstractions,
+          and scores each finding by <strong>friction</strong> (how often developers/agents hit it) and <strong>leverage</strong>
+          (how many modules benefit from fixing it).
+        </p>
+      </header>
+
+      <!-- ================================================== -->
+      <!-- TABLE OF CONTENTS -->
+      <!-- ================================================== -->
+      <nav class="bg-white rounded-xl border border-slate-200 p-5">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">Contents</h2>
+        <ol class="text-sm text-slate-700 space-y-1 list-decimal list-inside">
+          <li><a href="#sec-duplication" class="underline hover:text-slate-900">Duplication Census</a> — copy-pasted logic quantified across the codebase</li>
+          <li><a href="#sec-dep-graph" class="underline hover:text-slate-900">Dependency Tangle</a> — import cycle and wrong-direction dependencies</li>
+          <li><a href="#sec-dead-code" class="underline hover:text-slate-900">Dead & Vestigial Abstractions</a> — code that exists but does nothing useful</li>
+          <li><a href="#sec-c1" class="underline hover:text-slate-900">Candidate 1</a> — Collapse the Seeder pipeline (958 lines, 12 commits)</li>
+          <li><a href="#sec-c2" class="underline hover:text-slate-900">Candidate 2</a> — Extract a Fixture Lifecycle module to kill settle/score scatter</li>
+          <li><a href="#sec-c3" class="underline hover:text-slate-900">Candidate 3</a> — Unify the API-Football Client (3 copies of call_football_api)</li>
+          <li><a href="#sec-c4" class="underline hover:text-slate-900">Candidate 4</a> — Split tournament.py's 3 concerns</li>
+          <li><a href="#sec-c5" class="underline hover:text-slate-900">Candidate 5</a> — Deepen the Watchability Scoring module</li>
+          <li><a href="#sec-c6" class="underline hover:text-slate-900">Candidate 6</a> — Kill the format_adapters.py god class</li>
+          <li><a href="#sec-c7" class="underline hover:text-slate-900">Candidate 7</a> — Centralize simulation_results.json reads</li>
+          <li><a href="#sec-recommendation" class="underline hover:text-slate-900">Priority Ordering</a></li>
+        </ol>
+      </nav>
+
+      <!-- ================================================== -->
+      <!-- 1. DUPLICATION CENSUS -->
+      <!-- ================================================== -->
+      <section id="sec-duplication" class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <h2 class="text-xl font-bold text-slate-800 mb-1">1. Duplication Census</h2>
+        <p class="text-sm text-slate-500 mb-4">Every instance below is a live grep hit — not heuristic, not estimated.</p>
+
+        <div class="border border-slate-200 rounded-lg overflow-hidden">
+          <div class="dup-row bg-slate-100 font-bold text-slate-600 text-xs uppercase tracking-wider">
+            <div>Count</div><div>Duplicated Logic</div><div>Where</div>
+          </div>
+
+          <div class="dup-row">
+            <div class="dup-count">6×</div>
+            <div><span class="ref-code">form_score = min(95, max(45, 50 + (elo - 1500) * 0.05))</span></div>
+            <div class="text-slate-600">seeder.py (×2), team_resolver.py, format_adapters.py (×2), elo.py — identical ELO-to-form formula with no shared function</div>
+          </div>
+          <div class="dup-row">
+            <div class="dup-count">5×</div>
+            <div><span class="ref-code">status_short in ("FT", "AET", "PEN")</span> status mapping</div>
+            <div class="text-slate-600">updater.py (×2), format_adapters.py (×3), seeder.py — plus providers/api_football.py has a STATUS_MAP dict that nobody else uses</div>
+          </div>
+          <div class="dup-row">
+            <div class="dup-count">3×</div>
+            <div><span class="ref-code">call_football_api()</span> function definition</div>
+            <div class="text-slate-600">seeder.py:72, providers/api_football.py:28, and providers/api_football.py:63 (delegating to itself). updater.py imports from seeder.py</div>
+          </div>
+          <div class="dup-row">
+            <div class="dup-count">13×</div>
+            <div><span class="ref-code">NameNormalizer()</span> instantiation</div>
+            <div class="text-slate-600">Every module creates its own instance: seeder (×3), updater (×2), format_adapters (×2), odds, elo, api_football, football_data, team_resolver, normalizer — zero shared singleton or injection</div>
+          </div>
+          <div class="dup-row">
+            <div class="dup-count">3×</div>
+            <div>Fixture-matching loop (fuzzy name match over all tournament fixtures)</div>
+            <div class="text-slate-600">format_adapters.py: lines 416-447, lines 537-568, lines 611-617 — identical loop copy-pasted for mock hook, football-data.org, and API-Football fallback</div>
+          </div>
+          <div class="dup-row">
+            <div class="dup-count">2×</div>
+            <div>Team streak calculation</div>
+            <div class="text-slate-600">settling.py <code>update_team_streaks()</code> vs standings.py <code>recalculate_team_streaks()</code> — both mutate win_streak/draw_streak/loss_streak on Team objects with identical logic, called at different times</div>
+          </div>
+          <div class="dup-row">
+            <div class="dup-count">10×</div>
+            <div><span class="ref-code">settle_result() + update_fixture_score()</span> paired call</div>
+            <div class="text-slate-600">updater.py (×4), format_adapters.py (×4), seeder.py (×1), elo.py (×1) — every caller must remember to call both; forgetting update_fixture_score silently leaves stale watchability data</div>
+          </div>
+          <div class="dup-row">
+            <div class="dup-count">5×</div>
+            <div><span class="ref-code">simulation_results.json</span> file path construction & read</div>
+            <div class="text-slate-600">tournament.py (×2), scoring.py, simulation.py (×2) — each constructs the path and opens the file independently</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================== -->
+      <!-- 2. DEPENDENCY TANGLE -->
+      <!-- ================================================== -->
+      <section id="sec-dep-graph" class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <h2 class="text-xl font-bold text-slate-800 mb-1">2. Dependency Tangle</h2>
+        <p class="text-sm text-slate-500 mb-4">Arrows show import direction. Red = wrong-direction or circular. Orange = fragile coupling.</p>
+
+        <div class="rounded-lg border border-slate-200 p-4 bg-white">
+          <pre class="mermaid">
+flowchart LR
+  subgraph Ingestion["Ingestion Layer"]
+    IngEngine["ingestion/engine.py"]
+    FixUp["ingestion/fixture_upserter.py"]
+    TeamRes["ingestion/team_resolver.py"]
+    Norm["ingestion/normalizer.py"]
+  end
+
+  subgraph Legacy["Legacy Seeding"]
+    Seeder["seeder.py (958L)"]
+  end
+
+  subgraph Sync["Sync Layer"]
+    Updater["updater.py"]
+    FmtAdapt["format_adapters.py (653L)"]
+  end
+
+  subgraph Domain["Domain"]
+    Scoring["scoring.py"]
+    Tournament["tournament.py (970L)"]
+    Standings["standings.py"]
+    Settling["settling.py"]
+    Elo["elo.py"]
+    FeedBuilder["feed_builder.py"]
+    Simulation["simulation.py"]
+  end
+
+  subgraph Providers["Providers"]
+    ApiFoot["providers/api_football.py"]
+    FDorg["providers/football_data.py"]
+  end
+
+  %% Wrong-direction / circular
+  Updater -->|"imports call_football_api"| Seeder
+  Norm -->|"imports seed_database"| Seeder
+  FmtAdapt -->|"imports call_football_api via updater"| Updater
+  Scoring -->|"deferred import calculate_standings"| Standings
+  Tournament -->|"deferred import evaluate_nations_league_promotions"| Tournament
+
+  %% Duplicated definitions
+  Seeder -.->|"defines call_football_api"| ApiFoot
+  ApiFoot -.->|"also defines call_football_api"| ApiFoot
+
+  %% Normal but fragile
+  Elo --> Scoring
+  FeedBuilder --> Tournament
+  Updater --> Settling
+  FmtAdapt --> Settling
+  FixUp --> Settling
+
+  linkStyle 0 stroke:#dc2626,stroke-width:2px
+  linkStyle 1 stroke:#dc2626,stroke-width:2px
+  linkStyle 2 stroke:#dc2626,stroke-width:2px
+  linkStyle 3 stroke:#d97706,stroke-width:2px
+  linkStyle 4 stroke:#d97706,stroke-width:2px
+  linkStyle 5 stroke:#dc2626,stroke-dasharray:5 5
+  linkStyle 6 stroke:#dc2626,stroke-dasharray:5 5
+          </pre>
+        </div>
+
+        <div class="mt-4 space-y-2 text-sm text-slate-600">
+          <p><strong class="text-red-600">Critical:</strong> <code>updater.py</code> imports <code>call_football_api</code> from <code>seeder.py</code>, but the updater is a sync module and the seeder is a write-once module. This forces seeder.py to load on every daily cron tick.</p>
+          <p><strong class="text-red-600">Critical:</strong> <code>normalizer.py</code> (inside the ingestion package) imports back from <code>seeder.py</code> via <code>IngestorService.seed_world_cup()</code> — a circular dependency between the new ingestion architecture and the legacy seeder.</p>
+          <p><strong class="text-amber-600">Fragile:</strong> <code>scoring.py</code> uses a deferred <code>from backend.services.standings import calculate_standings</code> inside <code>calculate_watchability()</code> to avoid import loops, meaning the dependency exists but is hidden.</p>
+        </div>
+      </section>
+
+      <!-- ================================================== -->
+      <!-- 3. DEAD & VESTIGIAL CODE -->
+      <!-- ================================================== -->
+      <section id="sec-dead-code" class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <h2 class="text-xl font-bold text-slate-800 mb-1">3. Dead & Vestigial Abstractions</h2>
+
+        <div class="space-y-4 mt-4">
+          <div class="border-l-4 border-red-400 pl-4">
+            <h3 class="text-sm font-bold text-slate-700">IngestorService (normalizer.py:226-243)</h3>
+            <p class="text-sm text-slate-600">A "high-level service interface" that does nothing except re-import and call <code>seed_database</code> and <code>seed_competition</code> from seeder.py. Zero callers in production. Zero test coverage. Creates the circular <code>normalizer → seeder</code> import.</p>
+            <p class="text-xs text-red-500 mt-1"><strong>Action:</strong> Delete entirely. This is the source of the normalizer → seeder circular import.</p>
+          </div>
+
+          <div class="border-l-4 border-red-400 pl-4">
+            <h3 class="text-sm font-bold text-slate-700">get_format_adapter() factory + aliases (format_adapters.py:642-652)</h3>
+            <p class="text-sm text-slate-600"><code>get_format_adapter(format_engine, name)</code> always returns <code>CompetitionSyncAdapter()</code> regardless of inputs. <code>LeagueFormatAdapter</code> and <code>GroupKnockoutAdapter</code> are aliases for the same class. <code>fetch_games_with_fallback</code> is a lambda that returns <code>([], False)</code>. These exist "for backward compatibility" but their only callers are in updater.py which could call <code>CompetitionSyncAdapter()</code> directly.</p>
+            <p class="text-xs text-red-500 mt-1"><strong>Action:</strong> Replace 4 callers in updater.py with <code>CompetitionSyncAdapter()</code> directly. Delete aliases and dead factory.</p>
+          </div>
+
+          <div class="border-l-4 border-amber-400 pl-4">
+            <h3 class="text-sm font-bold text-slate-700">CacheAdapter (normalizer.py:120-162)</h3>
+            <p class="text-sm text-slate-600">Generates date-prefixed cache paths and wraps <code>fetch_json_with_retry</code> — but <code>utils.py</code> already has identical <code>_get_cache_path()</code> logic (lines 12-27). The CacheAdapter is only used by IngestorService which is dead. Two implementations of the same caching scheme exist in the codebase.</p>
+            <p class="text-xs text-amber-500 mt-1"><strong>Action:</strong> Delete with IngestorService. Keep utils.py as the canonical cache path generator.</p>
+          </div>
+
+          <div class="border-l-4 border-amber-400 pl-4">
+            <h3 class="text-sm font-bold text-slate-700">Production mock detection (format_adapters.py:403-405)</h3>
+            <p class="text-sm text-slate-600"><code>is_mocked = hasattr(updater_module.fetch_json, "return_value") or type(…).__name__ in ("MagicMock", "Mock")</code>. Production code that inspects whether it's running under a test mock. This is a test concern leaking into production — the entire "is_mocked" code path (lines 405-469) is a 65-line test hook embedded in production code.</p>
+            <p class="text-xs text-amber-500 mt-1"><strong>Action:</strong> Extract into a test-specific adapter. Production code should never inspect mock state.</p>
+          </div>
+
+          <div class="border-l-4 border-amber-400 pl-4">
+            <h3 class="text-sm font-bold text-slate-700">Fixture.latest_odds FallbackOdds inner class (database.py:190-194)</h3>
+            <p class="text-sm text-slate-600">A dynamically-defined inner class created every time <code>latest_odds</code> is called on a fixture with no odds. Returns hardcoded <code>(2.0, 3.0, 2.0)</code>. This is a model concern that should be a default at the odds layer, not an anonymous class inside a property.</p>
+          </div>
+
+          <div class="border-l-4 border-slate-300 pl-4">
+            <h3 class="text-sm font-bold text-slate-700">init_db() ALTER TABLE shim (database.py:282-289)</h3>
+            <p class="text-sm text-slate-600">Runs <code>ALTER TABLE teams ADD COLUMN logo_url VARCHAR</code> in a try/except on every SQLite init. This was a migration workaround. Since <code>logo_url</code> is now in the Team model and Alembic manages migrations, this is dead code.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================== -->
+      <!-- CANDIDATE 1 -->
+      <!-- ================================================== -->
+      <article id="sec-c1" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 pt-6 pb-2">
+          <h2 class="text-xl font-bold text-slate-800 mb-2">Candidate 1: Collapse the Seeder pipeline</h2>
+          <div class="flex gap-2 items-center mb-3">
+            <span class="badge badge-strong">Strong</span>
+            <span class="text-xs text-slate-500 font-mono">seeder.py — 958 lines, 12 commits, #1 hotspot</span>
+          </div>
+        </div>
+        <div class="px-6 py-4 border-t border-slate-100 text-sm text-slate-600 space-y-3">
+          <p><strong>Problem:</strong> seeder.py is simultaneously: (a) a WC group/player data file (~300 lines of hardcoded dicts), (b) the <code>call_football_api()</code> HTTP helper imported by 2 other modules, (c) team upsert logic that duplicates TeamResolver, (d) fixture upsert logic that duplicates FixtureUpserter, (e) odds/standings orchestration, and (f) European cup seeding from JSON files. Every responsibility is exposed as a top-level function — callers must know the correct function and call sequence.</p>
+          <p><strong>Evidence:</strong></p>
+          <ul class="list-disc list-inside space-y-1 ml-2">
+            <li>8 top-level functions exported (seed_database, seed_all_default_competitions, seed_single_competition, fetch_and_seed_teams, seed_competition, seed_european_cups, call_football_api, get_fallback_matches)</li>
+            <li>5 call-sites: main.py, cli.py, api_admin.py (×2), normalizer.py (circular)</li>
+            <li>~300 lines are static data (ELO_RATINGS, GROUPS, SPOTLIGHT_PLAYERS) that belong in JSON files</li>
+            <li>team_resolver.py already handles team resolution but seeder.py has its own inline version (line 618-690)</li>
+            <li>fixture_upserter.py already handles fixture upsert but seeder.py has its own (lines 300-390)</li>
+          </ul>
+          <p><strong>Solution:</strong> Extract static data to JSON. Make seeder.py a thin orchestrator that delegates to IngestionEngine (already exists), TeamResolver, and FixtureUpserter. Move <code>call_football_api</code> to providers/api_football.py (where a copy already exists). Single interface: <code>seed(db, config) → SeedResult</code>.</p>
+        </div>
+      </article>
+
+      <!-- ================================================== -->
+      <!-- CANDIDATE 2 -->
+      <!-- ================================================== -->
+      <article id="sec-c2" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 pt-6 pb-2">
+          <h2 class="text-xl font-bold text-slate-800 mb-2">Candidate 2: Extract a Fixture Lifecycle module</h2>
+          <div class="flex gap-2 items-center mb-3">
+            <span class="badge badge-critical">Critical</span>
+            <span class="text-xs text-slate-500 font-mono">settle_result + update_fixture_score — 10 paired call sites</span>
+          </div>
+        </div>
+        <div class="px-6 py-4 border-t border-slate-100 text-sm text-slate-600 space-y-3">
+          <p><strong>Problem:</strong> Finishing a fixture requires calling <code>settle_result()</code> (from settling.py) then <code>update_fixture_score()</code> (from scoring.py) as a pair. This is scattered across <strong>10 call sites</strong> in 4 files. If any site forgets <code>update_fixture_score()</code>, the fixture is settled but its watchability data is stale. This <em>has happened</em> — <code>seeder.py:329</code> calls <code>settle_result()</code> without <code>update_fixture_score()</code>.</p>
+          <p><strong>Evidence:</strong></p>
+          <ul class="list-disc list-inside space-y-1 ml-2">
+            <li>updater.py: 4 paired calls (lines 117+134, 132+134, 182+199, 197+199)</li>
+            <li>format_adapters.py: 4 paired calls (lines 456+457, 508+509, 577+578, 625+626)</li>
+            <li>elo.py: 1 paired call (line 279)</li>
+            <li>seeder.py:329: calls <code>settle_result()</code> <strong>without</strong> <code>update_fixture_score()</code> — <em>live bug</em></li>
+            <li>seeder.py:391: calls <code>update_fixture_score()</code> but 62 lines after the settle — fragile ordering</li>
+          </ul>
+          <p><strong>Additionally:</strong> Team streak updates are implemented <strong>twice</strong>: <code>settling.py:update_team_streaks()</code> updates streaks on settle, but <code>standings.py:recalculate_team_streaks()</code> re-does the entire calculation from scratch. Both mutate the same Team fields. If both run, the standings.py version silently overwrites settling.py's incremental updates.</p>
+          <p><strong>Solution:</strong> Create <code>finish_fixture(fixture, home_score, away_score, db)</code> that atomically: settles the result → updates watchability → recalculates streaks. All 10 scattered call-sites become 1 function call. Delete <code>update_fixture_score()</code> as a standalone function — it becomes internal to the lifecycle module.</p>
+
+          <div class="mt-3 rounded-lg border border-slate-200 p-3 bg-slate-50">
+            <pre class="mermaid">
+flowchart LR
+  subgraph Before["BEFORE: 10 scattered call sites"]
+    direction TB
+    A1["updater.py ×4"] --> S1["settle_result()"]
+    A1 --> U1["update_fixture_score()"]
+    A2["format_adapters.py ×4"] --> S1
+    A2 --> U1
+    A3["elo.py ×1"] --> S1
+    A3 --> U1
+    A4["seeder.py ×1"] --> S1
+    A4 -.->|"MISSING!"| U1
+  end
+
+  subgraph After["AFTER: 1 function"]
+    direction TB
+    B1["all callers"] --> FL["finish_fixture(f, h, a, db)"]
+    FL --> S2["settle"]
+    FL --> U2["score"]
+    FL --> K2["streak"]
+  end
+
+  style A4 fill:#fef2f2,stroke:#dc2626
+  style FL fill:#1e293b,color:#e2e8f0
+            </pre>
+          </div>
+        </div>
+      </article>
+
+      <!-- ================================================== -->
+      <!-- CANDIDATE 3 -->
+      <!-- ================================================== -->
+      <article id="sec-c3" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 pt-6 pb-2">
+          <h2 class="text-xl font-bold text-slate-800 mb-2">Candidate 3: Unify the API-Football Client</h2>
+          <div class="flex gap-2 items-center mb-3">
+            <span class="badge badge-strong">Strong</span>
+            <span class="text-xs text-slate-500 font-mono">3 definitions, 2 callers use the wrong one, STATUS_MAP ignored</span>
+          </div>
+        </div>
+        <div class="px-6 py-4 border-t border-slate-100 text-sm text-slate-600 space-y-3">
+          <p><strong>Problem:</strong> <code>call_football_api()</code> is defined in <strong>3 places</strong>:</p>
+          <ol class="list-decimal list-inside space-y-1 ml-2">
+            <li><code>seeder.py:72</code> — the canonical version, with <code>provider="api_football"</code> rate limiting</li>
+            <li><code>providers/api_football.py:28</code> — identical but <strong>without</strong> the <code>provider=</code> rate limit param</li>
+            <li><code>providers/api_football.py:63</code> — <code>ApiFootballProvider.call_api()</code> delegates to #2</li>
+          </ol>
+          <p>The rate-limiting discrepancy means that the new IngestionEngine (which uses the provider) <strong>bypasses the rate limiter</strong> while the legacy seeder doesn't. This is a subtle quota-eating bug.</p>
+          <p>Meanwhile, <code>providers/api_football.py</code> defines <code>STATUS_MAP</code> (line 10-25) — the one canonical status mapping — but <strong>nobody imports it</strong>. Instead, 5 call sites inline their own <code>if status_short in ("FT", "AET", "PEN")</code> chains with slight variations (some include <code>"LIVE"</code>, some don't).</p>
+          <p><strong>Solution:</strong> Delete from seeder.py. Make <code>providers/api_football.py:call_football_api()</code> the single definition with the rate-limit <code>provider=</code> param. Export <code>STATUS_MAP</code> and <code>parse_status(short) → str</code>. Replace all inline status chains.</p>
+        </div>
+      </article>
+
+      <!-- ================================================== -->
+      <!-- CANDIDATE 4 -->
+      <!-- ================================================== -->
+      <article id="sec-c4" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 pt-6 pb-2">
+          <h2 class="text-xl font-bold text-slate-800 mb-2">Candidate 4: Split tournament.py's 3 concerns</h2>
+          <div class="flex gap-2 items-center mb-3">
+            <span class="badge badge-worth">Worth exploring</span>
+            <span class="text-xs text-slate-500 font-mono">tournament.py — 970 lines, 12 functions, 3 concerns</span>
+          </div>
+        </div>
+        <div class="px-6 py-4 border-t border-slate-100 text-sm text-slate-600 space-y-3">
+          <p><strong>Problem:</strong> tournament.py contains 3 distinct concerns mixed into one file:</p>
+          <ul class="list-disc list-inside space-y-1 ml-2">
+            <li><strong>Knockout Propagation</strong> (write-path): <code>propagate_knockout_fixtures()</code> + <code>NEXT_ROUND_LOOKUP</code> + <code>resolve_placeholder_name()</code> — mutates fixtures, creates new ones</li>
+            <li><strong>Fixture Enrichment</strong> (read-path): <code>enrich_fixture()</code> + <code>group_enriched_fixtures()</code> — formats data for the API/UI, used by feed_builder.py</li>
+            <li><strong>Query Orchestration</strong>: <code>get_grouped_fixtures()</code>, <code>get_recommended_fixtures()</code>, <code>get_country_details()</code>, <code>get_group_details()</code>, <code>get_calendar_fixtures()</code>, <code>get_fixture_details_by_id()</code>, <code>get_all_third_placed_teams()</code>, <code>evaluate_nations_league_promotions()</code></li>
+          </ul>
+          <p><strong>Key friction:</strong> <code>enrich_fixture()</code> is the most-imported function — called by 5 query functions internally AND by <code>feed_builder.py</code> externally. But modifying enrichment logic risks breaking knockout propagation because they share the same file. <code>simulation_results.json</code> is read inline at 2 separate points in this file (lines 693 and 760).</p>
+          <p><strong>Solution:</strong> Split into 3 modules: <code>knockout.py</code>, <code>enrichment.py</code>, <code>queries.py</code>. Enrichment becomes reusable by both queries and feed_builder.</p>
+        </div>
+      </article>
+
+      <!-- ================================================== -->
+      <!-- CANDIDATE 5 -->
+      <!-- ================================================== -->
+      <article id="sec-c5" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 pt-6 pb-2">
+          <h2 class="text-xl font-bold text-slate-800 mb-2">Candidate 5: Deepen the Watchability Scoring module</h2>
+          <div class="flex gap-2 items-center mb-3">
+            <span class="badge badge-worth">Worth exploring</span>
+            <span class="text-xs text-slate-500 font-mono">scoring.py — 492 lines, 6 inline DB queries</span>
+          </div>
+        </div>
+        <div class="px-6 py-4 border-t border-slate-100 text-sm text-slate-600 space-y-3">
+          <p><strong>Problem:</strong> <code>calculate_watchability()</code> is a 300-line procedural function that takes <code>(fixture, home_team, away_team, db, weights)</code>, performs 6 inline DB queries (goal stats ×4, standings, TournamentTeam), reads simulation_results.json, and builds narrative text. The wrapper <code>update_fixture_score()</code> exists only to call it and write the result back — a pass-through with no logic.</p>
+          <p><strong>Hidden import cycle:</strong> scoring.py does a deferred <code>from backend.services.standings import calculate_standings</code> inside the function body (line 216) to avoid a circular import. This means the dependency exists but is invisible to static analysis tools.</p>
+          <p><strong>Solution:</strong> Narrow to <code>score(fixture, db) → WatchabilityResult</code>. Absorb all DB lookups, weight resolution, regional baselines, and the <code>update_fixture_score</code> wrapper. But this has lower leverage than Candidates 1-3 because it has fewer callers and the duplication it causes is already captured by Candidate 2 (the settle+score pairing).</p>
+        </div>
+      </article>
+
+      <!-- ================================================== -->
+      <!-- CANDIDATE 6 -->
+      <!-- ================================================== -->
+      <article id="sec-c6" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 pt-6 pb-2">
+          <h2 class="text-xl font-bold text-slate-800 mb-2">Candidate 6: Kill the format_adapters.py god class</h2>
+          <div class="flex gap-2 items-center mb-3">
+            <span class="badge badge-critical">Critical</span>
+            <span class="text-xs text-slate-500 font-mono">format_adapters.py — 653 lines, CompetitionSyncAdapter is 525 lines</span>
+          </div>
+        </div>
+        <div class="px-6 py-4 border-t border-slate-100 text-sm text-slate-600 space-y-3">
+          <p><strong>Problem:</strong> <code>CompetitionSyncAdapter</code> is a 525-line god class containing:</p>
+          <ul class="list-disc list-inside space-y-1 ml-2">
+            <li><code>sync_results()</code>: 260 lines of fixture sync, fallback API resolution, team matching, ELO sync, ClubELO sync with inline name-map file reads — this one method does more than most modules</li>
+            <li><code>sync_live_scores()</code>: 250 lines with <strong>3 nested fallback branches</strong>, each copy-pasting the same fixture-matching loop. Contains the <code>is_mocked</code> production mock detection (65 lines of test hooks in prod code)</li>
+            <li>ELO sync logic (international + club) embedded inside <code>sync_results()</code> (lines 344-380) — this belongs in elo.py</li>
+          </ul>
+          <p><strong>The "adapter" pattern is a lie:</strong> <code>BaseFormatAdapter</code> has two subclass slots, but <code>CompetitionSyncAdapter</code> is the only implementation. <code>get_format_adapter()</code> always returns it. The strategy pattern has collapsed to a single class.</p>
+          <p><strong>Solution:</strong> Move ELO sync into elo.py. Move fixture-matching loop into a shared helper. Delete mock-detection code; use dependency injection or test-specific adapters. The remaining sync logic can live in updater.py directly — the adapter indirection adds no value when there's only one adapter.</p>
+        </div>
+      </article>
+
+      <!-- ================================================== -->
+      <!-- CANDIDATE 7 -->
+      <!-- ================================================== -->
+      <article id="sec-c7" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 pt-6 pb-2">
+          <h2 class="text-xl font-bold text-slate-800 mb-2">Candidate 7: Centralize simulation_results.json reads</h2>
+          <div class="flex gap-2 items-center mb-3">
+            <span class="badge badge-spec">Spec-level</span>
+            <span class="text-xs text-slate-500 font-mono">5 independent file reads across 3 modules</span>
+          </div>
+        </div>
+        <div class="px-6 py-4 border-t border-slate-100 text-sm text-slate-600 space-y-3">
+          <p><strong>Problem:</strong> <code>simulation_results.json</code> is read at 5 separate call sites across 3 modules, each constructing the file path independently and opening the file with its own try/except. Some guard with <code>tournament_id == 1</code> (hardcoded WC check), others don't.</p>
+          <ul class="list-disc list-inside space-y-1 ml-2">
+            <li><code>tournament.py:693</code> — <code>get_all_third_placed_teams()</code>, guarded by <code>tournament_id == 1</code></li>
+            <li><code>tournament.py:760</code> — <code>get_group_details()</code>, guarded by <code>tournament_id == 1</code></li>
+            <li><code>scoring.py:12</code> — <code>get_simulation_probabilities()</code>, no tournament guard</li>
+            <li><code>simulation.py:157</code> — write path</li>
+            <li><code>simulation.py:656</code> — another write path</li>
+          </ul>
+          <p><strong>Solution:</strong> Create <code>simulation.get_probabilities(tournament_id) → dict</code> with internal caching. All 5 reads become 1 function call. The <code>tournament_id == 1</code> guard should be a parameter, not hardcoded.</p>
+        </div>
+      </article>
+
+      <!-- ================================================== -->
+      <!-- PRIORITY ORDERING -->
+      <!-- ================================================== -->
+      <section id="sec-recommendation" class="bg-gradient-to-br from-slate-800 to-slate-900 text-white rounded-xl p-6">
+        <h2 class="text-xl font-bold mb-4">🎯 Priority Ordering</h2>
+        <p class="text-sm text-slate-300 mb-5">Ranked by <strong>friction × leverage</strong>: how often developers/agents hit the issue × how many modules benefit from fixing it.</p>
+
+        <div class="space-y-3">
+          <div class="flex gap-4 items-start">
+            <span class="text-2xl font-bold text-emerald-400 w-8">1.</span>
+            <div>
+              <a href="#sec-c2" class="font-bold text-white underline">Extract Fixture Lifecycle module</a>
+              <span class="badge badge-critical ml-2">Critical</span>
+              <p class="text-sm text-slate-300 mt-1">10 paired call sites, 1 confirmed live bug (seeder.py:329 missing <code>update_fixture_score</code>), 2 implementations of streak logic. Highest friction — every agent touching sync code must know the settle+score pairing. Fix is small (one function) but eliminates a whole class of bugs.</p>
+            </div>
+          </div>
+
+          <div class="flex gap-4 items-start">
+            <span class="text-2xl font-bold text-emerald-400 w-8">2.</span>
+            <div>
+              <a href="#sec-c3" class="font-bold text-white underline">Unify API-Football Client</a>
+              <span class="badge badge-strong ml-2">Strong</span>
+              <p class="text-sm text-slate-300 mt-1">3 duplicate definitions, rate-limiter bypass bug in the provider copy, STATUS_MAP defined but unused. Fix removes the wrong-direction updater → seeder import and eliminates 5 inline status chains. Small, safe, high impact.</p>
+            </div>
+          </div>
+
+          <div class="flex gap-4 items-start">
+            <span class="text-2xl font-bold text-emerald-400 w-8">3.</span>
+            <div>
+              <a href="#sec-c6" class="font-bold text-white underline">Kill format_adapters.py god class</a>
+              <span class="badge badge-critical ml-2">Critical</span>
+              <p class="text-sm text-slate-300 mt-1">525-line class with 3 copy-pasted fixture-matching loops, ELO sync logic that belongs elsewhere, 65 lines of test hooks in production code, and a dead adapter pattern. This is the worst code in the codebase by density of problems. But it's a big refactor — do after #1 and #2 stabilize the foundations.</p>
+            </div>
+          </div>
+
+          <div class="flex gap-4 items-start">
+            <span class="text-2xl font-bold text-emerald-400 w-8">4.</span>
+            <div>
+              <a href="#sec-c1" class="font-bold text-white underline">Collapse the Seeder pipeline</a>
+              <span class="badge badge-strong ml-2">Strong</span>
+              <p class="text-sm text-slate-300 mt-1">958 lines, 5 call sites, but partially obsoleted by IngestionEngine. Once #2 and #3 are done (extracting call_football_api and fixture lifecycle), seeder.py naturally shrinks. The remaining work is moving static data to JSON and deleting duplicated team/fixture upsert code.</p>
+            </div>
+          </div>
+
+          <div class="flex gap-4 items-start">
+            <span class="text-2xl font-bold text-slate-400 w-8">5.</span>
+            <div>
+              <a href="#sec-c4" class="font-bold text-slate-300 underline">Split tournament.py</a>
+              <span class="badge badge-worth ml-2">Worth exploring</span>
+              <p class="text-sm text-slate-400 mt-1">970 lines with 3 concerns, but the file works. Do after the acute infection (duplication, missing calls) is treated.</p>
+            </div>
+          </div>
+
+          <div class="flex gap-4 items-start">
+            <span class="text-2xl font-bold text-slate-400 w-8">6.</span>
+            <div>
+              <a href="#sec-c7" class="font-bold text-slate-300 underline">Centralize simulation reads</a> +
+              <a href="#sec-c5" class="font-bold text-slate-300 underline ml-1">Deepen scoring</a>
+              <span class="badge badge-spec ml-2">Spec-level</span>
+              <p class="text-sm text-slate-400 mt-1">Low urgency. Address when touching these modules for feature work.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 p-4 border border-slate-600 rounded-lg bg-slate-800/50">
+          <h3 class="text-sm font-bold text-slate-200 mb-2">Quick Wins (< 30 min each, do immediately)</h3>
+          <ul class="text-sm text-slate-300 space-y-1 list-disc list-inside">
+            <li>Delete <code>IngestorService</code> from normalizer.py — removes circular import, 0 callers</li>
+            <li>Delete <code>CacheAdapter</code> from normalizer.py — duplicate of utils.py, 0 callers</li>
+            <li>Delete <code>fetch_games_with_fallback</code> lambda, <code>LeagueFormatAdapter</code>, <code>GroupKnockoutAdapter</code> aliases — dead code</li>
+            <li>Delete <code>init_db()</code> ALTER TABLE shim — dead migration workaround</li>
+            <li>Extract <code>form_score = elo_to_form(elo)</code> one-liner to elo.py — removes 6× duplication</li>
+            <li>Delete duplicate <code>from backend.services.settling import settle_result</code> import in updater.py line 28</li>
+          </ul>
+        </div>
+      </section>
+
+    </main>
+  </body>
+</html>
