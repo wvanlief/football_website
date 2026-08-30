@@ -16,7 +16,7 @@ if project_root not in sys.path:
 from sqlalchemy.orm import Session
 from backend.database import SessionLocal, Team
 from backend.services.elo import review_elo_matches, apply_elo_matches
-from backend.services.seeder import seed_database, fetch_and_seed_teams
+from backend.services.seeder import seed_database, fetch_and_seed_teams, seed_single_competition
 from backend.services.ingestion import seed_competition
 
 
@@ -60,7 +60,7 @@ def main():
     parser = argparse.ArgumentParser(description="findfootball.games Database Ingestion and Seeding CLI")
 
     parser.add_argument("command", nargs="?", default="seed-wc", 
-                        choices=["seed-wc", "fetch-teams", "review-elo-matches", "apply-elo-matches", "seed-competition", "cache-badges"],
+                        choices=["seed-wc", "fetch-teams", "review-elo-matches", "apply-elo-matches", "seed-competition", "seed-one", "cache-badges"],
                         help="Seeding command to run")
     parser.add_argument("--league", type=int, help="API-Football league ID")
     parser.add_argument("--season", type=int, help="API-Football season year")
@@ -71,6 +71,7 @@ def main():
     parser.add_argument("--file", type=str, default="backend/data/elo_name_review.json", help="Path to ELO review file")
     parser.add_argument("--odds-key", type=str, help="Odds API sport key (e.g. soccer_epl)")
     parser.add_argument("--home-advantage", type=int, default=100, help="ELO boost for home teams (if non-neutral)")
+    parser.add_argument("--fetch-squads", action="store_true", help="Fetch full squad rosters for teams")
     
     args = parser.parse_args()
     
@@ -90,6 +91,12 @@ def main():
             apply_elo_matches(db, file_path=args.file)
         elif args.command == "cache-badges":
             download_and_cache_badges(db)
+        elif args.command == "seed-one":
+            if not args.league:
+                print("Error: --league is required for seed-one.")
+            else:
+                res = seed_single_competition(db, league_id=args.league, fetch_squads=args.fetch_squads)
+                print(f"Seed-one result: {res}")
         elif args.command == "seed-competition":
             if not args.league or not args.season or not args.comp_name:
                 print("Error: --league, --season, and --comp-name are required for seed-competition.")

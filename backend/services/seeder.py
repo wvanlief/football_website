@@ -398,6 +398,52 @@ def seed_database(db: Session):
 
     print("Database seeding and simulation completed.")
 
+DEFAULT_LEAGUES_TO_SEED = [
+    # Big 5 Domestic Leagues
+    ("Premier League", "League", "league", 39, "2026/27", 2026, 3, 100),
+    ("La Liga", "League", "league", 140, "2026/27", 2026, 3, 120),
+    ("Serie A", "League", "league", 135, "2026/27", 2026, 3, 100),
+    ("Bundesliga", "League", "league", 78, "2026/27", 2026, 2, 100),
+    ("Ligue 1", "League", "league", 61, "2026/27", 2026, 2, 90),
+
+    # European Cups
+    ("UEFA Champions League", "Cup", "league_phase_knockout", 2, "2026/27", 2026, 0, 80),
+    ("UEFA Europa League", "Cup", "league_phase_knockout", 3, "2026/27", 2026, 0, 60),
+    ("UEFA Conference League", "Cup", "league_phase_knockout", 848, "2026/27", 2026, 0, 50),
+
+    # Domestic Cups (Big 5)
+    ("FA Cup", "Cup", "cup", 45, "2026/27", 2026, 0, 30),
+    ("EFL Cup", "Cup", "cup", 48, "2026/27", 2026, 0, 30),
+    ("Coppa Italia", "Cup", "cup", 137, "2026/27", 2026, 0, 30),
+    ("DFB Pokal", "Cup", "cup", 81, "2026/27", 2026, 0, 30),
+    ("Coupe de France", "Cup", "cup", 66, "2026/27", 2026, 0, 30),
+
+    # Other Top European Leagues & Cups
+    ("Eredivisie", "League", "league", 88, "2026/27", 2026, 3, 90),
+    ("KNVB Beker", "Cup", "cup", 90, "2026/27", 2026, 0, 30),
+    ("Primeira Liga", "League", "league", 94, "2026/27", 2026, 3, 90),
+    ("Taça de Portugal", "Cup", "cup", 96, "2026/27", 2026, 0, 30),
+    ("Scottish Premiership", "League", "league", 179, "2026/27", 2026, 2, 80),
+    ("Belgian Pro League", "League", "league", 144, "2026/27", 2026, 3, 80),
+    ("Süper Lig", "League", "league", 203, "2026/27", 2026, 4, 100),
+
+    # Americas Leagues & Cups
+    ("Major League Soccer", "League", "league", 253, "2026", 2026, 0, 80),
+    ("US Open Cup", "Cup", "cup", 257, "2026", 2026, 0, 30),
+    ("Brasileirão Série A", "League", "league", 71, "2026", 2026, 4, 110),
+    ("Copa do Brasil", "Cup", "cup", 73, "2026", 2026, 0, 30),
+    ("Liga Profesional Argentina", "League", "league", 128, "2026", 2026, 2, 110),
+    ("Copa Argentina", "Cup", "cup", 130, "2026", 2026, 0, 30),
+
+    # Continental Cups (Americas)
+    ("Copa Libertadores", "Cup", "group_knockout", 13, "2026", 2026, 0, 80),
+    ("Copa Sudamericana", "Cup", "group_knockout", 11, "2026", 2026, 0, 60),
+    ("CONCACAF Champions Cup", "Cup", "cup", 16, "2026", 2026, 0, 40),
+]
+
+DEFAULT_LEAGUES_BY_ID = {item[3]: item for item in DEFAULT_LEAGUES_TO_SEED}
+
+
 def seed_all_default_competitions(db: Session) -> dict:
     """Seeds all default 15 competitions (World Cup, Big 5 Domestic Leagues, European Cups, Domestic Cups, Nations League)."""
     results = {}
@@ -410,52 +456,10 @@ def seed_all_default_competitions(db: Session) -> dict:
     except Exception as e:
         results["FIFA World Cup"] = f"Error: {e}"
         
-    # 3. API-Football Competitions (Big 5 Leagues, European Cups, Domestic Cups)
+    # 2. API-Football Competitions (Big 5 Leagues, European Cups, Domestic Cups)
     api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
     if api_key:
-        leagues_to_seed = [
-            # Big 5 Domestic Leagues
-            ("Premier League", "League", "league", 39, "2026/27", 2026, 3, 100),
-            ("La Liga", "League", "league", 140, "2026/27", 2026, 3, 120),
-            ("Serie A", "League", "league", 135, "2026/27", 2026, 3, 100),
-            ("Bundesliga", "League", "league", 78, "2026/27", 2026, 2, 100),
-            ("Ligue 1", "League", "league", 61, "2026/27", 2026, 2, 90),
-
-            # European Cups
-            ("UEFA Champions League", "Cup", "league_phase_knockout", 2, "2026/27", 2026, 0, 80),
-            ("UEFA Europa League", "Cup", "league_phase_knockout", 3, "2026/27", 2026, 0, 60),
-            ("UEFA Conference League", "Cup", "league_phase_knockout", 848, "2026/27", 2026, 0, 50),
-
-            # Domestic Cups (Big 5)
-            ("FA Cup", "Cup", "cup", 45, "2026/27", 2026, 0, 30),
-            ("EFL Cup", "Cup", "cup", 48, "2026/27", 2026, 0, 30),
-            ("Coppa Italia", "Cup", "cup", 137, "2026/27", 2026, 0, 30),
-            ("DFB Pokal", "Cup", "cup", 81, "2026/27", 2026, 0, 30),
-            ("Coupe de France", "Cup", "cup", 66, "2026/27", 2026, 0, 30),
-
-            # Other Top European Leagues & Cups
-            ("Eredivisie", "League", "league", 88, "2026/27", 2026, 3, 90),
-            ("KNVB Beker", "Cup", "cup", 90, "2026/27", 2026, 0, 30),
-            ("Primeira Liga", "League", "league", 94, "2026/27", 2026, 3, 90),
-            ("Taça de Portugal", "Cup", "cup", 96, "2026/27", 2026, 0, 30),
-            ("Scottish Premiership", "League", "league", 179, "2026/27", 2026, 2, 80),
-            ("Belgian Pro League", "League", "league", 144, "2026/27", 2026, 3, 80),
-            ("Süper Lig", "League", "league", 203, "2026/27", 2026, 4, 100),
-
-            # Americas Leagues & Cups
-            ("Major League Soccer", "League", "league", 253, "2026", 2026, 0, 80),
-            ("US Open Cup", "Cup", "cup", 257, "2026", 2026, 0, 30),
-            ("Brasileirão Série A", "League", "league", 71, "2026", 2026, 4, 110),
-            ("Copa do Brasil", "Cup", "cup", 73, "2026", 2026, 0, 30),
-            ("Liga Profesional Argentina", "League", "league", 128, "2026", 2026, 2, 110),
-            ("Copa Argentina", "Cup", "cup", 130, "2026", 2026, 0, 30),
-
-            # Continental Cups (Americas)
-            ("Copa Libertadores", "Cup", "group_knockout", 13, "2026", 2026, 0, 80),
-            ("Copa Sudamericana", "Cup", "group_knockout", 11, "2026", 2026, 0, 60),
-            ("CONCACAF Champions Cup", "Cup", "cup", 16, "2026", 2026, 0, 40),
-        ]
-        for name, comp_type, format_eng, league_id, season_str, api_season, releg_spots, home_adv in leagues_to_seed:
+        for name, comp_type, format_eng, league_id, season_str, api_season, releg_spots, home_adv in DEFAULT_LEAGUES_TO_SEED:
             try:
                 # Check if this competition edition is already populated in DB
                 comp = db.query(Competition).filter(Competition.name == name).first()
@@ -494,6 +498,111 @@ def seed_all_default_competitions(db: Session) -> dict:
 
     print("--- Full Database Seeding Completed ---")
     return results
+
+
+def seed_single_competition(
+    db: Session,
+    league_id: int,
+    fetch_squads: bool = False
+) -> dict:
+    """
+    Seeds or updates a single competition idempotently by API-Football league ID or Competition ID.
+    Supports European cups (via draw data / API), domestic leagues, domestic cups, and custom competitions.
+    """
+    from pathlib import Path
+    draw_file = Path(__file__).resolve().parent.parent / "data" / "european_draw_2026.json"
+    
+    # 1. Check if league_id corresponds to a European Cup with local draw file
+    if league_id in (2, 3, 848) and draw_file.exists():
+        euro_res = seed_european_cups(db, target_league_id=league_id)
+        api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
+        if api_key:
+            try:
+                fetch_and_seed_teams(db, api_league_id=league_id, api_season=2026, fetch_squads=fetch_squads)
+            except Exception as e:
+                print(f"Warning: Failed to fetch API teams for euro cup {league_id}: {e}")
+        return {
+            "status": "success",
+            "message": f"European cup (league_id={league_id}) seeded successfully.",
+            "league_id": league_id,
+            "details": euro_res
+        }
+
+    # 2. Check in DEFAULT_LEAGUES_BY_ID
+    if league_id in DEFAULT_LEAGUES_BY_ID:
+        name, comp_type, format_eng, lid, season_str, api_season, releg_spots, home_adv = DEFAULT_LEAGUES_BY_ID[league_id]
+        
+        api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
+        if api_key:
+            fetch_and_seed_teams(db, api_league_id=league_id, api_season=api_season, fetch_squads=fetch_squads)
+            
+        upsert_res = seed_competition(
+            db=db,
+            competition_name=name,
+            competition_type=comp_type,
+            format_engine=format_eng,
+            season=season_str,
+            api_league_id=league_id,
+            api_season=api_season,
+            relegation_spots=releg_spots,
+            home_advantage_elo=home_adv
+        )
+        
+        return {
+            "status": "success",
+            "message": f"Competition '{name}' (league_id={league_id}) seeded successfully.",
+            "competition": name,
+            "league_id": league_id,
+            "fixtures_created": getattr(upsert_res, "created", 0),
+            "fixtures_updated": getattr(upsert_res, "updated", 0),
+            "odds_added": getattr(upsert_res, "odds_added", 0)
+        }
+
+    # 3. Check if competition exists in database by api_league_id or id
+    comp = db.query(Competition).filter(
+        (Competition.api_league_id == league_id) | (Competition.id == league_id)
+    ).first()
+    
+    if comp:
+        tourney = db.query(Tournament).filter(
+            Tournament.competition_id == comp.id,
+            Tournament.status == "Active"
+        ).first()
+        season_str = tourney.season_name if tourney else "2026/27"
+        api_season = 2026
+        try:
+            api_season = int(season_str.split("/")[0])
+        except (ValueError, AttributeError):
+            pass
+            
+        eff_api_league_id = comp.api_league_id or league_id
+        api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
+        if api_key and eff_api_league_id:
+            fetch_and_seed_teams(db, api_league_id=eff_api_league_id, api_season=api_season, fetch_squads=fetch_squads)
+            
+        upsert_res = seed_competition(
+            db=db,
+            competition_name=comp.name,
+            competition_type=comp.type or "League",
+            format_engine=comp.format_engine or "league",
+            season=season_str,
+            api_league_id=eff_api_league_id,
+            api_season=api_season,
+            home_advantage_elo=comp.home_advantage_elo or 100,
+            odds_api_sport_key=comp.odds_api_sport_key
+        )
+        
+        return {
+            "status": "success",
+            "message": f"Competition '{comp.name}' (league_id={league_id}) seeded successfully.",
+            "competition": comp.name,
+            "league_id": league_id,
+            "fixtures_created": getattr(upsert_res, "created", 0),
+            "fixtures_updated": getattr(upsert_res, "updated", 0),
+            "odds_added": getattr(upsert_res, "odds_added", 0)
+        }
+
+    raise ValueError(f"Competition with league_id {league_id} not found in default configurations or database.")
 
 
 
@@ -655,10 +764,11 @@ def seed_competition(
     )
 
 
-def seed_european_cups(db: Session) -> dict:
+def seed_european_cups(db: Session, target_league_id: int = None) -> dict:
     """
     Seeds the 3 UEFA European competitions (Champions League, Europa League, Conference League)
     for the 2026/27 season using the official 36-team Swiss league phase draw dataset.
+    If target_league_id is specified (e.g. 2, 3, or 848), only that competition is seeded.
     """
     import json
     from pathlib import Path
@@ -675,8 +785,10 @@ def seed_european_cups(db: Session) -> dict:
         data = json.load(f)
         
     for comp_name, comp_data in data.items():
+        api_league_id = comp_data.get("api_league_id")
+        if target_league_id is not None and api_league_id != target_league_id:
+            continue
         try:
-            api_league_id = comp_data.get("api_league_id")
             comp_type = comp_data.get("competition_type", "Cup")
             format_engine = comp_data.get("format_engine", "league_phase_knockout")
             season = comp_data.get("season", "2026/27")

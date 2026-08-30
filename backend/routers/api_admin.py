@@ -128,4 +128,46 @@ def trigger_seed_all(confirm: bool = False, db: Session = Depends(get_db)):
         )
 
 
+@router.post("/seed-one", dependencies=[Depends(verify_admin_token)])
+def trigger_seed_one(
+    league_id: int = Query(..., description="API-Football league ID or competition identifier to seed"),
+    confirm: bool = Query(False, description="Confirmation flag required to prevent accidental quota usage"),
+    fetch_squads: bool = Query(False, description="Whether to fetch full squad rosters (consumes extra API calls)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Secured endpoint to trigger database seeding for a single competition.
+    Requires confirm=true query parameter to prevent accidental API quota consumption.
+    """
+    if not confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This operation consumes external API calls. Pass ?confirm=true to execute."
+        )
+    try:
+        from backend.services.seeder import seed_single_competition
+        result = seed_single_competition(db, league_id=league_id, fetch_squads=fetch_squads)
+        if result.get("status") == "error":
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=result.get("message", "Seeding failed.")
+            )
+        return result
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(ve)
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Single-competition seeding task failed: {str(e)}"
+        )
+
+
+
 

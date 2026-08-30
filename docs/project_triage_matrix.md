@@ -136,7 +136,7 @@ This gives a 3×3 matrix. Items in the top-right (🟢🔧) are the lowest-hangi
 | F16 | **Best odds from different bookmakers** | 🟡 | 💡 | TODO P3 | Multi-bookmaker comparison. |
 | F17 | **Spotlight Calendar** — "Top 5 Blockbusters" carousel looking 30 days ahead | 🟡 | 💡 | TODO Future | Curated major derby lookahead. |
 | F18 | **Full squad ingestion** — all players from API-Football squads | 🔴 | 📐 | TODO Future, BL | Currently only 3-player spotlight. Costs 200+ API calls. |
-| F19 | **Single-competition admin seed endpoint** (`/api/admin/seed-one`) | 🟢 | 🔧 | BL | Needed before next European cup draw date. |
+| F19 | **Single-competition admin seed endpoint** (`/api/admin/seed-one`) | 🟢 | 🔧 | Done | Implemented in Issue #85. |
 | F20 | **In-house ELO calculation engine** for non-European clubs (CONMEBOL, MLS, CAF, AFC) | 🔴 | 💡 | TODO P1 | Calculate ELO from match results instead of relying on external sources. |
 | F21 | **Personalized recommendations** — "Your best matches this week" | 🔴 | 💡 | GPT §5.4 | Depends on F3 (favorites). Could work without accounts using localStorage. |
 
@@ -265,7 +265,7 @@ This gives a 3×3 matrix. Items in the top-right (🟢🔧) are the lowest-hangi
 |------|--------|
 | A14 | Complete Serie A data population |
 | A15 | Execute data population Phases 4-6 |
-| F19 | Build admin seed-one endpoint (before next cup draw) |
+| F19 | Build admin seed-one endpoint (COMPLETED - #85) |
 | D2 | Implement production smoke tests |
 | D3 | Set up freshness monitoring |
 | D1 | Formalize product rules document |

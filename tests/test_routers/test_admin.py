@@ -68,3 +68,49 @@ def test_admin_update_live_background_success(client):
     data = response.json()
     assert data["status"] == "processing"
 
+def test_admin_seed_one_unauthorized_no_header(client):
+    response = client.post("/api/admin/seed-one?league_id=39&confirm=true")
+    assert response.status_code == 401
+    assert "detail" in response.json()
+
+def test_admin_seed_one_unauthorized_bad_token(client):
+    response = client.post("/api/admin/seed-one?league_id=39&confirm=true", headers={"X-Admin-Token": "bad-token-here"})
+    assert response.status_code == 401
+
+def test_admin_seed_one_missing_confirm(client):
+    response = client.post("/api/admin/seed-one?league_id=39", headers={"X-Admin-Token": "test-admin-token"})
+    assert response.status_code == 400
+    assert "confirm=true" in response.json()["detail"]
+
+def test_admin_seed_one_missing_league_id(client):
+    response = client.post("/api/admin/seed-one?confirm=true", headers={"X-Admin-Token": "test-admin-token"})
+    assert response.status_code == 422
+
+@patch("backend.services.seeder.seed_single_competition")
+def test_admin_seed_one_not_found(mock_seed_one, client):
+    mock_seed_one.side_effect = ValueError("Competition with league_id 999999 not found")
+    response = client.post("/api/admin/seed-one?league_id=999999&confirm=true", headers={"X-Admin-Token": "test-admin-token"})
+    assert response.status_code == 404
+    assert "999999" in response.json()["detail"]
+
+@patch("backend.services.seeder.seed_single_competition")
+def test_admin_seed_one_success(mock_seed_one, client):
+    mock_seed_one.return_value = {
+        "status": "success",
+        "message": "Competition 'Premier League' (league_id=39) seeded successfully.",
+        "competition": "Premier League",
+        "league_id": 39,
+        "fixtures_created": 380,
+        "fixtures_updated": 0,
+        "odds_added": 380
+    }
+    response = client.post("/api/admin/seed-one?league_id=39&confirm=true", headers={"X-Admin-Token": "test-admin-token"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    assert data["competition"] == "Premier League"
+    assert data["league_id"] == 39
+    assert data["fixtures_created"] == 380
+    mock_seed_one.assert_called_once()
+
+
