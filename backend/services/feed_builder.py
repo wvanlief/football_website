@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from sqlalchemy.orm import Session, joinedload
 from backend.database import Fixture, Tournament, Competition, Team, TournamentTeam, PlayerContract
 from backend.services.tournament import enrich_fixture, get_timezone
+import backend.crud.fixture as crud_fixture
 
 CACHE_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "fixtures_feed_cache.json")
 
@@ -30,40 +31,13 @@ def build_fixtures_feed_cache(db: Session, force_enrichment: bool = False) -> di
     start_time = time.time()
 
     now_utc = datetime.now(timezone.utc)
-    window_start = now_utc - timedelta(days=14)
-    window_end = now_utc + timedelta(days=30)
 
-    # Active tournaments only
-    active_tourneys = db.query(Tournament).filter(Tournament.status == "Active").all()
-    active_ids = [t.id for t in active_tourneys] if active_tourneys else [t.id for t in db.query(Tournament).all()]
+    # Use canonical query for eligible fixtures (rolling window with strict future-only off-season fallback)
+    fixtures = crud_fixture.get_eligible_fixtures(db, tournament_id=None, now_utc=now_utc)
 
-    # Query rolling window fixtures
-    fixtures = (
-        db.query(Fixture)
-        .options(joinedload(Fixture.home_team), joinedload(Fixture.away_team))
-        .filter(
-            Fixture.tournament_id.in_(active_ids),
-            Fixture.date_utc >= window_start,
-            Fixture.date_utc <= window_end
-        )
-        .order_by(Fixture.date_utc.asc())
-        .all()
-    )
-
-    # If off-season (no fixtures in 30 days), fetch earliest upcoming fixtures
-    if not fixtures:
-        print("No active fixtures in rolling window (-14 to +30 days). Fetching earliest upcoming fixtures...")
-        fixtures = (
-            db.query(Fixture)
-            .options(joinedload(Fixture.home_team), joinedload(Fixture.away_team))
-            .filter(
-                Fixture.tournament_id.in_(active_ids),
-                Fixture.date_utc >= now_utc
-            )
-            .order_by(Fixture.date_utc.asc())
-            .limit(100)
-            .all()
-        )
+    active_ids = crud_fixture.get_active_tournament_ids(db)
+    if not active_ids:
+        active_ids = [t.id for t in db.query(Tournament.id).all()]
 
     # Preload maps to avoid N+1 queries
     contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(
