@@ -56,7 +56,7 @@ def test_seed_european_cups(db_session):
     ).all()
     assert len(ucl_fixtures) > 0
     for f in ucl_fixtures:
-        assert f.stage == "League Phase"
+        assert f.stage in ["League Phase", "Play-offs", "Round of 16", "Quarter-final", "Semi-final", "Final"]
         assert f.status == "Scheduled"
         assert f.home_team_id is not None
         assert f.away_team_id is not None

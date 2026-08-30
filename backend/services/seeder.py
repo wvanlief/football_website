@@ -780,13 +780,17 @@ def seed_european_cups(db: Session) -> dict:
                     continue
                     
                 matchday = f_info.get("matchday")
+                stage = f_info.get("stage", "League Phase")
+                leg_number = f_info.get("leg_number", 1)
                 date_utc_str = f_info.get("date_utc")
                 date_utc = datetime.fromisoformat(date_utc_str.replace("Z", "+00:00"))
                 
                 fixture = db.query(Fixture).filter(
                     Fixture.tournament_id == tourney.id,
                     Fixture.home_team_id == h_team.id,
-                    Fixture.away_team_id == a_team.id
+                    Fixture.away_team_id == a_team.id,
+                    Fixture.stage == stage,
+                    Fixture.leg_number == leg_number
                 ).first()
                 
                 if not fixture:
@@ -795,16 +799,18 @@ def seed_european_cups(db: Session) -> dict:
                         home_team_id=h_team.id,
                         away_team_id=a_team.id,
                         date_utc=date_utc,
-                        stage="League Phase",
+                        stage=stage,
                         matchday_number=matchday,
+                        leg_number=leg_number,
                         status="Scheduled"
                     )
                     db.add(fixture)
                     db.flush()
                 else:
                     fixture.date_utc = date_utc
-                    fixture.stage = "League Phase"
+                    fixture.stage = stage
                     fixture.matchday_number = matchday
+                    fixture.leg_number = leg_number
                     db.flush()
                     
                 # Odds
