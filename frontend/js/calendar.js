@@ -72,8 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
             highWatchabilityOnly = !highWatchabilityOnly;
             filterBtn.classList.toggle('active', highWatchabilityOnly);
             filterBtn.innerHTML = highWatchabilityOnly
-                ? '<i class="fa-solid fa-fire text-warning"></i> Showing High Watchability (≥75%)'
-                : '<i class="fa-solid fa-filter"></i> Show High Watchability Only (≥75%)';
+                ? '<i class="fa-solid fa-fire text-warning"></i> Showing Recommended+ (≥65%)'
+                : '<i class="fa-solid fa-filter"></i> Show Recommended+ Only (≥65%)';
             renderCalendar();
         });
     }
@@ -351,7 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
             matchesContainer.className = 'calendar-day-matches';
             
             const dateKey = `${day.year}-${String(day.month + 1).padStart(2, '0')}-${String(day.dayNumber).padStart(2, '0')}`;
-            const dayMatches = (matchesByDateKey[dateKey] || []).filter(match => !highWatchabilityOnly || match.watchability_score >= 75);
+            const dayMatches = (matchesByDateKey[dateKey] || []).filter(match => !highWatchabilityOnly || match.watchability_score >= 65.0);
             
             dayMatches.forEach(match => {
                 const compactMatch = document.createElement('div');
@@ -530,23 +530,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getRatingClass(score) {
-        if (score >= 85) return 'must-watch';
-        if (score >= 70) return 'recommended';
-        if (score >= 50) return 'average';
+        if (score >= 71.7) return 'must-watch';
+        if (score >= 65.0) return 'recommended';
+        if (score >= 45.0) return 'average';
         return 'skip';
     }
 
     function getRatingText(score) {
-        if (score >= 85) return 'Must Watch';
-        if (score >= 70) return 'Recommended';
-        if (score >= 50) return 'Average';
+        if (score >= 71.7) return 'Must Watch';
+        if (score >= 65.0) return 'Recommended';
+        if (score >= 45.0) return 'Average';
         return 'Skip';
     }
 
     function getRatingIcon(score) {
-        if (score >= 85) return 'fa-solid fa-trophy';
-        if (score >= 70) return 'fa-solid fa-fire';
-        if (score >= 50) return 'fa-solid fa-chart-simple';
+        if (score >= 71.7) return 'fa-solid fa-trophy';
+        if (score >= 65.0) return 'fa-solid fa-fire';
+        if (score >= 45.0) return 'fa-solid fa-chart-simple';
         return 'fa-solid fa-face-meh';
     }
 

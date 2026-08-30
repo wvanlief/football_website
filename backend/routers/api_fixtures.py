@@ -31,7 +31,7 @@ def get_recommended(
     db: Session = Depends(get_db)
 ):
     """
-    Returns fixtures with watchability score >= 75%.
+    Returns fixtures in the Recommended+ tier (>= 65.0) with guaranteed Top 7 fallback for quiet periods.
     """
     return get_recommended_fixtures(db, tz, tournament_id=tournament_id)
 
