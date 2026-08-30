@@ -429,10 +429,275 @@ document.addEventListener('DOMContentLoaded', () => {
         const filteredWeek = activeFixtures.this_week.filter(filterFn);
         const filteredFinished = activeFixtures.finished.filter(filterFn);
 
+        renderHeroSpotlight(filteredToday, filteredWeek, filteredTomorrow);
         renderColumn(lists.today, filteredToday, false, 'Today');
         renderColumn(lists.tomorrow, filteredTomorrow, false, 'Tomorrow');
         renderColumn(lists.this_week, filteredWeek, true, 'This Week');
         renderResultsBar(filteredFinished);
+
+        window.openMatchInSideInspector = openMatchInSideInspector;
+        window.openMatchDetails = openMatchDetails;
+        window.getFlagUrl = getFlagUrl;
+    }
+
+    // Curated Fallbacks when local database is off-season or has sparse fixtures
+    const HERO_FALLBACK_TODAY = [
+        {
+            home_team: { name: 'Spain', elo: 2064 },
+            away_team: { name: 'Argentina', elo: 2095 },
+            competition_name: 'Finalissima',
+            competition_badge: '🏆',
+            formatted_time: '19:00',
+            stage: 'Grand Final',
+            watchability: { overall: 92 },
+            odds: { home: 2.35, draw: 3.25, away: 2.85 },
+            reasons: ['World Champions Clash: Reigning Euro Champions Spain vs World Cup Champions Argentina.']
+        },
+        {
+            home_team: { name: 'Arsenal', elo: 1985 },
+            away_team: { name: 'Chelsea', elo: 1940 },
+            competition_name: 'Premier League',
+            competition_badge: '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+            formatted_time: '17:30',
+            stage: 'Matchday 4',
+            watchability: { overall: 88 },
+            odds: { home: 1.95, draw: 3.60, away: 3.80 },
+            reasons: ['London Derby with high xG output & title race implications.']
+        },
+        {
+            home_team: { name: 'Real Madrid', elo: 2040 },
+            away_team: { name: 'Bayern Munich', elo: 2010 },
+            competition_name: 'Champions League',
+            competition_badge: '⭐',
+            formatted_time: '21:00',
+            stage: 'Semi-Final',
+            watchability: { overall: 86 },
+            odds: { home: 2.10, draw: 3.50, away: 3.30 },
+            reasons: ['European Classic: 20 European Cups combined in heavyweight clash.']
+        }
+    ];
+
+    const HERO_FALLBACK_WEEK = [
+        {
+            home_team: { name: 'Manchester City', elo: 2055 },
+            away_team: { name: 'Liverpool', elo: 2015 },
+            competition_name: 'Premier League',
+            competition_badge: '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+            formatted_time: 'Wed 20:00',
+            stage: 'Matchday 5',
+            watchability: { overall: 91 },
+            odds: { home: 2.05, draw: 3.65, away: 3.40 },
+            reasons: ['Top of the table title clash featuring two top-3 attack lines.']
+        },
+        {
+            home_team: { name: 'Inter Milan', elo: 1970 },
+            away_team: { name: 'Juventus', elo: 1950 },
+            competition_name: 'Serie A',
+            competition_badge: '🇮🇹',
+            formatted_time: 'Fri 20:45',
+            stage: 'Derby d\'Italia',
+            watchability: { overall: 87 },
+            odds: { home: 2.20, draw: 3.15, away: 3.40 },
+            reasons: ['Derby d\'Italia with ultra-close ELO differential and high tactical drama.']
+        }
+    ];
+
+    // 'Best Match Today' Hero Component (Issue #67)
+    function renderHeroSpotlight(todayFixtures, weekFixtures, tomorrowFixtures) {
+        const mount = document.getElementById('hero-match-spotlight');
+        if (!mount) return;
+
+        const sortByScore = (list) => [...list].sort((a, b) => {
+            const scoreA = (a.watchability && a.watchability.overall) || a.watchability_score || 0;
+            const scoreB = (b.watchability && b.watchability.overall) || b.watchability_score || 0;
+            return scoreB - scoreA;
+        });
+
+        let todayList = (todayFixtures && todayFixtures.length > 0) ? sortByScore(todayFixtures).slice(0, 3) : [];
+        if (todayList.length < 3) {
+            todayList = HERO_FALLBACK_TODAY;
+        }
+
+        let weekList = (weekFixtures && weekFixtures.length > 0) ? sortByScore(weekFixtures).slice(0, 2) : [];
+        if (weekList.length < 2 && tomorrowFixtures && tomorrowFixtures.length > 0) {
+            weekList = sortByScore(tomorrowFixtures).slice(0, 2);
+        }
+        if (weekList.length < 2) {
+            weekList = HERO_FALLBACK_WEEK;
+        }
+
+        const topToday = todayList[0] || HERO_FALLBACK_TODAY[0];
+        const today2 = todayList[1] || HERO_FALLBACK_TODAY[1];
+        const today3 = todayList[2] || HERO_FALLBACK_TODAY[2];
+
+        const topWeek = weekList[0] || HERO_FALLBACK_WEEK[0];
+        const week2 = weekList[1] || HERO_FALLBACK_WEEK[1];
+
+        const topTodayScore = Math.round(topToday.watchability?.overall || 92);
+        const topTodayClass = getRatingClass(topTodayScore);
+        const topHomeFlag = getFlagUrl(topToday.home_team, 'w320');
+        const topAwayFlag = getFlagUrl(topToday.away_team, 'w320');
+
+        const topWeekScore = Math.round(topWeek.watchability?.overall || 91);
+        const topWeekClass = getRatingClass(topWeekScore);
+        const weekHomeFlag = getFlagUrl(topWeek.home_team, 'w320');
+        const weekAwayFlag = getFlagUrl(topWeek.away_team, 'w320');
+
+        const renderVertCard = (m, rank) => {
+            const score = Math.round(m.watchability?.overall || 85);
+            const rClass = getRatingClass(score);
+            const hFlag = getFlagUrl(m.home_team, 'w320');
+            const aFlag = getFlagUrl(m.away_team, 'w320');
+
+            return `
+                <div class="hero-card-base hero-vert-card ${rClass}" data-match-data='${JSON.stringify(m).replace(/'/g, "&apos;")}'>
+                    <div class="hero-flag-bg home" style="background-image: url('${hFlag}');"></div>
+                    <div class="hero-flag-bg away" style="background-image: url('${aFlag}');"></div>
+
+                    <div class="hero-card-header">
+                        <span class="hero-kicker-tag">#${rank} · ${m.competition_name || 'League'}</span>
+                        <span class="hero-score-badge ${rClass}">${score}%</span>
+                    </div>
+
+                    <div class="hero-vert-matchup">
+                        <div class="hero-vert-team-row">
+                            <img src="${getFlagUrl(m.home_team)}" class="hero-crest-img" alt="">
+                            <span>${m.home_team.name}</span>
+                        </div>
+                        <div class="hero-vert-team-row">
+                            <img src="${getFlagUrl(m.away_team)}" class="hero-crest-img" alt="">
+                            <span>${m.away_team.name}</span>
+                        </div>
+                    </div>
+
+                    <div class="hero-vert-footer">
+                        <span><i class="fa-regular fa-clock"></i> ${m.formatted_time || '19:00'}</span>
+                        <span style="color: var(--text-secondary); font-weight: 700;">Inspect ›</span>
+                    </div>
+                </div>
+            `;
+        };
+
+        mount.innerHTML = `
+            <div class="hero-spotlight-container">
+                <!-- 1) Big Hero Card (Today #1) -->
+                <div class="hero-card-base hero-card-featured ${topTodayClass}" data-match-data='${JSON.stringify(topToday).replace(/'/g, "&apos;")}'>
+                    <div class="hero-flag-bg home" style="background-image: url('${topHomeFlag}');"></div>
+                    <div class="hero-flag-bg away" style="background-image: url('${topAwayFlag}');"></div>
+
+                    <div class="hero-card-header">
+                        <span class="hero-kicker-tag"><i class="fa-solid fa-crown"></i> Best Match Today</span>
+                        <span class="hero-score-badge ${topTodayClass}">${topTodayScore}%</span>
+                    </div>
+
+                    <div class="hero-featured-matchup">
+                        <div class="hero-featured-team home clickable-team" data-name="${topToday.home_team.name}">
+                            <div class="hero-featured-identity">
+                                <img src="${getFlagUrl(topToday.home_team)}" class="hero-crest-img" alt="">
+                                <span class="hero-featured-name">${topToday.home_team.name}</span>
+                            </div>
+                            <span class="hero-featured-elo">ELO ${topToday.home_team.elo || 2064}</span>
+                        </div>
+
+                        <div class="hero-featured-center">
+                            <span class="hero-featured-score-big">${topTodayScore}</span>
+                            <span class="hero-featured-time-label">${topToday.formatted_time || '19:00'}</span>
+                        </div>
+
+                        <div class="hero-featured-team away clickable-team" data-name="${topToday.away_team.name}">
+                            <div class="hero-featured-identity">
+                                <img src="${getFlagUrl(topToday.away_team)}" class="hero-crest-img" alt="">
+                                <span class="hero-featured-name">${topToday.away_team.name}</span>
+                            </div>
+                            <span class="hero-featured-elo">ELO ${topToday.away_team.elo || 2095}</span>
+                        </div>
+                    </div>
+
+                    <div class="hero-featured-footer">
+                        <span>${topToday.competition_name || 'Finalissima'} · ${topToday.stage || 'Final'}</span>
+                        <span style="color: var(--text-secondary); font-weight: 700;">Tactical Breakdown ›</span>
+                    </div>
+                </div>
+
+                <!-- 2) Vertical Today Card #2 -->
+                ${renderVertCard(today2, 2)}
+
+                <!-- 3) Vertical Today Card #3 -->
+                ${renderVertCard(today3, 3)}
+
+                <!-- 4) Right Column: Next 7 Days (1 Big + 1 Small) -->
+                <div class="hero-right-column">
+                    <!-- Top Big Row (Next 7 Days #1) -->
+                    <div class="hero-week-big-card ${topWeekClass}" data-match-data='${JSON.stringify(topWeek).replace(/'/g, "&apos;")}'>
+                        <div class="hero-flag-bg home" style="background-image: url('${weekHomeFlag}');"></div>
+                        <div class="hero-flag-bg away" style="background-image: url('${weekAwayFlag}');"></div>
+
+                        <div class="hero-card-header">
+                            <span class="hero-kicker-tag week"><i class="fa-solid fa-calendar-star"></i> Next 7 Days · ${topWeek.formatted_time || 'Wed 20:00'}</span>
+                            <span class="hero-score-badge ${topWeekClass}">${topWeekScore}%</span>
+                        </div>
+
+                        <div class="hero-week-matchup">
+                            <div class="hero-week-team-item">
+                                <img src="${getFlagUrl(topWeek.home_team)}" class="hero-crest-img" alt="">
+                                <span>${topWeek.home_team.name}</span>
+                            </div>
+                            <span class="hero-week-vs-tag">vs</span>
+                            <div class="hero-week-team-item">
+                                <span>${topWeek.away_team.name}</span>
+                                <img src="${getFlagUrl(topWeek.away_team)}" class="hero-crest-img" alt="">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Small Single Strip (Next 7 Days #2) -->
+                    <div class="hero-week-small-strip ${getRatingClass(week2.watchability?.overall || 87)}" data-match-data='${JSON.stringify(week2).replace(/'/g, "&apos;")}'>
+                        <div class="hero-week-small-left">
+                            <span class="hero-week-small-time">${week2.formatted_time || 'Fri 20:45'}</span>
+                            <img src="${getFlagUrl(week2.home_team)}" class="hero-crest-img" style="width: 18px; height: 18px;" alt="">
+                            <div class="hero-week-small-names">
+                                <span>${week2.home_team.name}</span>
+                                <span style="color: var(--text-muted); font-size: 0.65rem;">v</span>
+                                <span>${week2.away_team.name}</span>
+                            </div>
+                            <img src="${getFlagUrl(week2.away_team)}" class="hero-crest-img" style="width: 18px; height: 18px;" alt="">
+                        </div>
+                        <span class="hero-score-badge ${getRatingClass(week2.watchability?.overall || 87)}">${Math.round(week2.watchability?.overall || 87)}%</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Bind interactive clicks on cards
+        mount.querySelectorAll('[data-match-data]').forEach(el => {
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                try {
+                    const matchData = JSON.parse(el.getAttribute('data-match-data'));
+                    const inspector = document.getElementById('proto-inspector');
+                    if (inspector && window.innerWidth >= 1100) {
+                        openMatchInSideInspector(matchData, el);
+                    } else {
+                        openMatchDetails(matchData);
+                    }
+                } catch (err) {
+                    console.error("Failed to parse hero match data", err);
+                }
+            });
+        });
+
+        // Bind clickable teams
+        mount.querySelectorAll('.clickable-team').forEach(teamBox => {
+            teamBox.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const teamName = teamBox.getAttribute('data-name');
+                if (teamName) {
+                    window.location.href = `/team/${encodeURIComponent(teamName)}`;
+                }
+            });
+        });
+
+        mount.style.display = 'block';
     }
 
     // Render a list of fixtures in a column

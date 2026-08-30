@@ -4954,3 +4954,411 @@ body.theme-flag .country-hero-flag-bg {
     font-size: 0.6rem !important;
     padding: 1px 5px !important;
 }
+
+/* ==========================================================================
+   HERO MATCH SPOTLIGHT COMPONENT (Issue #67)
+   3 Today Matches + 2 Next 7 Days Matches
+   ========================================================================== */
+.hero-match-spotlight {
+    margin: 0 0 1.25rem 0;
+    width: 100%;
+    position: relative;
+    z-index: 10;
+    transition: var(--transition-smooth);
+}
+
+.hero-spotlight-container {
+    display: grid;
+    grid-template-columns: 1.45fr 0.92fr 0.92fr 1.25fr;
+    gap: 0.65rem;
+    background: var(--bg-column);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0.65rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    align-items: stretch;
+    backdrop-filter: blur(8px);
+}
+
+.hero-card-base {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.5rem 0.65rem;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    position: relative;
+    overflow: hidden;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.hero-card-base:hover {
+    transform: translateY(-2px) scale(1.005);
+    background: #211812;
+    border-color: rgba(251, 191, 36, 0.35);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.hero-card-base.must-watch {
+    border-left: 3px solid var(--color-must-watch);
+}
+.hero-card-base.recommended {
+    border-left: 3px solid var(--color-recommended);
+}
+.hero-card-base.average {
+    border-left: 3px solid var(--color-average);
+}
+.hero-card-base.skip {
+    border-left: 3px solid var(--color-skip);
+}
+
+.hero-flag-bg {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 42%;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.12;
+    pointer-events: none;
+    z-index: 0;
+    transition: opacity 0.3s ease;
+}
+
+.hero-card-base:hover .hero-flag-bg {
+    opacity: 0.22;
+}
+
+.hero-flag-bg.home {
+    left: 0;
+    background-position: left center;
+}
+
+.hero-flag-bg.away {
+    right: 0;
+    background-position: right center;
+}
+
+.hero-card-header {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+}
+
+.hero-kicker-tag {
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.hero-kicker-tag.week {
+    color: #38bdf8;
+}
+
+.hero-score-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 2px 7px;
+    border-radius: 12px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.hero-score-badge.must-watch {
+    color: var(--color-must-watch);
+    border: 1px solid rgba(251, 191, 36, 0.25);
+    background: rgba(251, 191, 36, 0.08);
+}
+
+.hero-score-badge.recommended {
+    color: var(--color-recommended);
+    border: 1px solid rgba(167, 139, 250, 0.25);
+    background: rgba(167, 139, 250, 0.08);
+}
+
+.hero-score-badge.average {
+    color: var(--color-average);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    background: rgba(56, 189, 248, 0.08);
+}
+
+/* 1) Big Featured Card (Today #1) */
+.hero-card-featured {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.06) 0%, var(--bg-card) 100%);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    border-left: 3px solid var(--color-must-watch);
+}
+
+.hero-card-featured:hover {
+    border-color: rgba(251, 191, 36, 0.55);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 15px rgba(251, 191, 36, 0.1);
+}
+
+.hero-featured-matchup {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 0.35rem;
+    align-items: center;
+    padding: 0.3rem 0;
+}
+
+.hero-featured-team {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.hero-featured-team.home {
+    align-items: flex-start;
+    text-align: left;
+}
+
+.hero-featured-team.away {
+    align-items: flex-end;
+    text-align: right;
+}
+
+.hero-featured-identity {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+}
+
+.hero-featured-team.away .hero-featured-identity {
+    flex-direction: row-reverse;
+}
+
+.hero-crest-img {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.hero-featured-name {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+}
+
+.hero-featured-elo {
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-weight: 600;
+}
+
+.hero-featured-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 0.2rem;
+}
+
+.hero-featured-score-big {
+    font-family: var(--font-mono);
+    font-size: 1.35rem;
+    font-weight: 900;
+    color: #fbbf24;
+    line-height: 1;
+    text-shadow: 0 0 10px rgba(251, 191, 36, 0.35);
+}
+
+.hero-featured-time-label {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    margin-top: 0.15rem;
+}
+
+.hero-featured-footer {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.3rem;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+}
+
+/* 2) & 3) Middle Vertical Today Cards */
+.hero-vert-card {
+    min-height: 100px;
+}
+
+.hero-vert-matchup {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.2rem 0;
+}
+
+.hero-vert-team-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.hero-vert-footer {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.25rem;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+}
+
+/* 4) Right Column: Next 7 Days (1 Big + 1 Small) */
+.hero-right-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    height: 100%;
+    justify-content: space-between;
+}
+
+.hero-week-big-card {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.05) 0%, var(--bg-card) 100%);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid #38bdf8;
+    border-radius: 8px;
+    padding: 0.5rem 0.65rem;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.3rem;
+}
+
+.hero-week-big-card:hover {
+    transform: translateY(-2px) scale(1.005);
+    background: #181d24;
+    border-color: rgba(56, 189, 248, 0.4);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.hero-week-matchup {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+}
+
+.hero-week-team-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.hero-week-vs-tag {
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    padding: 0 0.15rem;
+}
+
+.hero-week-small-strip {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--color-recommended);
+    border-radius: 8px;
+    padding: 0.38rem 0.6rem;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+}
+
+.hero-week-small-strip:hover {
+    background: #211812;
+    border-color: rgba(245, 158, 11, 0.4);
+    transform: translateX(2px);
+}
+
+.hero-week-small-left {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.hero-week-small-time {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    min-width: 44px;
+}
+
+.hero-week-small-names {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 1100px) {
+    .hero-spotlight-container {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 650px) {
+    .hero-spotlight-container {
+        grid-template-columns: 1fr;
+    }
+}
