@@ -20,12 +20,10 @@ from backend.services.format_adapters import (
     STAGE_MAPPING,
     STADIUM_TIMEZONES,
     parse_match_date,
-    fetch_games_with_fallback
 )
 
 from backend.services.elo import fetch_current_elo_ratings, fetch_clubelo_ratings
 from backend.services.seeder import call_football_api
-from backend.services.settling import settle_result
 from backend.utils import fetch_json_with_retry, fetch_url_with_retry, fetch_json
 
 

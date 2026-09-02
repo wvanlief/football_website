@@ -8,6 +8,15 @@ from backend.utils import fetch_url_with_retry
 from backend.services.ingestion import NameNormalizer
 from backend.services.odds import calculate_default_odds
 
+def elo_to_form(elo: float) -> float:
+    """
+    Calculates form score from ELO rating, clamped between 45.0 and 95.0, rounded to 1 decimal place.
+    Base form is 50.0 at 1500 ELO, scaling by 0.05 per ELO point.
+    """
+    if elo is None:
+        elo = 1500.0
+    return round(min(95.0, max(45.0, 50.0 + (float(elo) - 1500.0) * 0.05)), 1)
+
 def fetch_current_elo_ratings() -> dict[str, int]:
     """
     Fetches current Elo ratings of international football teams from eloratings.net.
@@ -238,7 +247,7 @@ def apply_elo_matches(db: Session, file_path: str):
             team = db.query(Team).filter(Team.name == api_name, Team.team_type == "Club").first()
             if team:
                 team.elo = elo
-                team.form_score = round(min(95.0, max(45.0, 50.0 + (elo - 1500) * 0.05)), 1)
+                team.form_score = elo_to_form(elo)
                 
                 record_elo_history(db, team.id, elo, now_time)
                 count += 1

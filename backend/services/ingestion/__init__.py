@@ -1,8 +1,7 @@
 from backend.services.ingestion.normalizer import (
     COUNTRY_ISO_MAP,
-    CacheAdapter,
     NameNormalizer,
-    IngestorService,
+    default_normalizer,
 )
 from backend.services.ingestion.preflight import (
     IngestionAborted,
@@ -14,9 +13,8 @@ from backend.services.ingestion.engine import IngestionEngine, seed_competition
 
 __all__ = [
     "COUNTRY_ISO_MAP",
-    "CacheAdapter",
     "NameNormalizer",
-    "IngestorService",
+    "default_normalizer",
     "IngestionAborted",
     "PreflightGuard",
     "TeamResolver",
