@@ -1,35 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Country flag mapping using flagcdn codes
-    const COUNTRY_FLAGS = {
-        "Spain": "es", "Argentina": "ar", "France": "fr", "England": "gb-eng",
-        "Brazil": "br", "Portugal": "pt", "Colombia": "co", "Netherlands": "nl",
-        "Germany": "de", "Norway": "no", "Japan": "jp", "Turkey": "tr",
-        "Uruguay": "uy", "Switzerland": "ch", "Senegal": "sn", "Mexico": "mx",
-        "USA": "us", "Canada": "ca", "Morocco": "ma", "Algeria": "dz",
-        "Croatia": "hr", "Ecuador": "ec", "Austria": "at", "Paraguay": "py",
-        "South Korea": "kr", "Australia": "au", "Scotland": "gb-sct",
-        "Iran": "ir", "Uzbekistan": "uz", "Qatar": "qa",
-        "South Africa": "za", "Haiti": "ht", "Curaçao": "cw", "Cape Verde": "cv",
-        "Panama": "pa", "Ghana": "gh", "New Zealand": "nz", "Jordan": "jo",
-        "Czechia": "cz", "Bosnia and Herzegovina": "ba", "Côte d'Ivoire": "ci",
-        "Tunisia": "tn", "Poland": "pl", "Belgium": "be", "Egypt": "eg",
-        "Saudi Arabia": "sa", "Iraq": "iq", "Jamaica": "jm", "Sweden": "se",
-        "Democratic Republic of the Congo": "cd"
-    };
-
-    function getFlagUrl(target, size = 'w40') {
-        if (!target) return '/static/badges/default.png';
-        if (typeof target === 'object') {
-            if (target.logo_url) return target.logo_url;
-            target = target.name || target.team;
-        }
-        if (typeof target === 'string') {
-            const code = COUNTRY_FLAGS[target];
-            if (code) return `https://flagcdn.com/${size}/${code}.png`;
-        }
-        return '/static/badges/default.png';
-    }
-
     // DOM Elements
 
     const toast = document.getElementById('toast');
@@ -93,28 +62,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     async function resolveAndTimezoneFetch() {
-        if (selectedTimezone === 'local') {
-            try {
-                const geoRes = await fetch('https://ipapi.co/json/');
-                if (geoRes.ok) {
-                    const geoData = await geoRes.json();
-                    if (geoData.timezone) {
-                        resolvedTimezone = geoData.timezone;
-                        console.log(`Detected timezone from IP lookup: ${resolvedTimezone}`);
-                    } else {
-                        throw new Error("Timezone field missing");
-                    }
-                } else {
-                    throw new Error("IP Service error");
-                }
-            } catch (err) {
-                resolvedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-                console.log(`Fell back to browser timezone: ${resolvedTimezone}`);
-            }
-        } else {
-            resolvedTimezone = selectedTimezone;
-        }
-        await fetchFixtures();
+        resolvedTimezone = await resolveTimezone(selectedTimezone);
+        fetchFixtures();
     }
 
 
@@ -332,141 +281,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return card;
     }
 
-    // Modal Details Panel
-    function openMatchDetails(match) {
-        const ratingClass = getRatingClass(match.watchability.overall);
-        const ratingText = getRatingText(match.watchability.overall);
-        const ratingIcon = getRatingIcon(match.watchability.overall);
-
-        const homePlayers = match.home_team.players || [];
-        const awayPlayers = match.away_team.players || [];
-        const allPlayers = [...homePlayers, ...awayPlayers];
-
-        let playersHtml = '';
-        if (allPlayers.length > 0) {
-            playersHtml = `
-                <div class="players-section">
-                    <h4 class="section-title"><i class="fa-solid fa-bolt"></i> Spotlight Form Players</h4>
-                    <div class="players-grid">
-                        ${allPlayers.slice(0, 4).map(p => `
-                            <div class="player-card">
-                                <div class="player-info">
-                                    <span class="player-name">${p.name}</span>
-                                    <span class="player-meta">${p.position}</span>
-                                </div>
-                                <span class="player-form-badge">Form: ${p.form.toFixed(1)}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-        }
-
-        let reasonsHtml = '';
-        if (match.reasons && match.reasons.length > 0) {
-            reasonsHtml = `
-                <div class="why-watch-section">
-                    <h4 class="section-title"><i class="fa-solid fa-circle-exclamation"></i> Match Analysis & Context</h4>
-                    <ul class="reasons-list">
-                        ${match.reasons.map(r => `<li>${r}</li>`).join('')}
-                    </ul>
-                </div>
-            `;
-        }
-
-        modalContainer.innerHTML = `
-            <div class="modal-header">
-                <span class="stage-tag group-click-link" style="cursor: ${match.group_name ? 'pointer' : 'default'}">${match.stage} &bull; ${match.formatted_date}</span>
-                <div class="modal-match-title">
-                    <img src="${getFlagUrl(match.home_team.name)}" class="modal-flag team-nav-link" data-name="${match.home_team.name}" alt="" style="cursor: pointer;">
-                    <span class="team-nav-link" data-name="${match.home_team.name}" style="cursor: pointer;">${match.home_team.name}</span>
-                    <span>vs</span>
-                    <span class="team-nav-link" data-name="${match.away_team.name}" style="cursor: pointer;">${match.away_team.name}</span>
-                    <img src="${getFlagUrl(match.away_team.name)}" class="modal-flag team-nav-link" data-name="${match.away_team.name}" alt="" style="cursor: pointer;">
-                </div>
-                <div class="modal-watchability-header ${ratingClass}">
-                    <span class="score-val"><i class="${ratingIcon}"></i> ${ratingText}</span>
-                    <span class="score-label">${ratingText} WATCHABILITY</span>
-                </div>
-            </div>
-
-            <div class="metrics-breakdown">
-                <div class="metric-bar-group">
-                    <div class="metric-label-row">
-                        <span>ELO Competitiveness</span>
-                        <span>${match.watchability.competitiveness}%</span>
-                    </div>
-                    <div class="bar-bg">
-                        <div class="bar-fill" style="width: 0%" data-width="${match.watchability.competitiveness}%"></div>
-                    </div>
-                </div>
-                
-                <div class="metric-bar-group">
-                    <div class="metric-label-row">
-                        <span>Odds Competitiveness</span>
-                        <span>${match.watchability.odds}%</span>
-                    </div>
-                    <div class="bar-bg">
-                        <div class="bar-fill" style="width: 0%" data-width="${match.watchability.odds}%"></div>
-                    </div>
-                </div>
-                
-                <div class="metric-bar-group">
-                    <div class="metric-label-row">
-                        <span>Player & Team Form</span>
-                        <span>${match.watchability.form}%</span>
-                    </div>
-                    <div class="bar-bg">
-                        <div class="bar-fill" style="width: 0%" data-width="${match.watchability.form}%"></div>
-                    </div>
-                </div>
-                
-                <div class="metric-bar-group">
-                    <div class="metric-label-row">
-                        <span>Tournament Stakes</span>
-                        <span>${match.watchability.narrative}%</span>
-                    </div>
-                    <div class="bar-bg">
-                        <div class="bar-fill" style="width: 0%" data-width="${match.watchability.narrative}%"></div>
-                    </div>
-                </div>
-            </div>
-
-            ${reasonsHtml}
-            ${playersHtml}
-        `;
-
-        // Bind clicks in modal
-        const modalStageTag = modalContainer.querySelector('.stage-tag');
-        if (modalStageTag && (match.group_name || match.stage === "Regular Season")) {
-            modalStageTag.style.cursor = 'pointer';
-            modalStageTag.addEventListener('click', () => {
-                if (match.tournament_id) {
-                    localStorage.setItem('findfootball-tournament-id', match.tournament_id);
-                }
-                const targetPath = match.group_name ? match.group_name : 'standings';
-                window.location.href = `/group/${targetPath}`;
-            });
-        }
-
-        modalContainer.querySelectorAll('.team-nav-link').forEach(el => {
-            el.addEventListener('click', () => {
-                if (match.tournament_id) {
-                    localStorage.setItem('findfootball-tournament-id', match.tournament_id);
-                }
-                window.location.href = `/team/${encodeURIComponent(el.getAttribute('data-name'))}`;
-            });
-        });
-
-        matchModal.classList.add('open');
-        setTimeout(() => {
-            const fills = modalContainer.querySelectorAll('.bar-fill');
-            fills.forEach(fill => {
-                fill.style.width = fill.getAttribute('data-width');
-            });
-        }, 100);
-    }
-
     // Toggle UI Styling Helper
     function updateToggleButtonsUI() {
         if (activeView === 'schedule') {
@@ -476,34 +290,5 @@ document.addEventListener('DOMContentLoaded', () => {
             toggleLeaderboardBtn.classList.add('active');
             toggleScheduleBtn.classList.remove('active');
         }
-    }
-
-    function getRatingClass(score) {
-        if (score >= 71.7) return 'must-watch';
-        if (score >= 65.0) return 'recommended';
-        if (score >= 45.0) return 'average';
-        return 'skip';
-    }
-
-    function getRatingText(score) {
-        if (score >= 71.7) return 'Must Watch';
-        if (score >= 65.0) return 'Recommended';
-        if (score >= 45.0) return 'Average';
-        return 'Skip';
-    }
-
-    function getRatingIcon(score) {
-        if (score >= 71.7) return 'fa-solid fa-trophy';
-        if (score >= 65.0) return 'fa-solid fa-fire';
-        if (score >= 45.0) return 'fa-solid fa-chart-simple';
-        return 'fa-solid fa-face-meh';
-    }
-
-    function showToast(message) {
-        toast.innerText = message;
-        toast.classList.add('show');
-        setTimeout(() => {
-            toast.classList.remove('show');
-        }, 3000);
     }
 });
