@@ -2,7 +2,7 @@ import pytest
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from backend.database import Team, Tournament, Competition, TournamentTeam, Fixture, FixtureOdds
-from backend.scoring import calculate_watchability
+from backend.scoring import score
 
 def test_weight_presets(db_session: Session):
     # Create mock league and group_knockout competitions
@@ -69,11 +69,13 @@ def test_weight_presets(db_session: Session):
     db_session.add(tt_away)
     db_session.flush()
 
-    res_l = calculate_watchability(fixture_l, t_home, t_away, db_session)
-    res_t = calculate_watchability(fixture_t, t_home, t_away, db_session)
+    res_l = score(fixture_l, db_session)
+    res_t = score(fixture_t, db_session)
 
     assert res_l["watchability_score"] > 0
     assert res_t["watchability_score"] > 0
+    assert fixture_l.watchability_score == res_l["watchability_score"]
+    assert fixture_t.watchability_score == res_t["watchability_score"]
     assert any("Gameweek 10" in r for r in res_l["reasons"])
 
 def test_derby_boost(db_session: Session):
@@ -113,5 +115,5 @@ def test_derby_boost(db_session: Session):
     db_session.add(tt_tot)
     db_session.flush()
 
-    res = calculate_watchability(fixture, t_ars, t_tot, db_session)
+    res = score(fixture, db_session)
     assert any("North London Derby" in r for r in res["reasons"])

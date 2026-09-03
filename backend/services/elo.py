@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from backend.database import Team, Fixture, FixtureOdds, EloHistory
-from backend.scoring import update_fixture_score
+from backend.scoring import score
 from backend.utils import fetch_url_with_retry
 from backend.services.ingestion import NameNormalizer
 from backend.services.odds import calculate_default_odds
@@ -285,7 +285,7 @@ def apply_elo_matches(db: Session, file_path: str):
                 )
                 db.add(new_odds)
                 
-            update_fixture_score(f, db)
+            score(f, db)
             
     db.commit()
     print("Successfully updated default odds and watchability scores across all fixtures.")
