@@ -9,6 +9,7 @@ from backend.database import (
     TournamentTeam, PlayerContract, FixtureOdds, EloHistory
 )
 from backend.scoring import update_fixture_score
+from backend.services.lifecycle import finish_fixture
 from backend.utils import fetch_json_with_retry
 from backend.services.ingestion import NameNormalizer, COUNTRY_ISO_MAP
 from backend.services.odds import calculate_default_odds, update_odds_from_api
@@ -108,8 +109,12 @@ def get_fallback_matches():
 
 def seed_database(db: Session):
     """
-    Seeds database using actual World Cup 2026 schedules from API-Football, falling back to mock fixtures if offline.
-    Also seeds Phase 8 competitions (Copa del Rey, Nations League).
+    Seeds the FIFA World Cup 2026 with teams, fixtures, odds, and spotlight players.
+
+    Fetches official schedules from API-Football and falls back to hardcoded fixtures if
+    offline. Finished fixtures are settled via finish_fixture() to ensure atomic updates
+    of scores, watchability, and standings cache. Recalculates tournament standings after
+    seeding completes.
     """
     normalizer = NameNormalizer()
     comp = db.query(Competition).filter_by(name="FIFA World Cup").first()
@@ -326,7 +331,7 @@ def seed_database(db: Session):
 
             if status == "Finished" and m.get("home_score") is not None and m.get("away_score") is not None:
                 try:
-                    settle_result(fixture, int(m["home_score"]), int(m["away_score"]))
+                    finish_fixture(fixture, int(m["home_score"]), int(m["away_score"]), db, update_standings=False)
                 except Exception:
                     pass
             db.flush()

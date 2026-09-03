@@ -65,8 +65,16 @@ def recalculate_tournament_team_standings(db: Session, tournament_id: int):
 
 def recalculate_team_streaks(db: Session):
     """
-    Recalculates win/draw/loss streaks for all teams based on finished fixtures in chronological order.
+    Full bulk recalculation of win/draw/loss streaks for every team from scratch,
+    replaying all finished fixtures in chronological order.
+
+    This is intentionally distinct from ``settling.update_team_streaks``, which
+    applies a single match result incrementally.  Use this after batch imports or
+    data corrections where incremental updates may have accumulated drift.
     """
+    # Local import to avoid circular dependency (standings.py <- settling.py <- standings.py)
+    from backend.services.settling import update_team_streaks
+
     teams = db.query(Team).all()
     for team in teams:
         team.win_streak = 0
@@ -80,31 +88,16 @@ def recalculate_team_streaks(db: Session):
         away_team = f.away_team
         if not home_team or not away_team:
             continue
-            
+
+        # Determine outcome and delegate to shared streak-update logic
         if f.home_score > f.away_score:
-            home_team.win_streak += 1
-            home_team.draw_streak = 0
-            home_team.loss_streak = 0
-            
-            away_team.loss_streak += 1
-            away_team.win_streak = 0
-            away_team.draw_streak = 0
+            outcome = 1.0  # Home win
         elif f.home_score < f.away_score:
-            away_team.win_streak += 1
-            away_team.draw_streak = 0
-            away_team.loss_streak = 0
-            
-            home_team.loss_streak += 1
-            home_team.win_streak = 0
-            home_team.draw_streak = 0
-        else: # Draw
-            home_team.draw_streak += 1
-            home_team.win_streak = 0
-            home_team.loss_streak = 0
-            
-            away_team.draw_streak += 1
-            away_team.win_streak = 0
-            away_team.loss_streak = 0
+            outcome = 0.0  # Away win
+        else:
+            outcome = 0.5  # Draw
+
+        update_team_streaks(home_team, away_team, outcome)
     db.flush()
 
 

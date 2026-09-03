@@ -8,9 +8,8 @@ from sqlalchemy import or_
 from backend.database import Team, Fixture, Tournament, Competition, FixtureOdds, EloHistory
 from backend.services.ingestion import NameNormalizer
 from backend.services.odds import calculate_default_odds
-from backend.services.settling import settle_result
+from backend.services.lifecycle import finish_fixture
 import backend.services.elo as elo_service
-from backend.scoring import update_fixture_score
 
 
 DEFAULT_SEASON_FALLBACK = 2026
@@ -334,7 +333,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                     fixture.away_team_placeholder = None
                 
             if status == "Finished":
-                settle_result(fixture, feed_home_score, feed_away_score)
+                finish_fixture(fixture, feed_home_score, feed_away_score, db, update_standings=False)
                 fixtures_updated_results += 1
             else:
                 fixture.status = status
@@ -453,8 +452,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                             matching_fixture.api_id = api_match_id
 
                         if is_finished:
-                            settle_result(matching_fixture, feed_h_score, feed_a_score)
-                            update_fixture_score(matching_fixture, db)
+                            finish_fixture(matching_fixture, feed_h_score, feed_a_score, db, update_standings=False)
                             fixtures_finished += 1
                         else:
                             matching_fixture.status = "Live"
@@ -505,8 +503,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                         feed_away_score = score_info.get("away")
                         
                         if api_status in ("FINISHED", "FT", "AET", "PEN"):
-                            settle_result(matching_fixture, feed_home_score, feed_away_score)
-                            update_fixture_score(matching_fixture, db)
+                            finish_fixture(matching_fixture, feed_home_score, feed_away_score, db, update_standings=False)
                             fixtures_finished += 1
                         elif api_status in ("IN_PLAY", "PAUSED", "LIVE", "1H", "2H", "HT", "ET"):
                             matching_fixture.status = "Live"
@@ -574,8 +571,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                         matching_fixture.api_id = api_match_id
 
                     if is_finished:
-                        settle_result(matching_fixture, feed_h_score, feed_a_score)
-                        update_fixture_score(matching_fixture, db)
+                        finish_fixture(matching_fixture, feed_h_score, feed_a_score, db, update_standings=False)
                         fixtures_finished += 1
                     else:
                         matching_fixture.status = "Live"
@@ -622,8 +618,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                     feed_h = goals.get("home")
                     feed_a = goals.get("away")
                     if status_short in ("FT", "AET", "PEN"):
-                        settle_result(matching_fixture, feed_h, feed_a)
-                        update_fixture_score(matching_fixture, db)
+                        finish_fixture(matching_fixture, feed_h, feed_a, db, update_standings=False)
                         fixtures_finished += 1
                     elif status_short in ("1H", "2H", "HT", "ET", "P", "LIVE"):
                         matching_fixture.status = "Live"
