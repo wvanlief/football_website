@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.schemas.tournament import GroupDetailsResponse, ThirdPlacedTeamStanding
-from backend.services.tournament import get_group_details, get_all_third_placed_teams
+from backend.services.queries import get_group_details, get_all_third_placed_teams
 
 router = APIRouter(prefix="/api/group", tags=["Groups"])
 

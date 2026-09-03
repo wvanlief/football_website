@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from sqlalchemy.orm import Session, joinedload
 from backend.database import Fixture, Tournament, Competition, Team, TournamentTeam, PlayerContract
-from backend.services.tournament import enrich_fixture, get_timezone
+from backend.services.enrichment import enrich_fixture
 import backend.crud.fixture as crud_fixture
 
 CACHE_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "fixtures_feed_cache.json")

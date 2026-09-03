@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.schemas.fixture import GroupedFixturesResponse, FixtureOut, CalendarFixtureOut
-from backend.services.tournament import (
+from backend.services.queries import (
     get_grouped_fixtures,
     get_recommended_fixtures,
     get_calendar_fixtures,

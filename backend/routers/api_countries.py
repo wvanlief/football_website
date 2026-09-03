@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 import backend.crud.team as crud_team
 from backend.database import get_db, Team, TournamentTeam
 from backend.schemas.tournament import CountryDetailsResponse, CountrySimpleOut
-from backend.services.tournament import get_country_details
+from backend.services.queries import get_country_details
 
 router = APIRouter(prefix="/api/country", tags=["Countries"])
 
