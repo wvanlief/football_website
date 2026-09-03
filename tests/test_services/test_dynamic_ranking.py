@@ -41,6 +41,38 @@ def test_global_percentile_and_tier_calculation():
     assert get_score_tier(45.0) == "Average"
     assert get_score_tier(30.0) == "Skip"
 
+
+def test_enrich_fixture_normalizes_utc_date_and_nullable_score(db_session):
+    comp = Competition(name="Enrichment Test League", type="League", format_engine="league")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+
+    home = Team(name="Enrichment Home", elo=1700)
+    away = Team(name="Enrichment Away", elo=1650)
+    db_session.add_all([home, away])
+    db_session.flush()
+
+    fixture = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=home.id,
+        away_team_id=away.id,
+        date_utc=datetime(2026, 9, 3, 18, 0),
+        stage="Regular Season",
+        status="Scheduled",
+        watchability_score=None,
+    )
+    db_session.add(fixture)
+    db_session.commit()
+    fixture.watchability_score = None
+
+    enriched = enrich_fixture(fixture, db_session, ZoneInfo("UTC"))
+
+    assert enriched["date"] == "2026-09-03T18:00:00+00:00"
+    assert enriched["watchability"]["overall"] == 0.0
+
 def test_recommended_fixtures_top_7_fallback(db_session):
     # Create competition & tournament
     comp = Competition(name="Test League", type="League", format_engine="league")
