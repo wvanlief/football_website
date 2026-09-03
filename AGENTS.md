@@ -34,3 +34,9 @@ Single-context repository layout. See `docs/agents/domain.md`.
 ### 4. Feed & Cache Integrity
 - **Non-Empty Cache Guarantee**: Pre-calculated feed builders (`feed_builder.py`) must never emit `total_fixtures: 0` if active tournaments exist in PostgreSQL/SQLite.
 - **Off-Season Gating**: Ensure scheduled fixture filters strictly gate past-dated matches (`matchDateStr >= todayStr`) to prevent legacy matches from rendering in upcoming views.
+
+### 5. Pull Request & Merge Etiquette
+- **Never Self-Merge**: Agents must not merge their own pull requests. A PR exists so a human can review the diff before it reaches `main`; merging it yourself removes the review gate and makes the PR pointless.
+- **Forbidden Commands**: Do not run `gh pr merge` (including `--auto`, `--squash`, `--rebase`), and do not push directly to `main`. Stop after `gh pr create` and hand the PR URL to the user.
+- **Explicit Authorization Only**: Merge only when the user names the PR and asks for it to be merged in that message. A prior instruction to "close the issues" or "update the board" is not merge authorization.
+- **Let GitHub Close Issues**: Reference issues with `Closes #<n>` in the PR body rather than closing them manually. GitHub closes the issues and moves the project board items to Done when the PR merges.
