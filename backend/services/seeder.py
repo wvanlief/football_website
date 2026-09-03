@@ -10,10 +10,10 @@ from backend.database import (
 )
 from backend.scoring import update_fixture_score
 from backend.services.lifecycle import finish_fixture
-from backend.utils import fetch_json_with_retry
 from backend.services.ingestion import NameNormalizer, COUNTRY_ISO_MAP
 from backend.services.odds import calculate_default_odds, update_odds_from_api
 from backend.services.elo import fetch_current_elo_ratings, record_elo_history, elo_to_form
+from backend.services.providers.api_football import call_football_api, parse_match_status
 from backend.services.settling import settle_result
 
 NATIONAL_TEAM_ISO_CODES = COUNTRY_ISO_MAP
@@ -69,26 +69,6 @@ SPOTLIGHT_PLAYERS = {
     "Belgium": [("Kevin De Bruyne", "Midfielder", 91.5), ("Romelu Lukaku", "Forward", 83.0)],
     "Norway": [("Erling Haaland", "Forward", 94.0), ("Martin Ødegaard", "Midfielder", 92.5)],
 }
-
-def call_football_api(endpoint: str, params: dict = None) -> dict:
-    """
-    Helper to query the API-Football API.
-    Requires FOOTBALL_API_KEY or API_FOOTBALL_KEY environment variable.
-    """
-    api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
-    if not api_key:
-        raise ValueError("FOOTBALL_API_KEY/API_FOOTBALL_KEY is not configured in the environment.")
-    
-    query = ""
-    if params:
-        query = "?" + "&".join(f"{k}={v}" for k, v in params.items())
-        
-    url = f"https://v3.football.api-sports.io/{endpoint}{query}"
-    headers = {
-        "x-apisports-key": api_key,
-        "User-Agent": "Mozilla/5.0"
-    }
-    return fetch_json_with_retry(url, headers=headers, provider="api_football")
 
 def get_fallback_matches():
     """
@@ -236,7 +216,7 @@ def seed_database(db: Session):
                     league_info = f.get("league", {})
                     
                     status_short = fixture_info.get("status", {}).get("short", "")
-                    finished = "TRUE" if status_short in ("FT", "AET", "PEN") else "FALSE"
+                    status = parse_match_status(status_short)
                     
                     api_date = fixture_info.get("date")
                     dt_utc_val = None
@@ -255,7 +235,7 @@ def seed_database(db: Session):
                         "home_team_id": None,
                         "away_team_id": None,
                         "type": round_str,
-                        "finished": finished,
+                        "status": status,
                         "home_score": str(goals_info.get("home")) if goals_info.get("home") is not None else None,
                         "away_score": str(goals_info.get("away")) if goals_info.get("away") is not None else None,
                         "dt_utc": dt_utc_val,
@@ -298,7 +278,7 @@ def seed_database(db: Session):
             stage = stage_mapping.get(raw_stage, raw_stage)
             if "Group" in str(stage):
                 stage = "Group Stage"
-            status = "Finished" if m.get("finished") == "TRUE" else "Scheduled"
+            status = m.get("status", "Scheduled")
             
             h_elo = live_elo.get(h_team, 1700) if h_team else 1700
             a_elo = live_elo.get(a_team, 1700) if a_team else 1700

@@ -19,14 +19,31 @@ STATUS_MAP = {
     "LIVE": "Live",
     "NS": "Scheduled",
     "TBD": "Scheduled",
-    "PST": "Scheduled",
-    "CANC": "Scheduled",
-    "ABD": "Scheduled",
+    "PST": "Postponed",
+    "CANC": "Postponed",
+    "ABD": "Postponed",
 }
 
 
+def parse_match_status(status_short: Optional[str], default: str = "Scheduled") -> str:
+    """Map an API-Football status short-code to a canonical domain status.
+
+    Unknown or empty codes fall back to ``default`` (``Scheduled`` for
+    general sync paths; callers that are already inside a live feed may
+    pass ``default=\"Live\"``).
+    """
+    if not status_short:
+        return default
+    return STATUS_MAP.get(status_short, default)
+
+
 def call_football_api(endpoint: str, params: Optional[dict] = None) -> dict:
-    """Standalone helper function to query API-Football (v3 API)."""
+    """Query the API-Football v3 API with the shared rate-limit safeguard.
+
+    Requires ``FOOTBALL_API_KEY`` or ``API_FOOTBALL_KEY``.  Passes
+    ``provider=\"api_football\"`` into ``fetch_json_with_retry`` so the
+    global ``rate_limiter`` enforces per-minute and per-day quotas.
+    """
     api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
     if not api_key:
         raise ValueError("FOOTBALL_API_KEY/API_FOOTBALL_KEY is not configured in the environment.")
@@ -40,7 +57,7 @@ def call_football_api(endpoint: str, params: Optional[dict] = None) -> dict:
         "x-apisports-key": api_key,
         "User-Agent": "Mozilla/5.0"
     }
-    return fetch_json_with_retry(url, headers=headers)
+    return fetch_json_with_retry(url, headers=headers, provider=PROVIDER_NAME)
 
 
 class ApiFootballProvider:
@@ -96,7 +113,7 @@ class ApiFootballProvider:
 
         api_id = str(fixture_info.get("id")) if fixture_info.get("id") is not None else None
         status_short = fixture_info.get("status", {}).get("short", "")
-        status = STATUS_MAP.get(status_short, "Scheduled")
+        status = parse_match_status(status_short)
 
         date_str = fixture_info.get("date")
         date_utc = datetime.now(timezone.utc)

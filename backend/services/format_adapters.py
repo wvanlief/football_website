@@ -9,6 +9,7 @@ from backend.database import Team, Fixture, Tournament, Competition, FixtureOdds
 from backend.services.ingestion import NameNormalizer
 from backend.services.odds import calculate_default_odds
 from backend.services.lifecycle import finish_fixture
+from backend.services.providers.api_football import parse_match_status
 import backend.services.elo as elo_service
 
 
@@ -266,12 +267,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                 away_team = db.query(Team).filter(Team.name == a_norm_name).first()
 
             stage = round_str if round_str else "Regular Season"
-            status_short = f_info.get("status", {}).get("short", "")
-            status = "Scheduled"
-            if status_short in ("FT", "AET", "PEN"):
-                status = "Finished"
-            elif status_short in ("1H", "2H", "HT", "ET", "P", "LIVE"):
-                status = "Live"
+            status = parse_match_status(f_info.get("status", {}).get("short", ""))
                 
             feed_home_score = goals.get("home")
             feed_away_score = goals.get("away")
@@ -617,11 +613,14 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
 
                     feed_h = goals.get("home")
                     feed_a = goals.get("away")
-                    if status_short in ("FT", "AET", "PEN"):
+                    status = parse_match_status(status_short, default="Scheduled")
+                    if status == "Finished":
                         finish_fixture(matching_fixture, feed_h, feed_a, db, update_standings=False)
                         fixtures_finished += 1
-                    elif status_short in ("1H", "2H", "HT", "ET", "P", "LIVE"):
-                        matching_fixture.status = "Live"
+                    else:
+                        matching_fixture.status = status
+
+                    if status == "Live":
                         matching_fixture.home_score = feed_h
                         matching_fixture.away_score = feed_a
                         fixtures_updated += 1

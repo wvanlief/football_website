@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
+import pytest
 from backend.database import Team, Fixture, Competition, Tournament, TournamentTeam, FixtureOdds, EloHistory
 from backend.services.updater import update_results_and_odds
 from backend.services.format_adapters import get_format_adapter
@@ -254,10 +255,17 @@ def test_update_live_scores(mock_sim, mock_fetch, db_session):
     assert f_live.winner_id == t1.id
 
 
+@pytest.mark.parametrize(
+    ("status_short", "expected_status", "expected_updated"),
+    [("1H", "Live", 1), ("PST", "Postponed", 0)],
+)
 @patch("backend.services.updater.fetch_json")
 @patch("backend.services.updater.fetch_json_with_retry")
 @patch("backend.services.updater.run_monte_carlo_simulation")
-def test_update_live_scores_fallback(mock_sim, mock_fetch_retry, mock_fetch, db_session):
+def test_update_live_scores_fallback(
+    mock_sim, mock_fetch_retry, mock_fetch, db_session,
+    status_short, expected_status, expected_updated,
+):
     from backend.services.updater import update_live_scores
     from backend.database import Competition, Tournament, Team, Fixture
     from datetime import timedelta
@@ -304,7 +312,7 @@ def test_update_live_scores_fallback(mock_sim, mock_fetch_retry, mock_fetch, db_
                 "fixture": {
                     "id": 8888,
                     "status": {
-                        "short": "1H",
+                        "short": status_short,
                     },
                     "date": "2026-06-11T13:00:00+00:00"
                 },
@@ -331,14 +339,15 @@ def test_update_live_scores_fallback(mock_sim, mock_fetch_retry, mock_fetch, db_
     
     # Assert successful update using fallback
     assert res["status"] == "success"
-    assert res["fixtures_updated_live"] == 1
+    assert res["fixtures_updated_live"] == expected_updated
     assert res["fixtures_finished"] == 0
     
     # Assert fixture values updated
     db_session.refresh(f_live)
-    assert f_live.status == "Live"
-    assert f_live.home_score == 3
-    assert f_live.away_score == 2
+    assert f_live.status == expected_status
+    if expected_status == "Live":
+        assert f_live.home_score == 3
+        assert f_live.away_score == 2
 
 
 @patch("backend.services.updater.fetch_json")
@@ -702,7 +711,6 @@ def test_calculate_default_odds_custom_advantage():
     assert h_odds_70 < a_odds_70
     # Custom 70 home advantage should be less extreme than default 100
     assert h_odds_70 > h_odds_100
-
 
 
 
