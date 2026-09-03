@@ -270,3 +270,52 @@ class TestFinishFixtureAtomicity:
             tournament_id=tourney.id, team_id=home.id
         ).one()
         assert home_tt.points == 1
+
+    def test_rollback_discards_all_three_steps(self, db_session):
+        """If the session is rolled back after finish_fixture, none of the changes persist."""
+        comp = _make_competition(db_session)
+        tourney = _make_tournament(db_session, comp)
+        home = _make_team(db_session, "Tau FC", elo=1700)
+        away = _make_team(db_session, "Upsilon FC", elo=1680)
+        _register_teams(db_session, tourney, home, away)
+        fixture = _make_fixture(db_session, tourney, home, away)
+        db_session.commit()
+
+        # Capture initial state
+        initial_status = fixture.status
+        initial_home_score = fixture.home_score
+        initial_away_score = fixture.away_score
+        initial_home_win_streak = home.win_streak
+        initial_away_loss_streak = away.loss_streak
+        initial_watchability = fixture.watchability_score
+
+        home_tt = db_session.query(TournamentTeam).filter_by(
+            tournament_id=tourney.id, team_id=home.id
+        ).one()
+        initial_home_points = home_tt.points
+
+        # Call finish_fixture then rollback
+        finish_fixture(fixture, 3, 1, db_session)
+        db_session.rollback()
+
+        # Re-fetch from DB to confirm nothing persisted
+        db_session.expire_all()
+        fixture_refetch = db_session.query(Fixture).filter_by(id=fixture.id).one()
+        home_refetch = db_session.query(Team).filter_by(id=home.id).one()
+        away_refetch = db_session.query(Team).filter_by(id=away.id).one()
+        home_tt_refetch = db_session.query(TournamentTeam).filter_by(
+            tournament_id=tourney.id, team_id=home.id
+        ).one()
+
+        # Settlement changes should NOT persist
+        assert fixture_refetch.status == initial_status
+        assert fixture_refetch.home_score == initial_home_score
+        assert fixture_refetch.away_score == initial_away_score
+        assert home_refetch.win_streak == initial_home_win_streak
+        assert away_refetch.loss_streak == initial_away_loss_streak
+
+        # Watchability changes should NOT persist
+        assert fixture_refetch.watchability_score == initial_watchability
+
+        # Standings cache changes should NOT persist
+        assert home_tt_refetch.points == initial_home_points

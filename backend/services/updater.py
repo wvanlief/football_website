@@ -36,8 +36,12 @@ def matches_team_name(db_name: str, api_name: str) -> bool:
 
 def sync_global_date_results(db: Session, target_date: str) -> tuple:
     """
-    Fetches global match fixtures for a specific date using 1 single API call (GET /fixtures?date=YYYY-MM-DD).
-    Updates statuses, scores, and links to database fixtures. Returns (created_count, updated_count).
+    Fetches all match fixtures globally for a specific date and settles finished matches atomically.
+
+    Calls the API-Football API (GET /fixtures?date=YYYY-MM-DD) and matches returned
+    fixtures to existing database records by API ID or by home/away team + date.
+    Finished fixtures are settled via finish_fixture() to ensure atomic updates of
+    scores, watchability, and standings cache. Returns (created_count, updated_count).
     """
     print(f"Fetching global results from API-Football for date={target_date}...")
     try:
@@ -135,7 +139,11 @@ def sync_global_date_results(db: Session, target_date: str) -> tuple:
 
 def sync_global_live_scores(db: Session) -> tuple:
     """
-    Fetches all live match scores globally in 1 single API call (GET /fixtures?live=all).
+    Fetches all live match scores globally and settles any that have finished.
+
+    Calls the API-Football API (GET /fixtures?live=all) and updates scores and statuses
+    for all ongoing matches. Matches that transition to Finished status are settled via
+    finish_fixture() to ensure atomic updates of scores, watchability, and standings cache.
     Returns (updated_count, finished_count).
     """
     print("Fetching global live matches from API-Football (GET /fixtures?live=all)...")
