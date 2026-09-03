@@ -22,7 +22,7 @@ from backend.services.format_adapters import (
 )
 
 from backend.services.elo import fetch_current_elo_ratings, fetch_clubelo_ratings
-from backend.services.seeder import call_football_api
+from backend.services.providers.api_football import call_football_api, parse_match_status
 from backend.utils import fetch_json_with_retry, fetch_url_with_retry, fetch_json
 
 
@@ -66,13 +66,7 @@ def sync_global_date_results(db: Session, target_date: str) -> tuple:
         status_info = fixture_info.get("status", {})
         status_short = status_info.get("short")
         
-        new_status = "Scheduled"
-        if status_short in ("FT", "AET", "PEN"):
-            new_status = "Finished"
-        elif status_short in ("1H", "HT", "2H", "ET", "P"):
-            new_status = "Live"
-        elif status_short in ("PST", "CANC", "ABD"):
-            new_status = "Postponed"
+        new_status = parse_match_status(status_short)
 
         goals = item.get("goals", {})
         home_goals = goals.get("home")
@@ -168,9 +162,7 @@ def sync_global_live_scores(db: Session) -> tuple:
         status_info = fixture_info.get("status", {})
         status_short = status_info.get("short")
 
-        new_status = "Live"
-        if status_short in ("FT", "AET", "PEN"):
-            new_status = "Finished"
+        new_status = parse_match_status(status_short, default="Live")
 
         goals = item.get("goals", {})
         home_goals = goals.get("home")
