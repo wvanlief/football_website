@@ -216,7 +216,7 @@ def seed_database(db: Session):
                     league_info = f.get("league", {})
                     
                     status_short = fixture_info.get("status", {}).get("short", "")
-                    finished = "TRUE" if parse_match_status(status_short) == "Finished" else "FALSE"
+                    status = parse_match_status(status_short)
                     
                     api_date = fixture_info.get("date")
                     dt_utc_val = None
@@ -235,7 +235,7 @@ def seed_database(db: Session):
                         "home_team_id": None,
                         "away_team_id": None,
                         "type": round_str,
-                        "finished": finished,
+                        "status": status,
                         "home_score": str(goals_info.get("home")) if goals_info.get("home") is not None else None,
                         "away_score": str(goals_info.get("away")) if goals_info.get("away") is not None else None,
                         "dt_utc": dt_utc_val,
@@ -278,7 +278,7 @@ def seed_database(db: Session):
             stage = stage_mapping.get(raw_stage, raw_stage)
             if "Group" in str(stage):
                 stage = "Group Stage"
-            status = "Finished" if m.get("finished") == "TRUE" else "Scheduled"
+            status = m.get("status", "Scheduled")
             
             h_elo = live_elo.get(h_team, 1700) if h_team else 1700
             a_elo = live_elo.get(a_team, 1700) if a_team else 1700

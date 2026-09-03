@@ -617,8 +617,10 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                     if status == "Finished":
                         finish_fixture(matching_fixture, feed_h, feed_a, db, update_standings=False)
                         fixtures_finished += 1
-                    elif status == "Live":
-                        matching_fixture.status = "Live"
+                    else:
+                        matching_fixture.status = status
+
+                    if status == "Live":
                         matching_fixture.home_score = feed_h
                         matching_fixture.away_score = feed_a
                         fixtures_updated += 1
