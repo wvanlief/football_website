@@ -2,7 +2,7 @@ import os
 import json
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
-from backend.database import Team, Fixture, FixtureOdds, EloHistory
+from backend.database import Team, Fixture, FixtureOdds, EloHistory, Competition
 from backend.scoring import update_fixture_score
 from backend.utils import fetch_url_with_retry
 from backend.services.ingestion import NameNormalizer
@@ -289,3 +289,60 @@ def apply_elo_matches(db: Session, file_path: str):
             
     db.commit()
     print("Successfully updated default odds and watchability scores across all fixtures.")
+
+
+def sync_ratings_for_competition(db: Session, competition: Competition, now_time: datetime | None = None) -> int:
+    """Apply live international or ClubElo ratings for a competition's teams.
+
+    International / World Cup competitions pull eloratings.net. Club competitions
+    pull ClubElo at most once per UTC day, using ``elo_name_review.json`` as a
+    name map. Returns the number of teams whose stored ELO changed.
+    """
+    now_time = now_time or datetime.now(timezone.utc)
+    updated = 0
+
+    if competition.type == "International" or (competition.name and "World Cup" in competition.name):
+        live_elo = fetch_current_elo_ratings()
+        if not live_elo:
+            return 0
+        for team in db.query(Team).all():
+            fetched_elo = live_elo.get(team.name)
+            if fetched_elo is not None and team.elo != fetched_elo:
+                team.elo = fetched_elo
+                team.form_score = elo_to_form(fetched_elo)
+                record_elo_history(db, team.id, fetched_elo, now_time)
+                updated += 1
+        return updated
+
+    last_club_sync = (
+        db.query(EloHistory)
+        .join(Team)
+        .filter(Team.elo_source == "clubelo")
+        .order_by(EloHistory.recorded_at.desc())
+        .first()
+    )
+    if last_club_sync and last_club_sync.recorded_at.date() >= now_time.date():
+        return 0
+
+    print("Syncing Elo ratings from ClubElo...")
+    club_ratings = fetch_clubelo_ratings()
+    if not club_ratings:
+        return 0
+
+    review_path = "backend/data/elo_name_review.json"
+    name_map = {}
+    if os.path.exists(review_path):
+        with open(review_path, "r", encoding="utf-8") as f:
+            mappings = json.load(f)
+        name_map = {m["api_football_name"]: m["clubelo_name"] for m in mappings}
+
+    for team in db.query(Team).filter(Team.elo_source == "clubelo").all():
+        clubelo_name = name_map.get(team.name, team.name)
+        fetched_elo = club_ratings.get(clubelo_name)
+        if fetched_elo is not None and team.elo != fetched_elo:
+            team.elo = fetched_elo
+            team.form_score = elo_to_form(fetched_elo)
+            record_elo_history(db, team.id, fetched_elo, now_time)
+            updated += 1
+    print(f"Successfully synced ClubElo ratings. Updated {updated} teams.")
+    return updated

@@ -1,30 +1,18 @@
-import os
 import json
+import os
 from sqlalchemy.orm import Session
 from backend.database import Team, Player, Fixture
+from backend.services.simulation import get_probabilities
 
-_sim_data_cache = None
-_sim_data_mtime = 0
 _derbies_cache = None
 
-def get_simulation_probabilities():
-    global _sim_data_cache, _sim_data_mtime
-    file_path = os.path.join(os.path.dirname(__file__), "data", "simulation_results.json")
-    if not os.path.exists(file_path):
-        return {}
-    try:
-        mtime = os.path.getmtime(file_path)
-        if _sim_data_cache is None or mtime > _sim_data_mtime:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                _sim_data_cache = {
-                    p["team"]: 100.0 - p["group_exit_pct"]
-                    for p in data.get("probabilities", [])
-                }
-                _sim_data_mtime = mtime
-        return _sim_data_cache
-    except Exception:
-        return {}
+def get_simulation_probabilities(tournament_id: int | None = None):
+    """Team -> qualification chance (%), derived from cached simulation results."""
+    data = get_probabilities(tournament_id)
+    return {
+        p["team"]: 100.0 - p["group_exit_pct"]
+        for p in data.get("probabilities", [])
+    }
 
 def get_derbies():
     global _derbies_cache
@@ -297,7 +285,7 @@ def calculate_watchability(
             reasons.append(f"High stakes: World Cup {fixture.stage} knockout match (winner takes all).")
         else:
             # Dynamic stakes calculation for Group Stage based on qualification probabilities
-            probs = get_simulation_probabilities()
+            probs = get_simulation_probabilities(fixture.tournament_id)
             
             from backend.database import TournamentTeam
             tt = db.query(TournamentTeam).filter(

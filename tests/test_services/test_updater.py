@@ -143,7 +143,7 @@ def test_update_results_and_odds(db_session):
 
 @patch("backend.services.updater.fetch_json")
 @patch("backend.services.updater.run_monte_carlo_simulation")
-def test_update_live_scores(mock_sim, mock_fetch, db_session):
+def test_update_live_scores(mock_sim, mock_fetch, db_session, monkeypatch):
     from backend.services.updater import update_live_scores
     from datetime import timedelta
     
@@ -226,10 +226,12 @@ def test_update_live_scores(mock_sim, mock_fetch, db_session):
             "type": "round_of_16"
         }
     ]
+    monkeypatch.delenv("FOOTBALL_DATA_API_KEY", raising=False)
+    monkeypatch.delenv("FOOTBALL_DATA_ORG_KEY", raising=False)
     mock_fetch.return_value = {"games": mock_games}
-    
+
     # Test 2: Active match window updates to Live
-    adapter = get_format_adapter(comp.format_engine, comp.name)
+    adapter = get_format_adapter(comp.format_engine, comp.name, fetch_json=mock_fetch)
     u, f = adapter.sync_live_scores(db_session, tourney)
     res = {"status": "success", "fixtures_updated_live": u, "fixtures_finished": f}
     assert res["status"] == "success"
@@ -263,16 +265,14 @@ def test_update_live_scores(mock_sim, mock_fetch, db_session):
 @patch("backend.services.updater.fetch_json_with_retry")
 @patch("backend.services.updater.run_monte_carlo_simulation")
 def test_update_live_scores_fallback(
-    mock_sim, mock_fetch_retry, mock_fetch, db_session,
+    mock_sim, mock_fetch_retry, mock_fetch, db_session, monkeypatch,
     status_short, expected_status, expected_updated,
 ):
-    from backend.services.updater import update_live_scores
-    from backend.database import Competition, Tournament, Team, Fixture
     from datetime import timedelta
-    import os
     
-    # Set FOOTBALL_API_KEY environment variable just in case
-    os.environ["FOOTBALL_API_KEY"] = "testkey"
+    monkeypatch.setenv("FOOTBALL_API_KEY", "testkey")
+    monkeypatch.delenv("FOOTBALL_DATA_API_KEY", raising=False)
+    monkeypatch.delenv("FOOTBALL_DATA_ORG_KEY", raising=False)
     
     # 1. Setup base competition and tournament
     comp = Competition(name="FIFA World Cup Fallback", type="International")
@@ -333,10 +333,15 @@ def test_update_live_scores_fallback(
     mock_fetch_retry.return_value = mock_fallback_response
 
     # Run the live scores update with force=True
-    adapter = get_format_adapter(comp.format_engine, comp.name)
+    adapter = get_format_adapter(
+        comp.format_engine,
+        comp.name,
+        fetch_json=mock_fetch,
+        fetch_json_with_retry=mock_fetch_retry,
+    )
     u, f = adapter.sync_live_scores(db_session, tourney)
     res = {"status": "success", "fixtures_updated_live": u, "fixtures_finished": f}
-    
+
     # Assert successful update using fallback
     assert res["status"] == "success"
     assert res["fixtures_updated_live"] == expected_updated
@@ -548,12 +553,10 @@ def test_update_placeholder_fixtures_resolution(mock_fetch_elo, mock_sim, mock_o
 
 @patch("backend.services.updater.fetch_json_with_retry")
 @patch("backend.services.updater.update_odds_from_api")
-def test_update_live_scores_league(mock_odds_api, mock_fetch_retry, db_session):
-    from backend.services.updater import update_live_scores
+def test_update_live_scores_league(mock_odds_api, mock_fetch_retry, db_session, monkeypatch):
     from datetime import timedelta
-    import os
-    
-    os.environ["FOOTBALL_DATA_API_KEY"] = "fake_football_data_key"
+
+    monkeypatch.setenv("FOOTBALL_DATA_API_KEY", "fake_football_data_key")
     
     # 1. Setup league competition and tournament
     comp = Competition(name="Premier League", type="League", format_engine="league")
@@ -598,9 +601,13 @@ def test_update_live_scores_league(mock_odds_api, mock_fetch_retry, db_session):
         ]
     }
     mock_fetch_retry.return_value = mock_football_data_response
-    
+
     # Run the live scores update
-    adapter = get_format_adapter(comp.format_engine, comp.name)
+    adapter = get_format_adapter(
+        comp.format_engine,
+        comp.name,
+        fetch_json_with_retry=mock_fetch_retry,
+    )
     u, f = adapter.sync_live_scores(db_session, tourney)
     res = {"status": "success", "fixtures_updated_live": u, "fixtures_finished": f}
     

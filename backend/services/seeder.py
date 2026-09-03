@@ -1,457 +1,508 @@
+"""Thin seeding orchestrator.
+
+Static World Cup data lives in ``backend/data/world_cup_2026.json``. Persistence
+goes through ``TeamResolver`` and ``FixtureUpserter``; competition fixture
+ingestion delegates to ``IngestionEngine``.
+"""
+from __future__ import annotations
+
+import json
 import os
 import time
-from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Optional
+
 from sqlalchemy.orm import Session
 
 from backend.database import (
-    Team, Player, Fixture, Competition, Tournament, 
-    TournamentTeam, PlayerContract, FixtureOdds, EloHistory
+    Team,
+    Player,
+    Fixture,
+    Competition,
+    Tournament,
+    TournamentTeam,
+    PlayerContract,
 )
 from backend.scoring import update_fixture_score
-from backend.services.lifecycle import finish_fixture
-from backend.services.ingestion import NameNormalizer, COUNTRY_ISO_MAP
-from backend.services.odds import calculate_default_odds, update_odds_from_api
+from backend.services.ingestion import (
+    NameNormalizer,
+    COUNTRY_ISO_MAP,
+    TeamResolver,
+    FixtureUpserter,
+)
+from backend.services.odds import update_odds_from_api
 from backend.services.elo import fetch_current_elo_ratings, record_elo_history, elo_to_form
 from backend.services.providers.api_football import call_football_api, parse_match_status
-from backend.services.settling import settle_result
+from backend.services.standings import recalculate_standings
 
 NATIONAL_TEAM_ISO_CODES = COUNTRY_ISO_MAP
 
-ELO_RATINGS = {
-    "Spain": 2165, "Argentina": 2113, "France": 2082, "England": 2020,
-    "Brazil": 1984, "Portugal": 1984, "Colombia": 1975, "Netherlands": 1961,
-    "Germany": 1923, "Norway": 1912, "Japan": 1904, "Turkey": 1902,
-    "Uruguay": 1892, "Switzerland": 1889, "Senegal": 1878, "Mexico": 1858,
-    "USA": 1721, "Canada": 1784, "Morocco": 1821, "Algeria": 1743,
-    "Croatia": 1930, "Ecuador": 1933, "Austria": 1827, "Paraguay": 1833,
-    "South Korea": 1752, "Australia": 1783, "Scotland": 1767,
-    "Iran": 1760, "Uzbekistan": 1727, "Qatar": 1600,
-    "South Africa": 1650, "Haiti": 1550, "Curaçao": 1500, "Cape Verde": 1580,
-    "Panama": 1737, "Ghana": 1680, "New Zealand": 1550, "Jordan": 1690,
-    "Czechia": 1830, "Bosnia and Herzegovina": 1720, "Côte d'Ivoire": 1800,
-    "Tunisia": 1750, "Poland": 1820, "Belgium": 1960, "Egypt": 1780,
-    "Saudi Arabia": 1710, "Iraq": 1700, "Jamaica": 1680,
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+_WORLD_CUP_JSON = _DATA_DIR / "world_cup_2026.json"
+_EURO_DRAW_JSON = _DATA_DIR / "european_draw_2026.json"
+
+_WC_STAGE_MAPPING = {
+    "group": "Group Stage",
+    "r32": "Round of 32",
+    "round_of_32": "Round of 32",
+    "r16": "Round of 16",
+    "round_of_16": "Round of 16",
+    "qf": "Quarter-final",
+    "quarter": "Quarter-final",
+    "semi": "Semi-final",
+    "sf": "Semi-final",
+    "third": "Third-place play-off",
+    "final": "Final",
 }
 
-GROUPS = {
-    "A": ["Mexico", "South Africa", "South Korea", "Czechia"],
-    "B": ["Canada", "Switzerland", "Qatar", "Bosnia and Herzegovina"],
-    "C": ["Brazil", "Morocco", "Scotland", "Haiti"],
-    "D": ["USA", "Paraguay", "Australia", "Turkey"],
-    "E": ["Germany", "Ecuador", "Curaçao", "Côte d'Ivoire"],
-    "F": ["Netherlands", "Japan", "Tunisia", "Poland"],
-    "G": ["Belgium", "Egypt", "Iran", "New Zealand"],
-    "H": ["Spain", "Uruguay", "Saudi Arabia", "Cape Verde"],
-    "I": ["France", "Senegal", "Norway", "Iraq"],
-    "J": ["Argentina", "Algeria", "Austria", "Jordan"],
-    "K": ["Portugal", "Colombia", "Uzbekistan", "Jamaica"],
-    "L": ["England", "Croatia", "Panama", "Ghana"],
-}
 
-SPOTLIGHT_PLAYERS = {
-    "Germany": [("Florian Wirtz", "Midfielder", 93.5), ("Jamal Musiala", "Midfielder", 91.0)],
-    "Ecuador": [("Moisés Caicedo", "Midfielder", 84.0), ("Piero Hincapié", "Defender", 81.5)],
-    "France": [("Kylian Mbappé", "Forward", 95.0), ("Antoine Griezmann", "Forward", 82.0)],
-    "Spain": [("Lamine Yamal", "Forward", 94.5), ("Rodri", "Midfielder", 92.0)],
-    "Uruguay": [("Federico Valverde", "Midfielder", 88.0), ("Darwin Núñez", "Forward", 82.0)],
-    "Brazil": [("Vinícius Júnior", "Forward", 94.0), ("Rodrygo", "Forward", 85.5)],
-    "Morocco": [("Achraf Hakimi", "Defender", 86.5), ("Brahim Díaz", "Midfielder", 89.0)],
-    "Portugal": [("Cristiano Ronaldo", "Forward", 81.0), ("Bruno Fernandes", "Midfielder", 89.5)],
-    "Colombia": [("Luis Díaz", "Forward", 91.0), ("James Rodríguez", "Midfielder", 86.0)],
-    "England": [("Jude Bellingham", "Midfielder", 94.0), ("Harry Kane", "Forward", 89.0)],
-    "Croatia": [("Luka Modrić", "Midfielder", 81.0), ("Joško Gvardiol", "Defender", 87.5)],
-    "Argentina": [("Lionel Messi", "Forward", 92.5), ("Alexis Mac Allister", "Midfielder", 87.0)],
-    "Netherlands": [("Cody Gakpo", "Forward", 83.5), ("Virgil van Dijk", "Defender", 86.0)],
-    "Japan": [("Kaoru Mitoma", "Forward", 88.0), ("Takefusa Kubo", "Midfielder", 87.0)],
-    "USA": [("Christian Pulisic", "Forward", 85.0), ("Weston McKennie", "Midfielder", 79.5)],
-    "Turkey": [("Arda Güler", "Midfielder", 89.0), ("Hakan Çalhanoğlu", "Midfielder", 85.0)],
-    "Belgium": [("Kevin De Bruyne", "Midfielder", 91.5), ("Romelu Lukaku", "Forward", 83.0)],
-    "Norway": [("Erling Haaland", "Forward", 94.0), ("Martin Ødegaard", "Midfielder", 92.5)],
-}
+@lru_cache(maxsize=1)
+def _load_world_cup_data() -> dict:
+    with open(_WORLD_CUP_JSON, encoding="utf-8") as handle:
+        return json.load(handle)
 
-def get_fallback_matches():
-    """
-    Returns a hardcoded list of World Cup 2026 group stage matches for offline/testing scenarios.
-    """
-    base_date = datetime(2026, 6, 11, 12, 0, 0, tzinfo=ZoneInfo("America/New_York")).astimezone(ZoneInfo("UTC"))
-    return [
-        {"id": "1", "home": "Mexico", "away": "South Africa", "stage": "Group Stage", "date": base_date.isoformat(), "status": "Scheduled"},
-        {"id": "2", "home": "South Korea", "away": "Czechia", "stage": "Group Stage", "date": (base_date + timedelta(hours=7)).isoformat(), "status": "Scheduled"},
-        {"id": "3", "home": "Canada", "away": "Bosnia and Herzegovina", "stage": "Group Stage", "date": (base_date + timedelta(days=1, hours=3)).isoformat(), "status": "Scheduled"},
-        {"id": "4", "home": "Qatar", "away": "Switzerland", "stage": "Group Stage", "date": (base_date + timedelta(days=2)).isoformat(), "status": "Scheduled"},
-        {"id": "5", "home": "Germany", "away": "Ecuador", "stage": "Group Stage", "date": (base_date + timedelta(days=2, hours=6)).isoformat(), "status": "Scheduled"},
-        {"id": "6", "home": "Brazil", "away": "Morocco", "stage": "Group Stage", "date": (base_date + timedelta(days=3)).isoformat(), "status": "Scheduled"},
-        {"id": "7", "home": "Spain", "away": "Uruguay", "stage": "Group Stage", "date": (base_date + timedelta(days=4, hours=4)).isoformat(), "status": "Scheduled"},
-        {"id": "8", "home": "Portugal", "away": "Colombia", "stage": "Group Stage", "date": (base_date + timedelta(days=5)).isoformat(), "status": "Scheduled"},
-        {"id": "9", "home": "England", "away": "Croatia", "stage": "Group Stage", "date": (base_date + timedelta(days=6)).isoformat(), "status": "Scheduled"}
-    ]
 
-def seed_database(db: Session):
-    """
-    Seeds the FIFA World Cup 2026 with teams, fixtures, odds, and spotlight players.
+def get_fallback_matches() -> list[dict]:
+    """World Cup 2026 group-stage fixtures used when the live API is unavailable."""
+    return list(_load_world_cup_data()["fallback_matches"])
 
-    Fetches official schedules from API-Football and falls back to hardcoded fixtures if
-    offline. Finished fixtures are settled via finish_fixture() to ensure atomic updates
-    of scores, watchability, and standings cache. Recalculates tournament standings after
-    seeding completes.
-    """
-    normalizer = NameNormalizer()
-    comp = db.query(Competition).filter_by(name="FIFA World Cup").first()
+
+@dataclass
+class SeedResult:
+    """Outcome of a ``seed(db, config)`` run."""
+
+    status: str = "success"
+    message: str = ""
+    created: int = 0
+    updated: int = 0
+    odds_added: int = 0
+    competition: Optional[str] = None
+    league_id: Optional[int] = None
+    details: dict = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        payload: dict[str, Any] = {"status": self.status}
+        if self.message:
+            payload["message"] = self.message
+        if self.competition:
+            payload["competition"] = self.competition
+        if self.league_id is not None:
+            payload["league_id"] = self.league_id
+        if self.details:
+            payload["details"] = self.details
+        payload["fixtures_created"] = self.created
+        payload["fixtures_updated"] = self.updated
+        payload["odds_added"] = self.odds_added
+        return payload
+
+
+def seed(db: Session, config: dict) -> SeedResult:
+    """Canonical seeding entry point. ``config['kind']`` selects the target."""
+    kind = (config or {}).get("kind") or (config or {}).get("target") or "world_cup"
+    league_id = config.get("league_id") if config else None
+    fetch_squads = bool(config.get("fetch_squads")) if config else False
+
+    if kind in ("world_cup", "fifa_world_cup"):
+        return _seed_world_cup(db)
+    if kind in ("european_cups", "euro_cups"):
+        return _seed_european_cups(db, target_league_id=league_id)
+    if kind in ("all", "default"):
+        return _seed_all(db)
+    if kind == "single":
+        if league_id is None:
+            return SeedResult(status="error", message="league_id is required for kind='single'")
+        return _seed_single(db, league_id=int(league_id), fetch_squads=fetch_squads)
+    if kind == "competition":
+        return _seed_named_competition(db, config)
+
+    return SeedResult(status="error", message=f"Unknown seed kind: {kind}")
+
+
+def _get_or_create_competition(db: Session, name: str, **fields) -> Competition:
+    comp = db.query(Competition).filter(Competition.name == name).first()
     if not comp:
-        comp = Competition(
-            name="FIFA World Cup",
-            type="International",
-            format_engine="group_knockout",
-            odds_api_sport_key="soccer_fifa_world_cup",
-            home_advantage_elo=0,
-            neutral_venue=True
-        )
+        comp = Competition(name=name, **fields)
         db.add(comp)
         db.flush()
-    
-    tourney = db.query(Tournament).filter_by(competition_id=comp.id, season_name="2026").first()
+        return comp
+    for key, value in fields.items():
+        if value is not None:
+            setattr(comp, key, value)
+    db.flush()
+    return comp
+
+
+def _get_or_create_tournament(
+    db: Session,
+    competition: Competition,
+    season: str,
+    deactivate_other_seasons: bool = False,
+) -> Tournament:
+    if deactivate_other_seasons:
+        db.query(Tournament).filter(
+            Tournament.competition_id == competition.id,
+            Tournament.season_name != season,
+            Tournament.status == "Active",
+        ).update({"status": "Completed"})
+
+    tourney = db.query(Tournament).filter(
+        Tournament.competition_id == competition.id,
+        Tournament.season_name == season,
+    ).first()
     if not tourney:
-        tourney = Tournament(competition_id=comp.id, season_name="2026", status="Active")
+        tourney = Tournament(competition_id=competition.id, season_name=season, status="Active")
         db.add(tourney)
         db.flush()
+        return tourney
+    tourney.status = "Active"
+    db.flush()
+    return tourney
 
-    team_map = {}
 
-    
+def _link_tournament_team(
+    db: Session,
+    tournament_id: int,
+    team_id: int,
+    group_name: Optional[str] = None,
+) -> None:
+    tt = db.query(TournamentTeam).filter(
+        TournamentTeam.tournament_id == tournament_id,
+        TournamentTeam.team_id == team_id,
+    ).first()
+    if not tt:
+        db.add(TournamentTeam(
+            tournament_id=tournament_id,
+            team_id=team_id,
+            group_name=group_name,
+            tournament_status="Active",
+        ))
+        return
+    if group_name and tt.group_name != group_name:
+        tt.group_name = group_name
+
+
+def _normalize_wc_stage(raw_stage: str) -> str:
+    stage = _WC_STAGE_MAPPING.get(raw_stage, raw_stage) or "Group Stage"
+    if "Group" in str(stage):
+        return "Group Stage"
+    return stage
+
+
+def _parse_iso_datetime(value: Optional[str], fallback: datetime) -> datetime:
+    if not value:
+        return fallback
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception as date_err:
+        print(f"Error parsing date {value}: {date_err}")
+        return fallback
+
+
+def _fetch_world_cup_api_fixtures(normalizer: NameNormalizer) -> list[dict]:
+    api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
+    if not api_key:
+        return []
+    wc = _load_world_cup_data()
+    try:
+        print("Fetching official schedule from API-Football...")
+        res = call_football_api("fixtures", {
+            "league": wc.get("api_league_id", 1),
+            "season": wc.get("api_season", 2026),
+        })
+    except Exception as exc:
+        print(f"Failed to fetch matches from API-Football: {exc}. Seeding fallback schedule.")
+        return []
+
+    if not isinstance(res, dict) or "response" not in res:
+        return []
+
+    payloads = []
+    default_kickoff = datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc)
+    for raw in res["response"]:
+        fixture_info = raw.get("fixture", {})
+        teams_info = raw.get("teams", {})
+        goals_info = raw.get("goals", {})
+        league_info = raw.get("league", {})
+        status = parse_match_status(fixture_info.get("status", {}).get("short", ""))
+        dt_utc = _parse_iso_datetime(fixture_info.get("date"), default_kickoff)
+        home_score = goals_info.get("home")
+        away_score = goals_info.get("away")
+        payloads.append({
+            "api_id": str(fixture_info.get("id")),
+            "home_team_name": normalizer.normalize(teams_info.get("home", {}).get("name", "")),
+            "away_team_name": normalizer.normalize(teams_info.get("away", {}).get("name", "")),
+            "home_team_api_id": teams_info.get("home", {}).get("id"),
+            "away_team_api_id": teams_info.get("away", {}).get("id"),
+            "date_utc": dt_utc,
+            "stage": _normalize_wc_stage(league_info.get("round", "Group Stage")),
+            "status": status,
+            "home_score": home_score,
+            "away_score": away_score,
+            "provider_name": "api_football",
+        })
+    print(f"Successfully fetched {len(payloads)} matches from API-Football.")
+    return payloads
+
+
+def _fallback_fixture_payloads() -> list[dict]:
+    payloads = []
+    for match in get_fallback_matches():
+        date_value = match.get("date")
+        dt_utc = (
+            datetime.fromisoformat(date_value)
+            if date_value
+            else datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc)
+        )
+        payloads.append({
+            "api_id": str(match["id"]),
+            "home_team_name": match["home"],
+            "away_team_name": match["away"],
+            "date_utc": dt_utc,
+            "stage": match.get("stage", "Group Stage"),
+            "status": match.get("status", "Scheduled"),
+            "provider_name": "world_cup_static",
+        })
+    return payloads
+
+
+def _seed_spotlight_players(db: Session, spotlight: dict) -> None:
+    teams_by_name = {team.name: team.id for team in db.query(Team).all()}
+    for team_name, players in spotlight.items():
+        team_id = teams_by_name.get(team_name)
+        if not team_id:
+            continue
+        for player in players:
+            name = player["name"]
+            position = player["position"]
+            form = player["form"]
+            existing = (
+                db.query(Player)
+                .join(PlayerContract, PlayerContract.player_id == Player.id)
+                .filter(
+                    Player.name == name,
+                    PlayerContract.team_id == team_id,
+                    PlayerContract.is_active.is_(True),
+                )
+                .first()
+            )
+            if existing:
+                continue
+            db_player = Player(name=name, position=position, form_score=form)
+            db.add(db_player)
+            db.flush()
+            db.add(PlayerContract(
+                player_id=db_player.id,
+                team_id=team_id,
+                type="Country",
+                is_active=True,
+            ))
+    db.commit()
+
+
+def _seed_world_cup(db: Session) -> SeedResult:
+    wc = _load_world_cup_data()
+    normalizer = NameNormalizer()
+    resolver = TeamResolver(normalizer)
+    upserter = FixtureUpserter(team_resolver=resolver)
+
+    comp = _get_or_create_competition(
+        db,
+        wc.get("competition", "FIFA World Cup"),
+        type="International",
+        format_engine=wc.get("format_engine", "group_knockout"),
+        odds_api_sport_key=wc.get("odds_api_sport_key", "soccer_fifa_world_cup"),
+        home_advantage_elo=0,
+        neutral_venue=True,
+    )
+    tourney = _get_or_create_tournament(db, comp, wc.get("season", "2026"))
+
     try:
         print("Fetching live Elo ratings from eloratings.net...")
         live_elo = fetch_current_elo_ratings()
         print(f"Successfully fetched {len(live_elo)} Elo ratings from eloratings.net.")
-    except Exception as e:
-        print(f"Failed to fetch live Elo ratings: {e}. Falling back to hardcoded dictionary.")
-        live_elo = ELO_RATINGS
+    except Exception as exc:
+        print(f"Failed to fetch live Elo ratings: {exc}. Falling back to JSON ratings.")
+        live_elo = dict(wc["elo_ratings"])
 
-    id_counter = 1
-    for group, teams_list in GROUPS.items():
+    now = datetime.now(timezone.utc)
+    for group, teams_list in wc["groups"].items():
         for name in teams_list:
             elo = live_elo.get(name, 1700)
-            form_score = elo_to_form(elo)
-            win_streak = 4 if elo > 2000 else (2 if elo > 1850 else 0)
-            
-            country_code = NameNormalizer().get_country_code(name)
-            db_team = db.query(Team).filter(Team.name == name).first()
-            if not db_team:
-                db_team = Team(
-                    name=name,
-                    country_code=country_code,
-                    team_type="National",
-                    elo_source="eloratings",
-                    elo=elo,
-                    form_score=round(form_score, 1),
-                    win_streak=win_streak,
-                    draw_streak=0,
-                    loss_streak=0
-                )
-                db.add(db_team)
-                db.flush()
-            else:
-                db_team.elo = elo
-                db_team.form_score = round(form_score, 1)
-                db.flush()
-            
-            db_tourney_team = db.query(TournamentTeam).filter(
-                TournamentTeam.tournament_id == tourney.id,
-                TournamentTeam.team_id == db_team.id
-            ).first()
-            if not db_tourney_team:
-                db_tourney_team = TournamentTeam(
-                    tournament_id=tourney.id,
-                    team_id=db_team.id,
-                    group_name=group,
-                    tournament_status="Active"
-                )
-                db.add(db_tourney_team)
-            
-            record_elo_history(db, db_team.id, elo, datetime.now(timezone.utc))
-            
-            team_map[str(id_counter)] = name
-            id_counter += 1
-
-                
-    db.commit()
-
-    db_teams_by_name = {team.name: team.id for team in db.query(Team).all()}
-
-    for team_name, players in SPOTLIGHT_PLAYERS.items():
-        team_id = db_teams_by_name.get(team_name)
-        if not team_id:
-            continue
-        for name, pos, form in players:
-            db_player = Player(
-                name=name,
-                position=pos,
-                form_score=form
+            team = resolver.resolve(
+                db,
+                provider_name="world_cup_static",
+                raw_name=name,
+                team_type="National",
+                default_elo=elo,
+                country_code=normalizer.get_country_code(name),
             )
-            db.add(db_player)
+            if not team:
+                continue
+            team.elo = elo
+            team.form_score = elo_to_form(elo)
+            team.win_streak = 4 if elo > 2000 else (2 if elo > 1850 else 0)
+            team.draw_streak = 0
+            team.loss_streak = 0
+            team.elo_source = "eloratings"
             db.flush()
-            
-            contract = PlayerContract(
-                player_id=db_player.id,
-                team_id=team_id,
-                type="Country",
-                is_active=True
-            )
-            db.add(contract)
-            
+            _link_tournament_team(db, tourney.id, team.id, group_name=group)
+            record_elo_history(db, team.id, elo, now)
     db.commit()
 
-    fetched_matches = []
-    api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
-    if api_key:
-        try:
-            print("Fetching official schedule from API-Football...")
-            res = call_football_api("fixtures", {"league": 1, "season": 2026})
-            if isinstance(res, dict) and "response" in res:
-                raw_fixtures = res["response"]
-                for f in raw_fixtures:
-                    fixture_info = f.get("fixture", {})
-                    teams_info = f.get("teams", {})
-                    goals_info = f.get("goals", {})
-                    league_info = f.get("league", {})
-                    
-                    status_short = fixture_info.get("status", {}).get("short", "")
-                    status = parse_match_status(status_short)
-                    
-                    api_date = fixture_info.get("date")
-                    dt_utc_val = None
-                    if api_date:
-                        try:
-                            dt_utc_val = datetime.fromisoformat(api_date.replace('Z', '+00:00'))
-                        except Exception as date_err:
-                            print(f"Error parsing date {api_date}: {date_err}")
-                    
-                    round_str = league_info.get("round", "")
-                    
-                    m = {
-                        "id": str(fixture_info.get("id")),
-                        "home_team_name": normalizer.normalize(teams_info.get("home", {}).get("name", "")),
-                        "away_team_name": normalizer.normalize(teams_info.get("away", {}).get("name", "")),
-                        "home_team_id": None,
-                        "away_team_id": None,
-                        "type": round_str,
-                        "status": status,
-                        "home_score": str(goals_info.get("home")) if goals_info.get("home") is not None else None,
-                        "away_score": str(goals_info.get("away")) if goals_info.get("away") is not None else None,
-                        "dt_utc": dt_utc_val,
-                    }
-                    fetched_matches.append(m)
-                print(f"Successfully fetched {len(fetched_matches)} matches from API-Football.")
-        except Exception as e:
-            print(f"Failed to fetch matches from API-Football: {e}. Seeding fallback schedule.")
+    _seed_spotlight_players(db, wc.get("spotlight_players") or {})
 
-    fixtures_to_save = []
-    
-    if fetched_matches:
-        stage_mapping = {
-            "group": "Group Stage", "r32": "Round of 32", "round_of_32": "Round of 32",
-            "r16": "Round of 16", "round_of_16": "Round of 16", "qf": "Quarter-final",
-            "quarter": "Quarter-final", "semi": "Semi-final", "sf": "Semi-final",
-            "third": "Third-place play-off", "final": "Final"
-        }
-        
-        for m in fetched_matches:
-            h_team = m.get("home_team_name") or team_map.get(m.get("home_team_id"))
-            a_team = m.get("away_team_name") or team_map.get(m.get("away_team_id"))
-            
-            home_id = db_teams_by_name.get(h_team) if h_team else None
-            away_id = db_teams_by_name.get(a_team) if a_team else None
-            
-            home_placeholder = m.get("home_team_label") if not home_id else None
-            away_placeholder = m.get("away_team_label") if not away_id else None
-            
-            dt_utc = m.get("dt_utc")
-            if not dt_utc:
-                date_str = m.get("local_date") or ""
-                try:
-                    dt_naive = datetime.strptime(date_str, "%m/%d/%Y %H:%M")
-                    dt_utc = dt_naive.replace(tzinfo=timezone.utc)
-                except Exception:
-                    dt_utc = datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc)
-                
-            raw_stage = m.get("type", "Group Stage")
-            stage = stage_mapping.get(raw_stage, raw_stage)
-            if "Group" in str(stage):
-                stage = "Group Stage"
-            status = m.get("status", "Scheduled")
-            
-            h_elo = live_elo.get(h_team, 1700) if h_team else 1700
-            a_elo = live_elo.get(a_team, 1700) if a_team else 1700
-            odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo)
-            
-            api_id_str = str(m.get("id"))
-            fixture = db.query(Fixture).filter(
-                Fixture.tournament_id == tourney.id,
-                Fixture.api_id == api_id_str
-            ).first()
-            if not fixture:
-                fixture = Fixture(
-                    tournament_id=tourney.id,
-                    home_team_id=home_id,
-                    away_team_id=away_id,
-                    home_team_placeholder=home_placeholder,
-                    away_team_placeholder=away_placeholder,
-                    api_id=api_id_str,
-                    date_utc=dt_utc,
-                    stage=stage,
-                    status=status
-                )
-                db.add(fixture)
-            else:
-                fixture.home_team_id = home_id or fixture.home_team_id
-                fixture.away_team_id = away_id or fixture.away_team_id
-                fixture.date_utc = dt_utc
-                fixture.stage = stage
-                fixture.status = status
-
-            if status == "Finished" and m.get("home_score") is not None and m.get("away_score") is not None:
-                try:
-                    finish_fixture(fixture, int(m["home_score"]), int(m["away_score"]), db, update_standings=False)
-                except Exception:
-                    pass
-            db.flush()
-
-
-            
-            init_odds = FixtureOdds(
-                fixture_id=fixture.id,
-                recorded_at=dt_utc - timedelta(days=2),
-                odds_home=odds_h,
-                odds_draw=odds_d,
-                odds_away=odds_a
-            )
-            db.add(init_odds)
-            fixtures_to_save.append(fixture)
-    else:
-        fallback_matches = get_fallback_matches()
-        for f in fallback_matches:
-            h_team = f["home"]
-            a_team = f["away"]
-            dt_utc = datetime.fromisoformat(f["date"])
-            
-            h_elo = live_elo.get(h_team, 1700)
-            a_elo = live_elo.get(a_team, 1700)
-            odds_h, odds_d, odds_a = calculate_default_odds(h_elo, a_elo)
-            
-            fixture = db.query(Fixture).filter(
-                Fixture.tournament_id == tourney.id,
-                Fixture.api_id == str(f["id"])
-            ).first()
-
-            if not fixture:
-                fixture = Fixture(
-                    tournament_id=tourney.id,
-                    home_team_id=db_teams_by_name[h_team],
-                    away_team_id=db_teams_by_name[a_team],
-                    api_id=str(f["id"]),
-                    date_utc=dt_utc,
-                    stage=f["stage"],
-                    status=f["status"],
-                    winner_id=None
-                )
-                db.add(fixture)
-                db.flush()
-                
-                init_odds = FixtureOdds(
-                    fixture_id=fixture.id,
-                    recorded_at=dt_utc - timedelta(days=2),
-                    odds_home=odds_h,
-                    odds_draw=odds_d,
-                    odds_away=odds_a
-                )
-                db.add(init_odds)
-            fixtures_to_save.append(fixture)
-            
+    payloads = _fetch_world_cup_api_fixtures(normalizer) or _fallback_fixture_payloads()
+    upsert = upserter.upsert_fixtures(db, tourney, payloads, competition=comp)
     db.commit()
-    
-    update_odds_from_api(fixtures_to_save, db)
+
+    fixtures = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).all()
+    update_odds_from_api(fixtures, db)
     db.commit()
-    
-    for fixture in fixtures_to_save:
+    for fixture in fixtures:
         update_fixture_score(fixture, db)
-        
-    db.commit()
-    
-    from backend.services.standings import recalculate_standings
     recalculate_standings(db, tourney.id)
     db.commit()
 
     print("Database seeding and simulation completed.")
-
-DEFAULT_LEAGUES_TO_SEED = [
-    # Big 5 Domestic Leagues
-    ("Premier League", "League", "league", 39, "2026/27", 2026, 3, 100),
-    ("La Liga", "League", "league", 140, "2026/27", 2026, 3, 120),
-    ("Serie A", "League", "league", 135, "2026/27", 2026, 3, 100),
-    ("Bundesliga", "League", "league", 78, "2026/27", 2026, 2, 100),
-    ("Ligue 1", "League", "league", 61, "2026/27", 2026, 2, 90),
-
-    # European Cups
-    ("UEFA Champions League", "Cup", "league_phase_knockout", 2, "2026/27", 2026, 0, 80),
-    ("UEFA Europa League", "Cup", "league_phase_knockout", 3, "2026/27", 2026, 0, 60),
-    ("UEFA Conference League", "Cup", "league_phase_knockout", 848, "2026/27", 2026, 0, 50),
-
-    # Domestic Cups (Big 5)
-    ("FA Cup", "Cup", "cup", 45, "2026/27", 2026, 0, 30),
-    ("EFL Cup", "Cup", "cup", 48, "2026/27", 2026, 0, 30),
-    ("Coppa Italia", "Cup", "cup", 137, "2026/27", 2026, 0, 30),
-    ("DFB Pokal", "Cup", "cup", 81, "2026/27", 2026, 0, 30),
-    ("Coupe de France", "Cup", "cup", 66, "2026/27", 2026, 0, 30),
-
-    # Other Top European Leagues & Cups
-    ("Eredivisie", "League", "league", 88, "2026/27", 2026, 3, 90),
-    ("KNVB Beker", "Cup", "cup", 90, "2026/27", 2026, 0, 30),
-    ("Primeira Liga", "League", "league", 94, "2026/27", 2026, 3, 90),
-    ("Taça de Portugal", "Cup", "cup", 96, "2026/27", 2026, 0, 30),
-    ("Scottish Premiership", "League", "league", 179, "2026/27", 2026, 2, 80),
-    ("Belgian Pro League", "League", "league", 144, "2026/27", 2026, 3, 80),
-    ("Süper Lig", "League", "league", 203, "2026/27", 2026, 4, 100),
-
-    # Americas Leagues & Cups
-    ("Major League Soccer", "League", "league", 253, "2026", 2026, 0, 80),
-    ("US Open Cup", "Cup", "cup", 257, "2026", 2026, 0, 30),
-    ("Brasileirão Série A", "League", "league", 71, "2026", 2026, 4, 110),
-    ("Copa do Brasil", "Cup", "cup", 73, "2026", 2026, 0, 30),
-    ("Liga Profesional Argentina", "League", "league", 128, "2026", 2026, 2, 110),
-    ("Copa Argentina", "Cup", "cup", 130, "2026", 2026, 0, 30),
-
-    # Continental Cups (Americas)
-    ("Copa Libertadores", "Cup", "group_knockout", 13, "2026", 2026, 0, 80),
-    ("Copa Sudamericana", "Cup", "group_knockout", 11, "2026", 2026, 0, 60),
-    ("CONCACAF Champions Cup", "Cup", "cup", 16, "2026", 2026, 0, 40),
-]
-
-DEFAULT_LEAGUES_BY_ID = {item[3]: item for item in DEFAULT_LEAGUES_TO_SEED}
+    return SeedResult(
+        status="success",
+        message="FIFA World Cup seeded successfully.",
+        competition="FIFA World Cup",
+        created=upsert.created,
+        updated=upsert.updated,
+        details={"fixtures": len(fixtures)},
+    )
 
 
-def seed_all_default_competitions(db: Session) -> dict:
-    """Seeds all default 15 competitions (World Cup, Big 5 Domestic Leagues, European Cups, Domestic Cups, Nations League)."""
+def _seed_european_cups(db: Session, target_league_id: Optional[int] = None) -> SeedResult:
+    if not _EURO_DRAW_JSON.exists():
+        print(f"Error: {_EURO_DRAW_JSON} not found.")
+        return SeedResult(status="error", message=f"{_EURO_DRAW_JSON} not found")
+
+    with open(_EURO_DRAW_JSON, encoding="utf-8") as handle:
+        data = json.load(handle)
+
+    results = {}
+    normalizer = NameNormalizer()
+    resolver = TeamResolver(normalizer)
+    upserter = FixtureUpserter(team_resolver=resolver)
+    created_total = 0
+    updated_total = 0
+
+    for comp_name, comp_data in data.items():
+        api_league_id = comp_data.get("api_league_id")
+        if target_league_id is not None and api_league_id != target_league_id:
+            continue
+        try:
+            format_engine = comp_data.get("format_engine", "league_phase_knockout")
+            season = comp_data.get("season", "2026/27")
+            home_adv = comp_data.get("home_advantage_elo", 80)
+            comp = _get_or_create_competition(
+                db,
+                comp_name,
+                type=comp_data.get("competition_type", "Cup"),
+                format_engine=format_engine,
+                home_advantage_elo=home_adv,
+                api_league_id=api_league_id,
+            )
+            tourney = _get_or_create_tournament(
+                db, comp, season, deactivate_other_seasons=True
+            )
+
+            team_map: dict[str, Team] = {}
+            for t_info in comp_data.get("teams", []):
+                t_name = normalizer.normalize(t_info["name"])
+                country = t_info.get("country")
+                elo = t_info.get("elo", 1700)
+                db_team = resolver.resolve(
+                    db,
+                    provider_name="european_draw",
+                    raw_name=t_name,
+                    team_type="Club",
+                    default_elo=elo,
+                    country_code=country,
+                )
+                if not db_team:
+                    continue
+                if country and not db_team.country_code:
+                    db_team.country_code = country
+                if elo and (not db_team.elo or db_team.elo == 1500):
+                    db_team.elo = elo
+                    db_team.form_score = elo_to_form(elo)
+                db.flush()
+                team_map[t_name] = db_team
+                _link_tournament_team(db, tourney.id, db_team.id)
+            db.flush()
+
+            payloads = []
+            for f_info in comp_data.get("fixtures", []):
+                h_name = normalizer.normalize(f_info["home"])
+                a_name = normalizer.normalize(f_info["away"])
+                h_team = team_map.get(h_name)
+                a_team = team_map.get(a_name)
+                if not h_team or not a_team:
+                    continue
+                date_utc = datetime.fromisoformat(f_info["date_utc"].replace("Z", "+00:00"))
+                payloads.append({
+                    "home_team": h_team,
+                    "away_team": a_team,
+                    "date_utc": date_utc,
+                    "stage": f_info.get("stage", "League Phase"),
+                    "matchday_number": f_info.get("matchday"),
+                    "leg_number": f_info.get("leg_number", 1),
+                    "status": "Scheduled",
+                    "provider_name": "european_draw",
+                })
+
+            upsert = upserter.upsert_fixtures(db, tourney, payloads, competition=comp)
+            created_total += upsert.created
+            updated_total += upsert.updated
+
+            fixtures = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).all()
+            for fixture in fixtures:
+                update_fixture_score(fixture, db)
+            recalculate_standings(db, tourney.id)
+            db.commit()
+
+            results[comp_name] = (
+                f"Successfully seeded {len(comp_data.get('teams', []))} teams "
+                f"and {len(payloads)} fixtures"
+            )
+            print(f"[{comp_name}] {results[comp_name]}")
+        except Exception as exc:
+            db.rollback()
+            results[comp_name] = f"Error: {exc}"
+            print(f"Error seeding {comp_name}: {exc}")
+
+    return SeedResult(
+        status="success",
+        created=created_total,
+        updated=updated_total,
+        details=results,
+    )
+
+
+def _seed_all(db: Session) -> SeedResult:
     results = {}
     print("--- Starting Full Multi-Competition Database Seeding ---")
-    
-    # 1. FIFA World Cup 2026
     try:
         seed_database(db)
         results["FIFA World Cup"] = "Seeded successfully"
-    except Exception as e:
-        results["FIFA World Cup"] = f"Error: {e}"
-        
-    # 2. API-Football Competitions (Big 5 Leagues, European Cups, Domestic Cups)
+    except Exception as exc:
+        results["FIFA World Cup"] = f"Error: {exc}"
+
     api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
     if api_key:
         for name, comp_type, format_eng, league_id, season_str, api_season, releg_spots, home_adv in DEFAULT_LEAGUES_TO_SEED:
             try:
-                # Check if this competition edition is already populated in DB
                 comp = db.query(Competition).filter(Competition.name == name).first()
                 if comp:
                     tourney = db.query(Tournament).filter(
                         Tournament.competition_id == comp.id,
-                        Tournament.season_name == season_str
+                        Tournament.season_name == season_str,
                     ).first()
                     if tourney:
                         f_count = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).count()
@@ -471,56 +522,67 @@ def seed_all_default_competitions(db: Session) -> dict:
                     api_league_id=league_id,
                     api_season=api_season,
                     relegation_spots=releg_spots,
-                    home_advantage_elo=home_adv
+                    home_advantage_elo=home_adv,
                 )
                 results[name] = "Seeded successfully"
-            except Exception as e:
-                print(f"Error seeding {name}: {e}")
-                results[name] = f"Error: {e}"
+            except Exception as exc:
+                print(f"Error seeding {name}: {exc}")
+                results[name] = f"Error: {exc}"
     else:
         print("FOOTBALL_API_KEY not found. Skipping API-Football league seeding.")
         results["Leagues"] = "Skipped (No FOOTBALL_API_KEY)"
 
     print("--- Full Database Seeding Completed ---")
-    return results
+    return SeedResult(status="success", details=results)
 
 
-def seed_single_competition(
-    db: Session,
-    league_id: int,
-    fetch_squads: bool = False
-) -> dict:
-    """
-    Seeds or updates a single competition idempotently by API-Football league ID or Competition ID.
-    Supports European cups (via draw data / API), domestic leagues, domestic cups, and custom competitions.
-    """
-    from pathlib import Path
-    draw_file = Path(__file__).resolve().parent.parent / "data" / "european_draw_2026.json"
-    
-    # 1. Check if league_id corresponds to a European Cup with local draw file
-    if league_id in (2, 3, 848) and draw_file.exists():
+def _seed_named_competition(db: Session, config: dict) -> SeedResult:
+    upsert = seed_competition(
+        db=db,
+        competition_name=config["competition_name"],
+        competition_type=config.get("competition_type", "League"),
+        format_engine=config.get("format_engine", "league"),
+        season=config.get("season", "2026/27"),
+        api_league_id=config.get("api_league_id"),
+        api_season=config.get("api_season", 2026),
+        relegation_spots=config.get("relegation_spots", 0),
+        promotion_spots=config.get("promotion_spots", 0),
+        relegation_playoff_spots=config.get("relegation_playoff_spots", 0),
+        odds_api_sport_key=config.get("odds_api_sport_key"),
+        home_advantage_elo=config.get("home_advantage_elo", 100),
+        neutral_venue=config.get("neutral_venue", False),
+    )
+    return SeedResult(
+        status="success",
+        competition=config.get("competition_name"),
+        league_id=config.get("api_league_id") or config.get("league_id"),
+        created=getattr(upsert, "created", 0),
+        updated=getattr(upsert, "updated", 0),
+        odds_added=getattr(upsert, "odds_added", 0),
+    )
+
+
+def _seed_single(db: Session, league_id: int, fetch_squads: bool = False) -> SeedResult:
+    if league_id in (2, 3, 848) and _EURO_DRAW_JSON.exists():
         euro_res = seed_european_cups(db, target_league_id=league_id)
         api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
         if api_key:
             try:
                 fetch_and_seed_teams(db, api_league_id=league_id, api_season=2026, fetch_squads=fetch_squads)
-            except Exception as e:
-                print(f"Warning: Failed to fetch API teams for euro cup {league_id}: {e}")
-        return {
-            "status": "success",
-            "message": f"European cup (league_id={league_id}) seeded successfully.",
-            "league_id": league_id,
-            "details": euro_res
-        }
+            except Exception as exc:
+                print(f"Warning: Failed to fetch API teams for euro cup {league_id}: {exc}")
+        return SeedResult(
+            status="success",
+            message=f"European cup (league_id={league_id}) seeded successfully.",
+            league_id=league_id,
+            details=euro_res if isinstance(euro_res, dict) else {},
+        )
 
-    # 2. Check in DEFAULT_LEAGUES_BY_ID
     if league_id in DEFAULT_LEAGUES_BY_ID:
-        name, comp_type, format_eng, lid, season_str, api_season, releg_spots, home_adv = DEFAULT_LEAGUES_BY_ID[league_id]
-        
+        name, comp_type, format_eng, _lid, season_str, api_season, releg_spots, home_adv = DEFAULT_LEAGUES_BY_ID[league_id]
         api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
         if api_key:
             fetch_and_seed_teams(db, api_league_id=league_id, api_season=api_season, fetch_squads=fetch_squads)
-            
         upsert_res = seed_competition(
             db=db,
             competition_name=name,
@@ -530,65 +592,95 @@ def seed_single_competition(
             api_league_id=league_id,
             api_season=api_season,
             relegation_spots=releg_spots,
-            home_advantage_elo=home_adv
+            home_advantage_elo=home_adv,
         )
-        
-        return {
-            "status": "success",
-            "message": f"Competition '{name}' (league_id={league_id}) seeded successfully.",
-            "competition": name,
-            "league_id": league_id,
-            "fixtures_created": getattr(upsert_res, "created", 0),
-            "fixtures_updated": getattr(upsert_res, "updated", 0),
-            "odds_added": getattr(upsert_res, "odds_added", 0)
-        }
+        return SeedResult(
+            status="success",
+            message=f"Competition '{name}' (league_id={league_id}) seeded successfully.",
+            competition=name,
+            league_id=league_id,
+            created=getattr(upsert_res, "created", 0),
+            updated=getattr(upsert_res, "updated", 0),
+            odds_added=getattr(upsert_res, "odds_added", 0),
+        )
 
-    # 3. Check if competition exists in database by api_league_id or id
     comp = db.query(Competition).filter(
         (Competition.api_league_id == league_id) | (Competition.id == league_id)
     ).first()
-    
-    if comp:
-        tourney = db.query(Tournament).filter(
-            Tournament.competition_id == comp.id,
-            Tournament.status == "Active"
-        ).first()
-        season_str = tourney.season_name if tourney else "2026/27"
-        api_season = 2026
-        try:
-            api_season = int(season_str.split("/")[0])
-        except (ValueError, AttributeError):
-            pass
-            
-        eff_api_league_id = comp.api_league_id or league_id
-        api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
-        if api_key and eff_api_league_id:
-            fetch_and_seed_teams(db, api_league_id=eff_api_league_id, api_season=api_season, fetch_squads=fetch_squads)
-            
-        upsert_res = seed_competition(
-            db=db,
-            competition_name=comp.name,
-            competition_type=comp.type or "League",
-            format_engine=comp.format_engine or "league",
-            season=season_str,
-            api_league_id=eff_api_league_id,
-            api_season=api_season,
-            home_advantage_elo=comp.home_advantage_elo or 100,
-            odds_api_sport_key=comp.odds_api_sport_key
+    if not comp:
+        return SeedResult(
+            status="error",
+            message=f"Competition with league_id {league_id} not found in default configurations or database.",
+            league_id=league_id,
         )
-        
-        return {
-            "status": "success",
-            "message": f"Competition '{comp.name}' (league_id={league_id}) seeded successfully.",
-            "competition": comp.name,
-            "league_id": league_id,
-            "fixtures_created": getattr(upsert_res, "created", 0),
-            "fixtures_updated": getattr(upsert_res, "updated", 0),
-            "odds_added": getattr(upsert_res, "odds_added", 0)
-        }
 
-    raise ValueError(f"Competition with league_id {league_id} not found in default configurations or database.")
+    tourney = db.query(Tournament).filter(
+        Tournament.competition_id == comp.id,
+        Tournament.status == "Active",
+    ).first()
+    season_str = tourney.season_name if tourney else "2026/27"
+    api_season = 2026
+    try:
+        api_season = int(season_str.split("/")[0])
+    except (ValueError, AttributeError):
+        pass
 
+    eff_api_league_id = comp.api_league_id or league_id
+    api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
+    if api_key and eff_api_league_id:
+        fetch_and_seed_teams(db, api_league_id=eff_api_league_id, api_season=api_season, fetch_squads=fetch_squads)
+
+    upsert_res = seed_competition(
+        db=db,
+        competition_name=comp.name,
+        competition_type=comp.type or "League",
+        format_engine=comp.format_engine or "league",
+        season=season_str,
+        api_league_id=eff_api_league_id,
+        api_season=api_season,
+        home_advantage_elo=comp.home_advantage_elo or 100,
+        odds_api_sport_key=comp.odds_api_sport_key,
+    )
+    return SeedResult(
+        status="success",
+        message=f"Competition '{comp.name}' (league_id={league_id}) seeded successfully.",
+        competition=comp.name,
+        league_id=league_id,
+        created=getattr(upsert_res, "created", 0),
+        updated=getattr(upsert_res, "updated", 0),
+        odds_added=getattr(upsert_res, "odds_added", 0),
+    )
+
+
+def seed_database(db: Session) -> SeedResult:
+    """Seeds the FIFA World Cup 2026. Compatibility wrapper around ``seed()``."""
+    return seed(db, {"kind": "world_cup"})
+
+
+def seed_all_default_competitions(db: Session) -> dict:
+    """Seeds World Cup plus the default API-Football competitions."""
+    return seed(db, {"kind": "all"}).details
+
+
+def seed_single_competition(db: Session, league_id: int, fetch_squads: bool = False) -> dict:
+    """
+    Seeds or updates a single competition idempotently by API-Football league ID or Competition ID.
+    """
+    result = seed(db, {"kind": "single", "league_id": league_id, "fetch_squads": fetch_squads})
+    if result.status == "error":
+        raise ValueError(result.message)
+    return result.to_dict()
+
+
+def seed_european_cups(db: Session, target_league_id: int = None) -> dict:
+    """
+    Seeds UEFA European competitions from ``european_draw_2026.json``.
+    If ``target_league_id`` is set (2, 3, or 848), only that competition is seeded.
+    """
+    result = seed(db, {"kind": "european_cups", "league_id": target_league_id})
+    if result.status == "error" and not result.details:
+        return {"status": "error", "message": result.message}
+    return result.details
 
 
 def fetch_and_seed_teams(
@@ -597,28 +689,28 @@ def fetch_and_seed_teams(
     api_season: int,
     team_type: str = "Club",
     elo_source: str = "clubelo",
-    fetch_squads: bool = False
+    fetch_squads: bool = False,
 ):
     """Fetches all teams for a league and optionally picks spotlight players for each team."""
     normalizer = NameNormalizer()
+    resolver = TeamResolver(normalizer)
     print(f"Fetching teams for league {api_league_id}, season {api_season}...")
     try:
         res = call_football_api("teams", {"league": api_league_id, "season": api_season})
-    except Exception as e:
-        print(f"Error calling football API for teams: {e}")
+    except Exception as exc:
+        print(f"Error calling football API for teams: {exc}")
         return
-        
+
     if not isinstance(res, dict) or "response" not in res:
         print(f"Invalid API response: {res}")
         return
-
     if res.get("errors"):
         print(f"API-Football Error: {res['errors']}")
         return
 
     teams_data = res["response"]
     print(f"Seeding {len(teams_data)} teams...")
-    
+
     for t_wrapper in teams_data:
         t_info = t_wrapper.get("team", {})
         api_team_id = t_info.get("id")
@@ -627,96 +719,77 @@ def fetch_and_seed_teams(
         country_code = t_info.get("code")
         if not country_code and country_name:
             country_code = normalizer.get_country_code(country_name)
-            
-        db_team = None
-        if api_team_id:
-            db_team = db.query(Team).filter(Team.api_id == api_team_id).first()
-        if not db_team:
-            db_team = db.query(Team).filter(Team.name == name).first()
-            
-        if db_team:
-            db_team.api_id = api_team_id
-            if country_code:
-                db_team.country_code = country_code
 
-            db_team.team_type = team_type
-            db_team.elo_source = elo_source
-            print(f"Updated existing team: {name} (api_id={api_team_id})")
-        else:
-            db_team = Team(
-                name=name,
-                country_code=country_code,
-                team_type=team_type,
-                elo_source=elo_source,
-                api_id=api_team_id,
-                elo=1500,
-                form_score=50.0,
-                win_streak=0,
-                draw_streak=0,
-                loss_streak=0
-            )
-            db.add(db_team)
-            print(f"Created new team: {name} (api_id={api_team_id})")
+        db_team = resolver.resolve(
+            db,
+            provider_name="api_football",
+            raw_name=name,
+            external_id=api_team_id,
+            team_type=team_type,
+            default_elo=1500,
+            country_code=country_code,
+            api_id=api_team_id,
+        )
+        if not db_team:
+            continue
+        db_team.api_id = api_team_id
+        if country_code:
+            db_team.country_code = country_code
+        db_team.team_type = team_type
+        db_team.elo_source = elo_source
         db.flush()
-        
+
         if not fetch_squads:
             continue
 
         existing_contracts = db.query(PlayerContract).filter(PlayerContract.team_id == db_team.id).first()
         if existing_contracts:
             print(f"Squad already populated for {name}, skipping squad API call.")
-        else:
-            try:
-                print(f"Fetching squad for {name}...")
-                squad_res = call_football_api("players/squads", {"team": api_team_id})
-                time.sleep(6.0)
-                squad_data = squad_res.get("response", [])
-                if squad_data and isinstance(squad_data, list):
-                    players_list = squad_data[0].get("players", [])
-                    gks = [p for p in players_list if p.get("position") == "Goalkeeper"]
-                    mids = [p for p in players_list if p.get("position") == "Midfielder"]
-                    fwds = [p for p in players_list if p.get("position") == "Attacker" or p.get("position") == "Forward"]
-                    
-                    spotlights = []
-                    for p_group in (gks, mids, fwds):
-                        if p_group:
-                            p_group_sorted = sorted(p_group, key=lambda x: x.get("age") or 0, reverse=True)
-                            spotlights.append(p_group_sorted[0])
-                            
-                    for p in spotlights:
-                        p_name = p.get("name")
-                        p_pos = p.get("position")
-                        if p_pos == "Attacker":
-                            p_pos = "Forward"
-                            
-                        db_player = db.query(Player).filter(Player.name == p_name, Player.position == p_pos).first()
-                        if not db_player:
-                            db_player = Player(
-                                name=p_name,
-                                position=p_pos,
-                                form_score=75.0
-                            )
-                            db.add(db_player)
-                            db.flush()
-                            
-                        contract = db.query(PlayerContract).filter(
-                            PlayerContract.player_id == db_player.id,
-                            PlayerContract.team_id == db_team.id,
-                            PlayerContract.type == team_type
-                        ).first()
-                        if not contract:
-                            contract = PlayerContract(
-                                player_id=db_player.id,
-                                team_id=db_team.id,
-                                type=team_type,
-                                is_active=True
-                            )
-                            db.add(contract)
-            except Exception as squad_err:
-                print(f"Warning: Failed to fetch squad for {name}: {squad_err}")
-            
+            continue
+        try:
+            print(f"Fetching squad for {name}...")
+            squad_res = call_football_api("players/squads", {"team": api_team_id})
+            time.sleep(6.0)
+            squad_data = squad_res.get("response", [])
+            if not (squad_data and isinstance(squad_data, list)):
+                continue
+            players_list = squad_data[0].get("players", [])
+            gks = [p for p in players_list if p.get("position") == "Goalkeeper"]
+            mids = [p for p in players_list if p.get("position") == "Midfielder"]
+            fwds = [p for p in players_list if p.get("position") in ("Attacker", "Forward")]
+            spotlights = []
+            for p_group in (gks, mids, fwds):
+                if p_group:
+                    p_group_sorted = sorted(p_group, key=lambda x: x.get("age") or 0, reverse=True)
+                    spotlights.append(p_group_sorted[0])
+            for player in spotlights:
+                p_name = player.get("name")
+                p_pos = player.get("position")
+                if p_pos == "Attacker":
+                    p_pos = "Forward"
+                db_player = db.query(Player).filter(Player.name == p_name, Player.position == p_pos).first()
+                if not db_player:
+                    db_player = Player(name=p_name, position=p_pos, form_score=75.0)
+                    db.add(db_player)
+                    db.flush()
+                contract = db.query(PlayerContract).filter(
+                    PlayerContract.player_id == db_player.id,
+                    PlayerContract.team_id == db_team.id,
+                    PlayerContract.type == team_type,
+                ).first()
+                if not contract:
+                    db.add(PlayerContract(
+                        player_id=db_player.id,
+                        team_id=db_team.id,
+                        type=team_type,
+                        is_active=True,
+                    ))
+        except Exception as squad_err:
+            print(f"Warning: Failed to fetch squad for {name}: {squad_err}")
+
     db.commit()
     print(f"Successfully seeded teams and spotlights for league={api_league_id}.")
+
 
 def seed_competition(
     db: Session,
@@ -731,9 +804,9 @@ def seed_competition(
     promotion_spots: int = 0,
     relegation_playoff_spots: int = 0,
     odds_api_sport_key: str = None,
-    home_advantage_elo: int = 100
+    home_advantage_elo: int = 100,
 ):
-    """Seed / Upsert competition fixture data idempotently using the Deep Ingestion Engine."""
+    """Seed / upsert competition fixture data via the ingestion engine."""
     from backend.services.ingestion import seed_competition as ingestion_seed_competition
 
     return ingestion_seed_competition(
@@ -745,198 +818,40 @@ def seed_competition(
         api_league_id=api_league_id,
         api_season=api_season,
         home_advantage_elo=0 if neutral_venue else home_advantage_elo,
-        odds_api_sport_key=odds_api_sport_key
+        odds_api_sport_key=odds_api_sport_key,
     )
 
 
-def seed_european_cups(db: Session, target_league_id: int = None) -> dict:
-    """
-    Seeds the 3 UEFA European competitions (Champions League, Europa League, Conference League)
-    for the 2026/27 season using the official 36-team Swiss league phase draw dataset.
-    If target_league_id is specified (e.g. 2, 3, or 848), only that competition is seeded.
-    """
-    import json
-    from pathlib import Path
-    
-    results = {}
-    normalizer = NameNormalizer()
-    draw_file = Path(__file__).resolve().parent.parent / "data" / "european_draw_2026.json"
-    
-    if not draw_file.exists():
-        print(f"Error: {draw_file} not found.")
-        return {"status": "error", "message": f"{draw_file} not found"}
-        
-    with open(draw_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
-        
-    for comp_name, comp_data in data.items():
-        api_league_id = comp_data.get("api_league_id")
-        if target_league_id is not None and api_league_id != target_league_id:
-            continue
-        try:
-            comp_type = comp_data.get("competition_type", "Cup")
-            format_engine = comp_data.get("format_engine", "league_phase_knockout")
-            season = comp_data.get("season", "2026/27")
-            home_adv = comp_data.get("home_advantage_elo", 80)
-            
-            comp = db.query(Competition).filter(Competition.name == comp_name).first()
-            if not comp:
-                comp = Competition(
-                    name=comp_name,
-                    type=comp_type,
-                    format_engine=format_engine,
-                    home_advantage_elo=home_adv,
-                    api_league_id=api_league_id
-                )
-                db.add(comp)
-                db.flush()
-            else:
-                comp.format_engine = format_engine
-                comp.api_league_id = api_league_id
-                comp.home_advantage_elo = home_adv
-                db.flush()
-                
-            # Deactivate older active seasons for the same competition
-            db.query(Tournament).filter(
-                Tournament.competition_id == comp.id,
-                Tournament.season_name != season,
-                Tournament.status == "Active"
-            ).update({"status": "Completed"})
+DEFAULT_LEAGUES_TO_SEED = [
+    ("Premier League", "League", "league", 39, "2026/27", 2026, 3, 100),
+    ("La Liga", "League", "league", 140, "2026/27", 2026, 3, 120),
+    ("Serie A", "League", "league", 135, "2026/27", 2026, 3, 100),
+    ("Bundesliga", "League", "league", 78, "2026/27", 2026, 2, 100),
+    ("Ligue 1", "League", "league", 61, "2026/27", 2026, 2, 90),
+    ("UEFA Champions League", "Cup", "league_phase_knockout", 2, "2026/27", 2026, 0, 80),
+    ("UEFA Europa League", "Cup", "league_phase_knockout", 3, "2026/27", 2026, 0, 60),
+    ("UEFA Conference League", "Cup", "league_phase_knockout", 848, "2026/27", 2026, 0, 50),
+    ("FA Cup", "Cup", "cup", 45, "2026/27", 2026, 0, 30),
+    ("EFL Cup", "Cup", "cup", 48, "2026/27", 2026, 0, 30),
+    ("Coppa Italia", "Cup", "cup", 137, "2026/27", 2026, 0, 30),
+    ("DFB Pokal", "Cup", "cup", 81, "2026/27", 2026, 0, 30),
+    ("Coupe de France", "Cup", "cup", 66, "2026/27", 2026, 0, 30),
+    ("Eredivisie", "League", "league", 88, "2026/27", 2026, 3, 90),
+    ("KNVB Beker", "Cup", "cup", 90, "2026/27", 2026, 0, 30),
+    ("Primeira Liga", "League", "league", 94, "2026/27", 2026, 3, 90),
+    ("Taça de Portugal", "Cup", "cup", 96, "2026/27", 2026, 0, 30),
+    ("Scottish Premiership", "League", "league", 179, "2026/27", 2026, 2, 80),
+    ("Belgian Pro League", "League", "league", 144, "2026/27", 2026, 3, 80),
+    ("Süper Lig", "League", "league", 203, "2026/27", 2026, 4, 100),
+    ("Major League Soccer", "League", "league", 253, "2026", 2026, 0, 80),
+    ("US Open Cup", "Cup", "cup", 257, "2026", 2026, 0, 30),
+    ("Brasileirão Série A", "League", "league", 71, "2026", 2026, 4, 110),
+    ("Copa do Brasil", "Cup", "cup", 73, "2026", 2026, 0, 30),
+    ("Liga Profesional Argentina", "League", "league", 128, "2026", 2026, 2, 110),
+    ("Copa Argentina", "Cup", "cup", 130, "2026", 2026, 0, 30),
+    ("Copa Libertadores", "Cup", "group_knockout", 13, "2026", 2026, 0, 80),
+    ("Copa Sudamericana", "Cup", "group_knockout", 11, "2026", 2026, 0, 60),
+    ("CONCACAF Champions Cup", "Cup", "cup", 16, "2026", 2026, 0, 40),
+]
 
-            tourney = db.query(Tournament).filter(
-                Tournament.competition_id == comp.id,
-                Tournament.season_name == season
-            ).first()
-            if not tourney:
-                tourney = Tournament(
-                    competition_id=comp.id,
-                    season_name=season,
-                    status="Active"
-                )
-                db.add(tourney)
-                db.flush()
-            else:
-                tourney.status = "Active"
-                db.flush()
-                
-            # Seed / Upsert Teams
-            team_map = {}
-            for t_info in comp_data.get("teams", []):
-                t_name = normalizer.normalize(t_info["name"])
-                country = t_info.get("country")
-                elo = t_info.get("elo", 1700)
-                
-                db_team = db.query(Team).filter(Team.name == t_name).first()
-                if not db_team:
-                    db_team = Team(
-                        name=t_name,
-                        country_code=country,
-                        team_type="Club",
-                        elo_source="clubelo",
-                        elo=elo,
-                        form_score=elo_to_form(elo),
-                        win_streak=0,
-                        draw_streak=0,
-                        loss_streak=0
-                    )
-                    db.add(db_team)
-                    db.flush()
-                else:
-                    if country and not db_team.country_code:
-                        db_team.country_code = country
-                    if elo and (not db_team.elo or db_team.elo == 1500):
-                        db_team.elo = elo
-                    db.flush()
-                    
-                team_map[t_name] = db_team
-                
-                # Link TournamentTeam
-                tt = db.query(TournamentTeam).filter(
-                    TournamentTeam.tournament_id == tourney.id,
-                    TournamentTeam.team_id == db_team.id
-                ).first()
-                if not tt:
-                    tt = TournamentTeam(
-                        tournament_id=tourney.id,
-                        team_id=db_team.id,
-                        group_name=None,
-                        tournament_status="Active"
-                    )
-                    db.add(tt)
-            db.flush()
-            
-            # Seed / Upsert Fixtures
-            fixtures_saved = []
-            for f_info in comp_data.get("fixtures", []):
-                h_name = normalizer.normalize(f_info["home"])
-                a_name = normalizer.normalize(f_info["away"])
-                h_team = team_map.get(h_name) or db.query(Team).filter(Team.name == h_name).first()
-                a_team = team_map.get(a_name) or db.query(Team).filter(Team.name == a_name).first()
-                
-                if not h_team or not a_team:
-                    continue
-                    
-                matchday = f_info.get("matchday")
-                stage = f_info.get("stage", "League Phase")
-                leg_number = f_info.get("leg_number", 1)
-                date_utc_str = f_info.get("date_utc")
-                date_utc = datetime.fromisoformat(date_utc_str.replace("Z", "+00:00"))
-                
-                fixture = db.query(Fixture).filter(
-                    Fixture.tournament_id == tourney.id,
-                    Fixture.home_team_id == h_team.id,
-                    Fixture.away_team_id == a_team.id,
-                    Fixture.stage == stage,
-                    Fixture.leg_number == leg_number
-                ).first()
-                
-                if not fixture:
-                    fixture = Fixture(
-                        tournament_id=tourney.id,
-                        home_team_id=h_team.id,
-                        away_team_id=a_team.id,
-                        date_utc=date_utc,
-                        stage=stage,
-                        matchday_number=matchday,
-                        leg_number=leg_number,
-                        status="Scheduled"
-                    )
-                    db.add(fixture)
-                    db.flush()
-                else:
-                    fixture.date_utc = date_utc
-                    fixture.stage = stage
-                    fixture.matchday_number = matchday
-                    fixture.leg_number = leg_number
-                    db.flush()
-                    
-                # Odds
-                if not fixture.odds_history:
-                    h_elo = h_team.elo if h_team else 1500
-                    a_elo = a_team.elo if a_team else 1500
-                    h_odds, d_odds, a_odds = calculate_default_odds(h_elo, a_elo, home_advantage=home_adv, neutral_venue=False)
-                    init_odds = FixtureOdds(
-                        fixture_id=fixture.id,
-                        recorded_at=fixture.date_utc - timedelta(days=2),
-                        odds_home=h_odds,
-                        odds_draw=d_odds,
-                        odds_away=a_odds
-                    )
-                    db.add(init_odds)
-                    
-                db.flush()
-                update_fixture_score(fixture, db)
-                fixtures_saved.append(fixture)
-                
-            from backend.services.standings import recalculate_standings
-            recalculate_standings(db, tourney.id)
-            db.commit()
-            
-            results[comp_name] = f"Successfully seeded {len(comp_data.get('teams', []))} teams and {len(fixtures_saved)} fixtures"
-            print(f"[{comp_name}] {results[comp_name]}")
-        except Exception as e:
-            db.rollback()
-            results[comp_name] = f"Error: {e}"
-            print(f"Error seeding {comp_name}: {e}")
-            
-    return results
+DEFAULT_LEAGUES_BY_ID = {item[3]: item for item in DEFAULT_LEAGUES_TO_SEED}

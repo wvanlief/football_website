@@ -9,6 +9,60 @@ from backend.database import Team, TournamentTeam, Fixture
 import backend.crud.fixture as crud_fixture
 import backend.crud.team as crud_team
 
+_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+_PROBABILITIES_CACHE: dict[int, tuple[float, dict]] = {}
+
+
+def _canonical_tournament_id(tournament_id: int | None) -> int:
+    """World Cup legacy file is keyed as tournament 1 when the id is omitted."""
+    return 1 if tournament_id is None else tournament_id
+
+
+def results_path(tournament_id: int | None) -> str:
+    """Return the on-disk path for a tournament's simulation results."""
+    tid = _canonical_tournament_id(tournament_id)
+    if tid == 1:
+        return os.path.join(_DATA_DIR, "simulation_results.json")
+    return os.path.join(_DATA_DIR, f"simulation_results_{tid}.json")
+
+
+def get_probabilities(tournament_id: int | None) -> dict:
+    """Return the cached simulation-results payload for a tournament.
+
+    Reads ``simulation_results.json`` (World Cup / id 1) or
+    ``simulation_results_{id}.json`` for other tournaments.  Returns ``{}``
+    when no file exists or it cannot be parsed.  Cache is keyed by tournament
+    id and invalidated when the file mtime changes.
+    """
+    tid = _canonical_tournament_id(tournament_id)
+    path = results_path(tid)
+    if not os.path.exists(path):
+        _PROBABILITIES_CACHE.pop(tid, None)
+        return {}
+    try:
+        mtime = os.path.getmtime(path)
+        cached = _PROBABILITIES_CACHE.get(tid)
+        if cached and cached[0] == mtime:
+            return cached[1]
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return {}
+        _PROBABILITIES_CACHE[tid] = (mtime, data)
+        return data
+    except Exception:
+        return {}
+
+
+def save_probabilities(tournament_id: int | None, payload: dict) -> None:
+    """Persist simulation results for a tournament and refresh the memory cache."""
+    path = results_path(tournament_id)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+    tid = _canonical_tournament_id(tournament_id)
+    _PROBABILITIES_CACHE[tid] = (os.path.getmtime(path), payload)
+
 def simulate_group_stage(db: Session) -> dict:
     teams = crud_team.get_all_teams(db)
     tts = db.query(TournamentTeam).all()
@@ -154,15 +208,9 @@ def assign_third_placed_bipartite(best_thirds: list) -> dict:
 
 
 def simulate_bracket(db: Session, tournament_id: int = None) -> dict:
-    file_path = os.path.join(os.path.dirname(__file__), "..", "data", "simulation_results.json")
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-            
-    # File not found or corrupt -> generate it
+    cached = get_probabilities(tournament_id)
+    if cached:
+        return cached
     return run_monte_carlo_simulation(db, tournament_id=tournament_id)
 
 
@@ -649,14 +697,7 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000, tournam
         "num_simulations": num_simulations
     }
     
-    # Save to file if default World Cup
-    if tournament_id is None or tournament_id == 1:
-        file_dir = os.path.join(os.path.dirname(__file__), "..", "data")
-        os.makedirs(file_dir, exist_ok=True)
-        file_path = os.path.join(file_dir, "simulation_results.json")
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2)
-            
+    save_probabilities(tournament_id, result)
     return result
 
 

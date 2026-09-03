@@ -1,11 +1,10 @@
 import os
-import json
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
-from backend.database import Team, Fixture, Tournament, Competition, FixtureOdds, EloHistory
+from backend.database import Team, Fixture, Tournament, Competition, FixtureOdds
 from backend.services.ingestion import NameNormalizer
 from backend.services.odds import calculate_default_odds
 from backend.services.lifecycle import finish_fixture
@@ -95,6 +94,56 @@ def map_api_football_round_to_type_key(round_str: str) -> str:
     return "group"
 
 
+def find_fixture_by_teams(
+    fixtures: list[Fixture],
+    home_name: str,
+    away_name: str,
+    normalizer: NameNormalizer,
+    teams_map: dict[int, str] | None = None,
+    stage: str | None = None,
+) -> Fixture | None:
+    """Fuzzy-match a fixture by home/away names, optionally preferring a stage."""
+    if not home_name or not away_name:
+        return None
+    teams_map = teams_map or {}
+
+    def _names(f: Fixture) -> tuple[str, str]:
+        f_h = teams_map.get(f.home_team_id, "") or (f.home_team.name if f.home_team else "")
+        f_a = teams_map.get(f.away_team_id, "") or (f.away_team.name if f.away_team else "")
+        return f_h, f_a
+
+    def _matches(f: Fixture) -> bool:
+        f_h, f_a = _names(f)
+        if f_h and f_a and normalizer.match_names(f_h, home_name) and normalizer.match_names(f_a, away_name):
+            return True
+        if (
+            f.home_team
+            and f.away_team
+            and normalizer.match_names(f.home_team.name, home_name)
+            and normalizer.match_names(f.away_team.name, away_name)
+        ):
+            return True
+        return False
+
+    if stage:
+        for f in fixtures:
+            if f.stage == stage and _matches(f):
+                return f
+    for f in fixtures:
+        if _matches(f):
+            return f
+    return None
+
+
+def _unfinished_fixtures(db: Session, tournament_id: int) -> tuple[list[Fixture], dict[int, str]]:
+    fixtures = db.query(Fixture).filter(
+        Fixture.tournament_id == tournament_id,
+        Fixture.status != "Finished",
+    ).all()
+    teams_map = {t.id: t.name for t in db.query(Team).all()}
+    return fixtures, teams_map
+
+
 class BaseFormatAdapter:
     """Abstract base adapter for format-specific result and live score updates."""
     def sync_results(self, db: Session, tourney: Tournament) -> tuple[int, int]:
@@ -117,7 +166,28 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
     Unified competition adapter for data sync (results and live scores).
     Decoupled from UI format engines (format_engine field: 'league', 'cup', 'group_knockout', etc.).
     Uses competition's api_league_id to dynamically query external APIs.
+
+    Optional fetch callables are injected for tests; production resolves them from
+    ``backend.services.updater`` at call time so ``@patch`` still works.
     """
+    def __init__(
+        self,
+        fetch_json=None,
+        fetch_json_with_retry=None,
+        call_football_api=None,
+    ):
+        self._fetch_json = fetch_json
+        self._fetch_json_with_retry = fetch_json_with_retry
+        self._call_football_api = call_football_api
+
+    def _providers(self):
+        import backend.services.updater as updater_module
+        return (
+            self._fetch_json or updater_module.fetch_json,
+            self._fetch_json_with_retry or updater_module.fetch_json_with_retry,
+            self._call_football_api or updater_module.call_football_api,
+        )
+
     def sync_results(self, db: Session, tourney: Tournament) -> tuple[int, int]:
         """
         Syncs fixture results from API-Football for a tournament.
@@ -152,21 +222,21 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
 
             
         print(f"Fetching fixtures from API-Football for comp='{comp.name}' (league={league_id}, season={api_season})...")
-        
-        import backend.services.updater as updater_module
+
+        fetch_json, _fetch_retry, call_football_api = self._providers()
         res = None
         try:
-            res = updater_module.call_football_api("fixtures", {"league": league_id, "season": api_season})
+            res = call_football_api("fixtures", {"league": league_id, "season": api_season})
         except Exception as e:
             print(f"Error calling football API for comp '{comp.name}': {e}")
-            
+
         # Fallback / mock response hook for testing environments
         if not res or not isinstance(res, dict) or "response" not in res or not res.get("response"):
             try:
-                raw_games = updater_module.fetch_json("https://api.football-data.org/v4/games")
+                raw_games = fetch_json("https://api.football-data.org/v4/games")
                 raw_teams = []
                 try:
-                    res_teams = updater_module.fetch_json("https://api.football-data.org/v4/teams")
+                    res_teams = fetch_json("https://api.football-data.org/v4/teams")
                     raw_teams = res_teams.get("teams") if isinstance(res_teams, dict) else (res_teams if isinstance(res_teams, list) else [])
                 except Exception:
                     pass
@@ -337,40 +407,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                 fixture.away_score = feed_away_score
 
         try:
-            if comp.type == "International" or "World Cup" in comp.name:
-                live_elo = elo_service.fetch_current_elo_ratings()
-                if live_elo:
-                    db_teams = db.query(Team).all()
-                    for team in db_teams:
-                        fetched_elo = live_elo.get(team.name)
-                        if fetched_elo is not None and team.elo != fetched_elo:
-                            team.elo = fetched_elo
-                            team.form_score = elo_service.elo_to_form(fetched_elo)
-                            elo_service.record_elo_history(db, team.id, fetched_elo, now_time)
-            else:
-                last_club_sync = db.query(EloHistory).join(Team).filter(Team.elo_source == "clubelo").order_by(EloHistory.recorded_at.desc()).first()
-                if not last_club_sync or last_club_sync.recorded_at.date() < now_time.date():
-                    print("Syncing Elo ratings from ClubElo...")
-                    club_ratings = elo_service.fetch_clubelo_ratings()
-                    if club_ratings:
-                        review_path = "backend/data/elo_name_review.json"
-                        name_map = {}
-                        if os.path.exists(review_path):
-                            with open(review_path, "r", encoding="utf-8") as f:
-                                mappings = json.load(f)
-                            name_map = {m["api_football_name"]: m["clubelo_name"] for m in mappings}
-
-                        db_club_teams = db.query(Team).filter(Team.elo_source == "clubelo").all()
-                        teams_updated = 0
-                        for team in db_club_teams:
-                            clubelo_name = name_map.get(team.name, team.name)
-                            fetched_elo = club_ratings.get(clubelo_name)
-                            if fetched_elo is not None and team.elo != fetched_elo:
-                                team.elo = fetched_elo
-                                team.form_score = elo_service.elo_to_form(fetched_elo)
-                                elo_service.record_elo_history(db, team.id, fetched_elo, now_time)
-                                teams_updated += 1
-                        print(f"Successfully synced ClubElo ratings. Updated {teams_updated} teams.")
+            elo_service.sync_ratings_for_competition(db, comp, now_time)
         except Exception as e:
             print(f"Warning: Failed to sync Elo ratings: {e}")
 
@@ -380,124 +417,81 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
     def sync_live_scores(self, db: Session, tourney: Tournament) -> tuple[int, int]:
         """
         Syncs live match scores for a tournament from multiple data sources.
-        Attempts Football-Data.org API first, then falls back to testing hooks.
-        Returns (fixtures_updated_live, fixtures_finished).
+        Attempts Football-Data.org API first, then falls back to games-format
+        and API-Football retry hooks. Returns (fixtures_updated_live, fixtures_finished).
         """
         comp = tourney.competition
         if not comp:
             return 0, 0
 
         normalizer = NameNormalizer()
-        now_time = datetime.now(timezone.utc)
         fixtures_updated = 0
         fixtures_finished = 0
+        fetch_json, fetch_json_with_retry, _call_api = self._providers()
 
-        import backend.services.updater as updater_module
+        def _apply_games_feed(games_list) -> tuple[int, int]:
+            db_tourney_fixtures, db_teams_map = _unfinished_fixtures(db, tourney.id)
+            updated = 0
+            finished = 0
+            for g in games_list:
+                api_match_id = str(g.get("id"))
+                h_name = normalizer.normalize(g.get("home_team_name_en") or "")
+                a_name = normalizer.normalize(g.get("away_team_name_en") or "")
+                is_finished = g.get("finished") == "TRUE"
+                feed_h_score = int(g["home_score"]) if g.get("home_score") not in (None, "null") else None
+                feed_a_score = int(g["away_score"]) if g.get("away_score") not in (None, "null") else None
 
-        # Check if fetch_json is mocked in unit tests (e.g. @patch("backend.services.updater.fetch_json"))
-        is_mocked = hasattr(updater_module.fetch_json, "return_value") or type(getattr(updater_module, "fetch_json", None)).__name__ in ("MagicMock", "Mock")
+                matching_fixture = db.query(Fixture).filter(
+                    Fixture.tournament_id == tourney.id,
+                    Fixture.api_id == api_match_id,
+                ).first()
+                if not matching_fixture:
+                    matching_fixture = find_fixture_by_teams(
+                        db_tourney_fixtures,
+                        h_name,
+                        a_name,
+                        normalizer,
+                        db_teams_map,
+                        stage=STAGE_MAPPING.get(g.get("type")),
+                    )
+                if not matching_fixture:
+                    continue
+                if not matching_fixture.api_id:
+                    matching_fixture.api_id = api_match_id
+                if is_finished:
+                    finish_fixture(matching_fixture, feed_h_score, feed_a_score, db, update_standings=False)
+                    finished += 1
+                else:
+                    matching_fixture.status = "Live"
+                    matching_fixture.home_score = feed_h_score
+                    matching_fixture.away_score = feed_a_score
+                    db.add(matching_fixture)
+                    updated += 1
+            return updated, finished
 
-        if is_mocked:
-            try:
-                res_json = updater_module.fetch_json("https://api.football-data.org/v4/games", use_cache=False)
-                if isinstance(res_json, dict) and "games" in res_json:
-                    games_list = res_json["games"]
-                    db_tourney_fixtures = db.query(Fixture).filter(
-                        Fixture.tournament_id == tourney.id,
-                        Fixture.status != "Finished"
-                    ).all()
-                    db_teams_map = {t.id: t.name for t in db.query(Team).all()}
-
-                    for g in games_list:
-                        api_match_id = str(g.get("id"))
-                        h_name = normalizer.normalize(g.get("home_team_name_en") or "")
-                        a_name = normalizer.normalize(g.get("away_team_name_en") or "")
-                        is_finished = g.get("finished") == "TRUE"
-                        feed_h_score = int(g["home_score"]) if g.get("home_score") not in (None, 'null') else None
-                        feed_a_score = int(g["away_score"]) if g.get("away_score") not in (None, 'null') else None
-
-                        matching_fixture = db.query(Fixture).filter(
-                            Fixture.tournament_id == tourney.id,
-                            Fixture.api_id == api_match_id
-                        ).first()
-
-                        target_stage = STAGE_MAPPING.get(g.get("type"))
-
-                        if not matching_fixture and h_name and a_name:
-                            if target_stage:
-                                for f in db_tourney_fixtures:
-                                    if f.stage == target_stage:
-                                        f_h = db_teams_map.get(f.home_team_id, "")
-                                        f_a = db_teams_map.get(f.away_team_id, "")
-                                        if f_h and f_a and normalizer.match_names(f_h, h_name) and normalizer.match_names(f_a, a_name):
-                                            matching_fixture = f
-                                            break
-
-                            if not matching_fixture:
-                                for f in db_tourney_fixtures:
-                                    f_h = db_teams_map.get(f.home_team_id, "")
-                                    f_a = db_teams_map.get(f.away_team_id, "")
-                                    if (f_h and f_a and normalizer.match_names(f_h, h_name) and normalizer.match_names(f_a, a_name)) or (f.home_team and f.away_team and normalizer.match_names(f.home_team.name, h_name) and normalizer.match_names(f.away_team.name, a_name)):
-                                        matching_fixture = f
-                                        break
-
-                        if not matching_fixture:
-                            continue
-
-                        if not matching_fixture.api_id:
-                            matching_fixture.api_id = api_match_id
-
-                        if is_finished:
-                            finish_fixture(matching_fixture, feed_h_score, feed_a_score, db, update_standings=False)
-                            fixtures_finished += 1
-                        else:
-                            matching_fixture.status = "Live"
-                            matching_fixture.home_score = feed_h_score
-                            matching_fixture.away_score = feed_a_score
-                            db.add(matching_fixture)
-                            fixtures_updated += 1
-
-                    db.commit()
-                    return fixtures_updated, fixtures_finished
-            except Exception:
-                pass
-
-        # 1. Primary Attempt: Football-Data.org (if API key is present)
+        # 1. Football-Data.org matches endpoint when a key is present
         api_key = os.getenv("FOOTBALL_DATA_API_KEY") or os.getenv("FOOTBALL_DATA_ORG_KEY")
         if api_key:
             url = "https://api.football-data.org/v4/matches"
             headers = {"X-Auth-Token": api_key}
             try:
-                res = updater_module.fetch_json_with_retry(url, headers=headers, use_cache=False, provider="football_data_org")
+                res = fetch_json_with_retry(url, headers=headers, use_cache=False, provider="football_data_org")
                 if isinstance(res, dict) and "matches" in res and res["matches"]:
-                    api_matches = res["matches"]
-                    db_tourney_fixtures = db.query(Fixture).filter(
-                        Fixture.tournament_id == tourney.id,
-                        Fixture.status != "Finished"
-                    ).all()
-                    
-                    db_teams_map = {t.id: t.name for t in db.query(Team).all()}
-                    for m in api_matches:
-                        api_home = m.get("homeTeam", {}).get("name")
-                        api_away = m.get("awayTeam", {}).get("name")
-                        api_status = m.get("status")
-                        
-                        matching_fixture = None
-                        for f in db_tourney_fixtures:
-                            f_h = db_teams_map.get(f.home_team_id, "") or (f.home_team.name if f.home_team else "")
-                            f_a = db_teams_map.get(f.away_team_id, "") or (f.away_team.name if f.away_team else "")
-                            if f_h and f_a:
-                                if normalizer.match_names(f_h, api_home) and normalizer.match_names(f_a, api_away):
-                                    matching_fixture = f
-                                    break
-                                    
+                    db_tourney_fixtures, db_teams_map = _unfinished_fixtures(db, tourney.id)
+                    for m in res["matches"]:
+                        matching_fixture = find_fixture_by_teams(
+                            db_tourney_fixtures,
+                            m.get("homeTeam", {}).get("name"),
+                            m.get("awayTeam", {}).get("name"),
+                            normalizer,
+                            db_teams_map,
+                        )
                         if not matching_fixture:
                             continue
-                            
+                        api_status = m.get("status")
                         score_info = m.get("score", {}).get("fullTime", {})
                         feed_home_score = score_info.get("home")
                         feed_away_score = score_info.get("away")
-                        
                         if api_status in ("FINISHED", "FT", "AET", "PEN"):
                             finish_fixture(matching_fixture, feed_home_score, feed_away_score, db, update_standings=False)
                             fixtures_finished += 1
@@ -510,107 +504,38 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                             matching_fixture.status = "Scheduled"
                             matching_fixture.home_score = None
                             matching_fixture.away_score = None
-
                     db.commit()
                     return fixtures_updated, fixtures_finished
             except Exception as e:
                 print(f"Error fetching live scores from Football-Data.org: {e}")
 
-        # 2. Secondary / Testing Mock Hook Check
+        # 2. Games-format feed (also the injected-mock path)
         try:
-            res_json = updater_module.fetch_json("https://api.football-data.org/v4/games", use_cache=False)
+            res_json = fetch_json("https://api.football-data.org/v4/games", use_cache=False)
             if isinstance(res_json, dict) and "games" in res_json:
-                games_list = res_json["games"]
-                db_tourney_fixtures = db.query(Fixture).filter(
-                    Fixture.tournament_id == tourney.id,
-                    Fixture.status != "Finished"
-                ).all()
-                db_teams_map = {t.id: t.name for t in db.query(Team).all()}
-
-                for g in games_list:
-                    api_match_id = str(g.get("id"))
-                    h_name = normalizer.normalize(g.get("home_team_name_en") or "")
-                    a_name = normalizer.normalize(g.get("away_team_name_en") or "")
-                    is_finished = g.get("finished") == "TRUE"
-                    feed_h_score = int(g["home_score"]) if g.get("home_score") not in (None, 'null') else None
-                    feed_a_score = int(g["away_score"]) if g.get("away_score") not in (None, 'null') else None
-
-                    matching_fixture = db.query(Fixture).filter(
-                        Fixture.tournament_id == tourney.id,
-                        Fixture.api_id == api_match_id
-                    ).first()
-
-                    target_stage = STAGE_MAPPING.get(g.get("type"))
-
-                    if not matching_fixture and h_name and a_name:
-                        if target_stage:
-                            for f in db_tourney_fixtures:
-                                if f.stage == target_stage:
-                                    f_h = db_teams_map.get(f.home_team_id, "")
-                                    f_a = db_teams_map.get(f.away_team_id, "")
-                                    if f_h and f_a and normalizer.match_names(f_h, h_name) and normalizer.match_names(f_a, a_name):
-                                        matching_fixture = f
-                                        break
-
-                        if not matching_fixture:
-                            for f in db_tourney_fixtures:
-                                f_h = db_teams_map.get(f.home_team_id, "")
-                                f_a = db_teams_map.get(f.away_team_id, "")
-                                if (f_h and f_a and normalizer.match_names(f_h, h_name) and normalizer.match_names(f_a, a_name)) or (f.home_team and f.away_team and normalizer.match_names(f.home_team.name, h_name) and normalizer.match_names(f.away_team.name, a_name)):
-                                    matching_fixture = f
-                                    break
-
-                    if not matching_fixture:
-                        continue
-
-                    if not matching_fixture.api_id:
-                        matching_fixture.api_id = api_match_id
-
-                    if is_finished:
-                        finish_fixture(matching_fixture, feed_h_score, feed_a_score, db, update_standings=False)
-                        fixtures_finished += 1
-                    else:
-                        matching_fixture.status = "Live"
-                        matching_fixture.home_score = feed_h_score
-                        matching_fixture.away_score = feed_a_score
-                        db.add(matching_fixture)
-                        fixtures_updated += 1
-
+                fixtures_updated, fixtures_finished = _apply_games_feed(res_json["games"])
+                db.commit()
                 return fixtures_updated, fixtures_finished
         except Exception:
             pass
 
-        # 3. Fallback to API-Football fallback retry hook (for mock tests)
+        # 3. API-Football-shaped retry hook
         try:
-            res_retry = updater_module.fetch_json_with_retry("https://v3.football-data.org/fixtures", use_cache=False)
+            res_retry = fetch_json_with_retry("https://v3.football-data.org/fixtures", use_cache=False)
             if isinstance(res_retry, dict) and "response" in res_retry:
-                raw_list = res_retry["response"]
-                db_tourney_fixtures = db.query(Fixture).filter(
-                    Fixture.tournament_id == tourney.id,
-                    Fixture.status != "Finished"
-                ).all()
-                db_teams_map = {t.id: t.name for t in db.query(Team).all()}
-
-                for item in raw_list:
+                db_tourney_fixtures, db_teams_map = _unfinished_fixtures(db, tourney.id)
+                for item in res_retry["response"]:
                     f_info = item.get("fixture", {})
                     t_info = item.get("teams", {})
                     goals = item.get("goals", {})
                     status_short = f_info.get("status", {}).get("short", "")
-                    
                     h_name = normalizer.normalize(t_info.get("home", {}).get("name", ""))
                     a_name = normalizer.normalize(t_info.get("away", {}).get("name", ""))
-
-                    matching_fixture = None
-                    for f in db_tourney_fixtures:
-                        f_h = db_teams_map.get(f.home_team_id, "")
-                        f_a = db_teams_map.get(f.away_team_id, "")
-                        if f_h and f_a and normalizer.match_names(f_h, h_name) and normalizer.match_names(f_a, a_name):
-                            matching_fixture = f
-                            break
-
+                    matching_fixture = find_fixture_by_teams(
+                        db_tourney_fixtures, h_name, a_name, normalizer, db_teams_map,
+                    )
                     if not matching_fixture:
                         continue
-
                     feed_h = goals.get("home")
                     feed_a = goals.get("away")
                     status = parse_match_status(status_short, default="Scheduled")
@@ -619,12 +544,10 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                         fixtures_finished += 1
                     else:
                         matching_fixture.status = status
-
                     if status == "Live":
                         matching_fixture.home_score = feed_h
                         matching_fixture.away_score = feed_a
                         fixtures_updated += 1
-
                 db.commit()
                 return fixtures_updated, fixtures_finished
         except Exception:
@@ -633,9 +556,20 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
         return fixtures_updated, fixtures_finished
 
 
-def get_format_adapter(format_engine: str, competition_name: str = "") -> BaseFormatAdapter:
+def get_format_adapter(
+    format_engine: str,
+    competition_name: str = "",
+    fetch_json=None,
+    fetch_json_with_retry=None,
+    call_football_api=None,
+) -> BaseFormatAdapter:
     """
     Factory method returning the unified CompetitionSyncAdapter for data ingestion.
     Format engine and competition name are accepted for backward compatibility but are no longer used.
+    Optional fetch callables are forwarded for test dependency injection.
     """
-    return CompetitionSyncAdapter()
+    return CompetitionSyncAdapter(
+        fetch_json=fetch_json,
+        fetch_json_with_retry=fetch_json_with_retry,
+        call_football_api=call_football_api,
+    )
