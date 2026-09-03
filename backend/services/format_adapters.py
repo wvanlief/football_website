@@ -350,7 +350,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                         fetched_elo = live_elo.get(team.name)
                         if fetched_elo is not None and team.elo != fetched_elo:
                             team.elo = fetched_elo
-                            team.form_score = round(min(95.0, max(45.0, 50.0 + (fetched_elo - 1500) * 0.05)), 1)
+                            team.form_score = elo_service.elo_to_form(fetched_elo)
                             elo_service.record_elo_history(db, team.id, fetched_elo, now_time)
             else:
                 last_club_sync = db.query(EloHistory).join(Team).filter(Team.elo_source == "clubelo").order_by(EloHistory.recorded_at.desc()).first()
@@ -372,7 +372,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                             fetched_elo = club_ratings.get(clubelo_name)
                             if fetched_elo is not None and team.elo != fetched_elo:
                                 team.elo = fetched_elo
-                                team.form_score = round(min(95.0, max(45.0, 50.0 + (fetched_elo - 1500) * 0.05)), 1)
+                                team.form_score = elo_service.elo_to_form(fetched_elo)
                                 elo_service.record_elo_history(db, team.id, fetched_elo, now_time)
                                 teams_updated += 1
                         print(f"Successfully synced ClubElo ratings. Updated {teams_updated} teams.")
@@ -645,8 +645,3 @@ def get_format_adapter(format_engine: str, competition_name: str = "") -> BaseFo
     Format engine and competition name are accepted for backward compatibility but are no longer used.
     """
     return CompetitionSyncAdapter()
-
-# Backward-compatibility aliases (ensures zero breaking changes for existing imports)
-LeagueFormatAdapter = CompetitionSyncAdapter
-GroupKnockoutAdapter = CompetitionSyncAdapter
-fetch_games_with_fallback = lambda *args, **kwargs: ([], False)

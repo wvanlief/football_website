@@ -4774,16 +4774,14 @@ body.theme-flag .country-hero-flag-bg {
 }
 
 /* COMPACT 50% SCALED CARDS & COLUMNS */
-.triptych-container,
-.proto-variant-c .triptych-container {
+.triptych-container {
     display: grid !important;
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     gap: 0.65rem !important;
     width: 100% !important;
 }
 
-.triptych-column,
-.proto-variant-c .triptych-column {
+.triptych-column {
     padding: 0.6rem 0.65rem !important;
     gap: 0.5rem !important;
     min-height: auto !important;
@@ -4791,30 +4789,25 @@ body.theme-flag .country-hero-flag-bg {
     overflow: hidden !important;
 }
 
-.column-header h2,
-.proto-variant-c .column-header h2 {
+.column-header h2 {
     font-size: 1rem !important;
 }
 
-.match-list,
-.proto-variant-c .match-list {
+.match-list {
     gap: 0.45rem !important;
 }
 
 /* LOWER TRANSPARENCY OF BACKGROUND TEAM BADGE WATERMARK */
-.card-flag-bg,
-.proto-variant-c .card-flag-bg {
+.card-flag-bg {
     opacity: 0.15 !important;
 }
 
-.match-card:hover .card-flag-bg,
-.proto-variant-c .match-card:hover .card-flag-bg {
+.match-card:hover .card-flag-bg {
     opacity: 0.25 !important;
 }
 
 /* SLEEK RECTANGULAR COMPACT CARD (~65px HEIGHT) */
-.match-card,
-.proto-variant-c .match-card {
+.match-card {
     padding: 0.45rem 0.6rem !important;
     border-radius: 8px !important;
     box-sizing: border-box !important;
@@ -4827,23 +4820,16 @@ body.theme-flag .country-hero-flag-bg {
 .match-card .odds-row,
 .match-card .narrative-snippet,
 .match-card .reason-box,
-.match-card .match-reason,
-.proto-variant-c .match-card .card-footer,
-.proto-variant-c .match-card .odds-row,
-.proto-variant-c .match-card .narrative-snippet,
-.proto-variant-c .match-card .reason-box,
-.proto-variant-c .match-card .match-reason {
+.match-card .match-reason {
     display: none !important;
 }
 
-.match-card .card-header,
-.proto-variant-c .match-card .card-header {
+.match-card .card-header {
     margin-bottom: 0.2rem !important;
 }
 
 /* Grid layout: Home (1fr) | Center (auto) | Away (1fr) */
-.card-matchup,
-.proto-variant-c .card-matchup {
+.card-matchup {
     display: grid !important;
     grid-template-columns: 1fr auto 1fr !important;
     gap: 0.25rem !important;
@@ -4853,27 +4839,23 @@ body.theme-flag .country-hero-flag-bg {
     overflow: hidden !important;
 }
 
-.team-box,
-.proto-variant-c .team-box {
+.team-box {
     width: 100% !important;
     min-width: 0 !important;
     overflow: hidden !important;
 }
 
-.team-box.home,
-.proto-variant-c .team-box.home {
+.team-box.home {
     align-items: flex-start !important;
     text-align: left !important;
 }
 
-.team-box.away,
-.proto-variant-c .team-box.away {
+.team-box.away {
     align-items: flex-end !important;
     text-align: right !important;
 }
 
-.team-identity,
-.proto-variant-c .team-identity {
+.team-identity {
     display: flex !important;
     align-items: center !important;
     gap: 0.3rem !important;
@@ -4881,14 +4863,12 @@ body.theme-flag .country-hero-flag-bg {
     min-width: 0 !important;
 }
 
-.team-identity.away-identity,
-.proto-variant-c .team-identity.away-identity {
+.team-identity.away-identity {
     flex-direction: row-reverse !important;
     justify-content: flex-start !important;
 }
 
-.team-identity .team-name,
-.proto-variant-c .team-identity .team-name {
+.team-identity .team-name {
     font-size: 0.74rem !important;
     font-weight: 700 !important;
     white-space: nowrap !important;
@@ -4900,7 +4880,6 @@ body.theme-flag .country-hero-flag-bg {
 }
 
 .team-identity .team-flag,
-.proto-variant-c .team-identity .team-flag,
 .ticker-flag {
     width: 22px !important;
     height: 22px !important;
@@ -4911,8 +4890,7 @@ body.theme-flag .country-hero-flag-bg {
     flex-shrink: 0 !important;
 }
 
-.match-info-center,
-.proto-variant-c .match-info-center {
+.match-info-center {
     width: auto !important;
     min-width: 44px !important;
     margin: 0 0.2rem !important;
@@ -4920,40 +4898,34 @@ body.theme-flag .country-hero-flag-bg {
 }
 
 .match-card .match-score,
-.match-card .match-time,
-.proto-variant-c .match-card .match-score,
-.proto-variant-c .match-card .match-time {
+.match-card .match-time {
     font-size: 0.8rem !important;
     font-weight: 800 !important;
 }
 
-.match-vs,
-.proto-variant-c .match-vs {
+.match-vs {
     font-size: 0.65rem !important;
     display: none !important;
     /* Hide vs to save vertical height */
 }
 
-.match-card .elo-val,
-.proto-variant-c .match-card .elo-val {
+.match-card .elo-val {
     font-size: 0.6rem !important;
     margin-top: 0.05rem !important;
 }
 
-.match-card .tile-date-title,
-.proto-variant-c .match-card .tile-date-title {
+.match-card .tile-date-title {
     font-size: 0.65rem !important;
     margin-bottom: 0.2rem !important;
     padding-bottom: 0.2rem !important;
 }
 
 .match-card .stage-tag,
-.match-card .competition-badge,
-.proto-variant-c .match-card .stage-tag,
-.proto-variant-c .match-card .competition-badge {
+.match-card .competition-badge {
     font-size: 0.6rem !important;
     padding: 1px 5px !important;
 }
+
 
 /* ==========================================================================
    HERO MATCH SPOTLIGHT COMPONENT (Issue #67)

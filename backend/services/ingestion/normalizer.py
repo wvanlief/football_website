@@ -1,10 +1,4 @@
-import os
-import json
-import hashlib
-from datetime import datetime, timezone
-from typing import Any, Optional, Dict
-
-from backend.utils import fetch_json_with_retry
+from typing import Optional, Dict
 
 # 3-Letter ISO Country Code Mapping for National Teams
 COUNTRY_ISO_MAP: Dict[str, str] = {
@@ -117,57 +111,24 @@ COUNTRY_ISO_MAP: Dict[str, str] = {
     "Indonesia": "IDN",
 }
 
-class CacheAdapter:
-    """
-    Adapter providing local filesystem caching for API requests.
-    Supports date-prefixed namespacing and explicit cache control.
-    """
-    def __init__(self, cache_dir: str = os.path.join("backend", "data", "cache")):
-        self.cache_dir = cache_dir
-
-    def get_cache_path(self, url: str, headers: Optional[dict] = None) -> str:
-        """
-        Generates a date-prefixed cache file path for a URL and headers combination.
-        Uses MD5 hash to ensure unique cache keys.
-        """
-        headers_str = json.dumps(headers or {}, sort_keys=True)
-        hash_input = f"{url}||{headers_str}".encode('utf-8')
-        h = hashlib.md5(hash_input).hexdigest()
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        filename = f"{today}_{h}.json"
-        return os.path.join(self.cache_dir, filename)
-
-    def fetch_json(self, url: str, headers: Optional[dict] = None, use_cache: bool = True) -> Any:
-        """
-        Fetches JSON from a URL with retry logic and optional caching.
-        Delegates to fetch_json_with_retry utility function.
-        """
-        return fetch_json_with_retry(url, headers=headers, use_cache=use_cache)
-
-    def is_cached(self, url: str, headers: Optional[dict] = None) -> bool:
-        """Checks if a cached response exists for the given URL and headers."""
-        path = self.get_cache_path(url, headers)
-        return os.path.exists(path)
-
-    def clear_cache(self) -> int:
-        """Clears all cached files in the cache directory."""
-        if not os.path.exists(self.cache_dir):
-            return 0
-        count = 0
-        for filename in os.listdir(self.cache_dir):
-            file_path = os.path.join(self.cache_dir, filename)
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-                count += 1
-        return count
-
-
 class NameNormalizer:
     """
     Provides team name normalization, ISO country code mapping, and fuzzy name matching.
+    Implemented as a module singleton so all callers share the same cached instance.
     """
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super(NameNormalizer, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
     def __init__(self, iso_map: Optional[Dict[str, str]] = None):
+        if getattr(self, "_initialized", False):
+            return
         self.iso_map = iso_map if iso_map is not None else COUNTRY_ISO_MAP
+        self._initialized = True
 
     def get_country_code(self, team_name: str) -> Optional[str]:
         """
@@ -223,20 +184,5 @@ class NameNormalizer:
         return False
 
 
-class IngestorService:
-    """
-    High-level service interface for data ingestion and database seeding.
-    """
-    def __init__(self, cache_adapter: Optional[CacheAdapter] = None, normalizer: Optional[NameNormalizer] = None):
-        self.cache = cache_adapter or CacheAdapter()
-        self.normalizer = normalizer or NameNormalizer()
+default_normalizer = NameNormalizer()
 
-    def seed_world_cup(self, db):
-        """Seeds the World Cup 2026 tournament into the database."""
-        from backend.services.seeder import seed_database
-        return seed_database(db)
-
-    def seed_competition(self, db, competition_name: str, season: str):
-        """Seeds a specific competition and season into the database."""
-        from backend.services.seeder import seed_competition
-        return seed_competition(db, competition_name, season)

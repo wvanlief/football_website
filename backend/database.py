@@ -135,6 +135,13 @@ class PlayerContract(Base):
     player = relationship("Player", back_populates="contracts")
     team = relationship("Team", back_populates="contracts")
 
+class FallbackOdds:
+    odds_home: float = 2.0
+    odds_draw: float = 3.0
+    odds_away: float = 2.0
+
+DEFAULT_ODDS = FallbackOdds()
+
 class Fixture(Base):
     __tablename__ = "fixtures"
     
@@ -186,12 +193,7 @@ class Fixture(Base):
     def latest_odds(self):
         if self.odds_history:
             return sorted(self.odds_history, key=lambda o: o.id, reverse=True)[0]
-        # Return a fallback object with default odds so code doesn't crash if no odds are seeded
-        class FallbackOdds:
-            odds_home = 2.0
-            odds_draw = 3.0
-            odds_away = 2.0
-        return FallbackOdds()
+        return DEFAULT_ODDS
 
 class FixtureOdds(Base):
     __tablename__ = "fixture_odds"
@@ -279,14 +281,6 @@ def init_db():
     # Schema changes are managed via Alembic migrations.
     # We still run create_all to ensure simple initializations (e.g. in tests) succeed.
     Base.metadata.create_all(bind=engine)
-    if engine.name == "sqlite":
-        with engine.connect() as conn:
-            try:
-                import sqlalchemy
-                conn.execute(sqlalchemy.text("ALTER TABLE teams ADD COLUMN logo_url VARCHAR;"))
-                conn.commit()
-            except Exception:
-                pass
 
 def get_db():
     db = SessionLocal()

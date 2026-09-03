@@ -12,7 +12,7 @@ from backend.scoring import update_fixture_score
 from backend.utils import fetch_json_with_retry
 from backend.services.ingestion import NameNormalizer, COUNTRY_ISO_MAP
 from backend.services.odds import calculate_default_odds, update_odds_from_api
-from backend.services.elo import fetch_current_elo_ratings, record_elo_history
+from backend.services.elo import fetch_current_elo_ratings, record_elo_history, elo_to_form
 from backend.services.settling import settle_result
 
 NATIONAL_TEAM_ISO_CODES = COUNTRY_ISO_MAP
@@ -146,7 +146,7 @@ def seed_database(db: Session):
     for group, teams_list in GROUPS.items():
         for name in teams_list:
             elo = live_elo.get(name, 1700)
-            form_score = min(95.0, max(45.0, 50.0 + (elo - 1500) * 0.05))
+            form_score = elo_to_form(elo)
             win_streak = 4 if elo > 2000 else (2 if elo > 1850 else 0)
             
             country_code = NameNormalizer().get_country_code(name)
@@ -849,7 +849,7 @@ def seed_european_cups(db: Session, target_league_id: int = None) -> dict:
                         team_type="Club",
                         elo_source="clubelo",
                         elo=elo,
-                        form_score=min(95.0, max(45.0, 50.0 + (elo - 1500) * 0.05)),
+                        form_score=elo_to_form(elo),
                         win_streak=0,
                         draw_streak=0,
                         loss_streak=0

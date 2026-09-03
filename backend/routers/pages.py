@@ -79,7 +79,3 @@ def get_bracket_page():
 def get_calendar_page():
     return FileResponse("frontend/calendar.html", headers=NO_CACHE_HEADERS)
 
-@router.get("/themes")
-def get_themes_page():
-    return FileResponse("frontend/themes/test.html", headers=NO_CACHE_HEADERS)
-

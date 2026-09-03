@@ -1,35 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Country flag mapping using flagcdn codes
-    const COUNTRY_FLAGS = {
-        "Spain": "es", "Argentina": "ar", "France": "fr", "England": "gb-eng",
-        "Brazil": "br", "Portugal": "pt", "Colombia": "co", "Netherlands": "nl",
-        "Germany": "de", "Norway": "no", "Japan": "jp", "Turkey": "tr",
-        "Uruguay": "uy", "Switzerland": "ch", "Senegal": "sn", "Mexico": "mx",
-        "USA": "us", "Canada": "ca", "Morocco": "ma", "Algeria": "dz",
-        "Croatia": "hr", "Ecuador": "ec", "Austria": "at", "Paraguay": "py",
-        "South Korea": "kr", "Australia": "au", "Scotland": "gb-sct",
-        "Iran": "ir", "Uzbekistan": "uz", "Qatar": "qa",
-        "South Africa": "za", "Haiti": "ht", "Curaçao": "cw", "Cape Verde": "cv",
-        "Panama": "pa", "Ghana": "gh", "New Zealand": "nz", "Jordan": "jo",
-        "Czechia": "cz", "Bosnia and Herzegovina": "ba", "Côte d'Ivoire": "ci",
-        "Tunisia": "tn", "Poland": "pl", "Belgium": "be", "Egypt": "eg",
-        "Saudi Arabia": "sa", "Iraq": "iq", "Jamaica": "jm", "Sweden": "se",
-        "Democratic Republic of the Congo": "cd"
-    };
-
-    function getFlagUrl(target, size = 'w40') {
-        if (!target) return '/static/badges/default.png';
-        if (typeof target === 'object') {
-            if (target.logo_url) return target.logo_url;
-            target = target.name || target.team;
-        }
-        if (typeof target === 'string') {
-            const code = COUNTRY_FLAGS[target];
-            if (code) return `https://flagcdn.com/${size}/${code}.png`;
-        }
-        return '/static/badges/default.png';
-    }
-
     // DOM Elements
     const toast = document.getElementById('toast');
     
@@ -380,13 +349,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (leaderboardSort) {
         leaderboardSort.addEventListener('change', renderLeaderboard);
-    }
-
-    function showToast(message) {
-        toast.innerText = message;
-        toast.classList.add('show');
-        setTimeout(() => {
-            toast.classList.remove('show');
-        }, 3000);
     }
 });
