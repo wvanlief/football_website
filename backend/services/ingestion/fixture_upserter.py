@@ -6,7 +6,7 @@ from sqlalchemy import or_, and_
 from backend.database import Fixture, FixtureOdds, Tournament, TournamentTeam, Competition
 from backend.services.ingestion.team_resolver import TeamResolver
 from backend.services.odds import calculate_default_odds
-from backend.services.settling import settle_result
+from backend.services.lifecycle import finish_fixture
 
 
 class UpsertResult:
@@ -155,7 +155,7 @@ class FixtureUpserter:
 
         # 3. Handle score settling or status updates
         if status == "Finished" or (feed_home_score is not None and feed_away_score is not None and status == "Finished"):
-            settle_result(fixture, int(feed_home_score), int(feed_away_score))
+            finish_fixture(fixture, int(feed_home_score), int(feed_away_score), db, update_standings=False)
         elif status == "Live":
             fixture.status = "Live"
             if feed_home_score is not None:

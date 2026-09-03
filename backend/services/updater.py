@@ -7,10 +7,9 @@ from sqlalchemy.orm import Session
 load_dotenv()
 
 from backend.database import Team, Fixture, Tournament, Competition, SessionLocal
-from backend.scoring import update_fixture_score
 from backend.services.ingestion import NameNormalizer
+from backend.services.lifecycle import finish_fixture
 from backend.services.odds import update_odds_from_api, calculate_default_odds
-from backend.services.settling import settle_result
 from backend.services.tournament import propagate_knockout_fixtures, invalidate_fixtures_cache
 
 from backend.services.simulation import run_monte_carlo_simulation
@@ -112,7 +111,9 @@ def sync_global_date_results(db: Session, target_date: str) -> tuple:
             changed = False
             if new_status == "Finished":
                 if fixture.status != "Finished" or fixture.home_score != home_goals or fixture.away_score != away_goals:
-                    settle_result(fixture, home_goals if home_goals is not None else fixture.home_score, away_goals if away_goals is not None else fixture.away_score)
+                    final_home = home_goals if home_goals is not None else fixture.home_score
+                    final_away = away_goals if away_goals is not None else fixture.away_score
+                    finish_fixture(fixture, final_home, final_away, db, update_standings=False)
                     changed = True
             else:
                 if fixture.status != new_status:
@@ -124,12 +125,9 @@ def sync_global_date_results(db: Session, target_date: str) -> tuple:
                 if away_goals is not None and fixture.away_score != away_goals:
                     fixture.away_score = away_goals
                     changed = True
-                
+
             if changed:
-                if fixture.status == "Finished":
-                    settle_result(fixture, fixture.home_score, fixture.away_score)
                 fixtures_updated += 1
-                update_fixture_score(fixture, db)
 
     db.commit()
     print(f"Global sync for {target_date}: updated {fixtures_updated} fixtures.")
@@ -177,7 +175,9 @@ def sync_global_live_scores(db: Session) -> tuple:
                 if fixture.status != "Finished":
                     fixtures_finished += 1
                 if fixture.status != "Finished" or fixture.home_score != home_goals or fixture.away_score != away_goals:
-                    settle_result(fixture, home_goals if home_goals is not None else fixture.home_score, away_goals if away_goals is not None else fixture.away_score)
+                    final_home = home_goals if home_goals is not None else fixture.home_score
+                    final_away = away_goals if away_goals is not None else fixture.away_score
+                    finish_fixture(fixture, final_home, final_away, db, update_standings=False)
                     changed = True
             else:
                 if fixture.status != new_status:
@@ -189,12 +189,9 @@ def sync_global_live_scores(db: Session) -> tuple:
                 if away_goals is not None and fixture.away_score != away_goals:
                     fixture.away_score = away_goals
                     changed = True
-                
+
             if changed:
-                if fixture.status == "Finished":
-                    settle_result(fixture, fixture.home_score, fixture.away_score)
                 fixtures_updated += 1
-                update_fixture_score(fixture, db)
 
     db.commit()
     return fixtures_updated, fixtures_finished

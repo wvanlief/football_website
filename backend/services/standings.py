@@ -65,7 +65,12 @@ def recalculate_tournament_team_standings(db: Session, tournament_id: int):
 
 def recalculate_team_streaks(db: Session):
     """
-    Recalculates win/draw/loss streaks for all teams based on finished fixtures in chronological order.
+    Full bulk recalculation of win/draw/loss streaks for every team from scratch,
+    replaying all finished fixtures in chronological order.
+
+    This is intentionally distinct from ``settling.update_team_streaks``, which
+    applies a single match result incrementally.  Use this after batch imports or
+    data corrections where incremental updates may have accumulated drift.
     """
     teams = db.query(Team).all()
     for team in teams:
