@@ -427,7 +427,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
         normalizer = NameNormalizer()
         fixtures_updated = 0
         fixtures_finished = 0
-        fetch_json, fetch_json_with_retry, _call_api = self._providers()
+        fetch_json, fetch_json_with_retry, call_football_api = self._providers()
 
         def _apply_games_feed(games_list) -> tuple[int, int]:
             db_tourney_fixtures, db_teams_map = _unfinished_fixtures(db, tourney.id)
@@ -521,7 +521,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
 
         # 3. API-Football-shaped retry hook
         try:
-            res_retry = fetch_json_with_retry("https://v3.football-data.org/fixtures", use_cache=False)
+            res_retry = call_football_api("fixtures", {})
             if isinstance(res_retry, dict) and "response" in res_retry:
                 db_tourney_fixtures, db_teams_map = _unfinished_fixtures(db, tourney.id)
                 for item in res_retry["response"]:

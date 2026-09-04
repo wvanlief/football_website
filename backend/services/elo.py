@@ -334,9 +334,14 @@ def sync_ratings_for_competition(db: Session, competition: Competition, now_time
     if os.path.exists(review_path):
         with open(review_path, "r", encoding="utf-8") as f:
             mappings = json.load(f)
-        name_map = {m["api_football_name"]: m["clubelo_name"] for m in mappings}
+        name_map = {
+            m["api_football_name"]: m["clubelo_name"]
+            for m in mappings
+            if m.get("status") == "approved"
+        }
 
-    for team in db.query(Team).filter(Team.elo_source == "clubelo").all():
+    club_teams = db.query(Team).filter(Team.elo_source == "clubelo").all()
+    for team in club_teams:
         clubelo_name = name_map.get(team.name, team.name)
         fetched_elo = club_ratings.get(clubelo_name)
         if fetched_elo is not None and team.elo != fetched_elo:
@@ -344,5 +349,11 @@ def sync_ratings_for_competition(db: Session, competition: Competition, now_time
             team.form_score = elo_to_form(fetched_elo)
             record_elo_history(db, team.id, fetched_elo, now_time)
             updated += 1
+    if updated == 0 and club_teams:
+        # An unchanged snapshot is the daily sync marker consumed by the guard above.
+        marker_team = club_teams[0]
+        marker_elo = marker_team.elo if marker_team.elo is not None else 1500
+        record_elo_history(db, marker_team.id, marker_elo, now_time)
+        db.flush()
     print(f"Successfully synced ClubElo ratings. Updated {updated} teams.")
     return updated

@@ -185,10 +185,26 @@ def _link_tournament_team(
 
 
 def _normalize_wc_stage(raw_stage: str) -> str:
-    stage = _WC_STAGE_MAPPING.get(raw_stage, raw_stage) or "Group Stage"
-    if "Group" in str(stage):
+    raw_stage = str(raw_stage or "").strip()
+    stage_key = raw_stage.lower().replace("-", "_").replace(" ", "_")
+    stage = _WC_STAGE_MAPPING.get(stage_key)
+    if stage:
+        return stage
+    if "group" in stage_key:
         return "Group Stage"
-    return stage
+    if "32" in stage_key:
+        return "Round of 32"
+    if "16" in stage_key:
+        return "Round of 16"
+    if "quarter" in stage_key:
+        return "Quarter-final"
+    if "semi" in stage_key:
+        return "Semi-final"
+    if "third" in stage_key or "3rd" in stage_key:
+        return "Third-place play-off"
+    if "final" in stage_key:
+        return "Final"
+    return raw_stage or "Group Stage"
 
 
 def _parse_iso_datetime(value: Optional[str], fallback: datetime) -> datetime:
@@ -319,13 +335,14 @@ def _seed_world_cup(db: Session) -> SeedResult:
     )
     tourney = _get_or_create_tournament(db, comp, wc.get("season", "2026"))
 
+    live_elo = dict(wc["elo_ratings"])
     try:
         print("Fetching live Elo ratings from eloratings.net...")
-        live_elo = fetch_current_elo_ratings()
-        print(f"Successfully fetched {len(live_elo)} Elo ratings from eloratings.net.")
+        fetched_elo = fetch_current_elo_ratings()
+        live_elo.update(fetched_elo)
+        print(f"Successfully fetched {len(fetched_elo)} Elo ratings from eloratings.net.")
     except Exception as exc:
         print(f"Failed to fetch live Elo ratings: {exc}. Falling back to JSON ratings.")
-        live_elo = dict(wc["elo_ratings"])
 
     now = datetime.now(timezone.utc)
     for group, teams_list in wc["groups"].items():

@@ -262,10 +262,10 @@ def test_update_live_scores(mock_sim, mock_fetch, db_session, monkeypatch):
     [("1H", "Live", 1), ("PST", "Postponed", 0)],
 )
 @patch("backend.services.updater.fetch_json")
-@patch("backend.services.updater.fetch_json_with_retry")
+@patch("backend.services.updater.call_football_api")
 @patch("backend.services.updater.run_monte_carlo_simulation")
 def test_update_live_scores_fallback(
-    mock_sim, mock_fetch_retry, mock_fetch, db_session, monkeypatch,
+    mock_sim, mock_call_api, mock_fetch, db_session, monkeypatch,
     status_short, expected_status, expected_updated,
 ):
     from datetime import timedelta
@@ -330,14 +330,14 @@ def test_update_live_scores_fallback(
             }
         ]
     }
-    mock_fetch_retry.return_value = mock_fallback_response
+    mock_call_api.return_value = mock_fallback_response
 
     # Run the live scores update with force=True
     adapter = get_format_adapter(
         comp.format_engine,
         comp.name,
         fetch_json=mock_fetch,
-        fetch_json_with_retry=mock_fetch_retry,
+        call_football_api=mock_call_api,
     )
     u, f = adapter.sync_live_scores(db_session, tourney)
     res = {"status": "success", "fixtures_updated_live": u, "fixtures_finished": f}
@@ -346,6 +346,7 @@ def test_update_live_scores_fallback(
     assert res["status"] == "success"
     assert res["fixtures_updated_live"] == expected_updated
     assert res["fixtures_finished"] == 0
+    mock_call_api.assert_called_once_with("fixtures", {})
     
     # Assert fixture values updated
     db_session.refresh(f_live)
@@ -718,8 +719,6 @@ def test_calculate_default_odds_custom_advantage():
     assert h_odds_70 < a_odds_70
     # Custom 70 home advantage should be less extreme than default 100
     assert h_odds_70 > h_odds_100
-
-
 
 
 

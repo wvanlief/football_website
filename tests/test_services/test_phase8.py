@@ -75,6 +75,63 @@ def test_two_legged_tie_propagation(db_session):
     db_session.refresh(f_final)
     assert f_final.home_team_id == t1.id  # Real Madrid
 
+
+def test_two_legged_tie_same_orientation_propagation(db_session):
+    comp = Competition(name="Same Orientation Cup", type="Cup", format_engine="cup")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2025/26")
+    db_session.add(tourney)
+    db_session.flush()
+    team_a = Team(name="Same A", elo=1900)
+    team_b = Team(name="Same B", elo=1800)
+    db_session.add_all([team_a, team_b])
+    db_session.flush()
+    leg1 = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=team_a.id,
+        away_team_id=team_b.id,
+        stage="Semi-final",
+        status="Finished",
+        home_score=2,
+        away_score=0,
+        leg_number=1,
+        date_utc=datetime.fromisoformat("2026-02-01T20:00:00"),
+    )
+    leg2 = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=team_a.id,
+        away_team_id=team_b.id,
+        stage="Semi-final",
+        status="Finished",
+        home_score=0,
+        away_score=1,
+        leg_number=2,
+        date_utc=datetime.fromisoformat("2026-02-08T20:00:00"),
+    )
+    final = Fixture(
+        tournament_id=tourney.id,
+        home_team_placeholder="Winner SF",
+        stage="Final",
+        status="Scheduled",
+        date_utc=datetime.fromisoformat("2026-05-01T20:00:00"),
+    )
+    db_session.add_all([leg1, leg2, final])
+    db_session.flush()
+    db_session.add(FixtureDependency(
+        source_fixture_id=leg2.id,
+        target_fixture_id=final.id,
+        slot="home",
+        result_type="winner",
+    ))
+    db_session.commit()
+
+    propagate_knockout_fixtures(db_session)
+    db_session.commit()
+
+    db_session.refresh(final)
+    assert final.home_team_id == team_a.id
+
 def test_nations_league_promotion_relegation(db_session):
     # Setup Nations League
     comp = Competition(name="UEFA Nations League", type="International", format_engine="nations_league")

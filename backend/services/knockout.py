@@ -31,7 +31,9 @@ def propagate_knockout_fixtures(db: Session):
     """
     fixtures = db.query(Fixture).all()
     fixtures_by_id = {f.id: f for f in fixtures}
-    fixtures_by_api_id = {f.api_id: f for f in fixtures if f.api_id}
+    fixtures_by_api_id = {
+        (f.tournament_id, f.api_id): f for f in fixtures if f.api_id
+    }
 
     modified_fixtures = set()
 
@@ -60,17 +62,24 @@ def propagate_knockout_fixtures(db: Session):
             winner_id = f.winner_id
             if not winner_id:
                 if f.leg_number == 2:
-                    # Find corresponding leg 1 fixture: opposite teams, leg 1, same tournament and stage
+                    # Find the corresponding leg 1 fixture in either team orientation.
                     leg1 = db.query(Fixture).filter(
                         Fixture.tournament_id == f.tournament_id,
                         Fixture.stage == f.stage,
-                        Fixture.home_team_id == f.away_team_id,
-                        Fixture.away_team_id == f.home_team_id,
-                        Fixture.leg_number == 1
+                        Fixture.leg_number == 1,
+                        ((Fixture.home_team_id == f.away_team_id) & (Fixture.away_team_id == f.home_team_id)) |
+                        ((Fixture.home_team_id == f.home_team_id) & (Fixture.away_team_id == f.away_team_id))
                     ).first()
                     if leg1 and leg1.home_score is not None and leg1.away_score is not None and f.home_score is not None and f.away_score is not None:
-                        agg_home = f.home_score + leg1.away_score
-                        agg_away = f.away_score + leg1.home_score
+                        aggregate_scores = {
+                            f.home_team_id: 0,
+                            f.away_team_id: 0,
+                        }
+                        for leg in (leg1, f):
+                            aggregate_scores[leg.home_team_id] += leg.home_score
+                            aggregate_scores[leg.away_team_id] += leg.away_score
+                        agg_home = aggregate_scores[f.home_team_id]
+                        agg_away = aggregate_scores[f.away_team_id]
                         if agg_home > agg_away:
                             winner_id = f.home_team_id
                         elif agg_home < agg_away:
@@ -120,7 +129,8 @@ def propagate_knockout_fixtures(db: Session):
                             modified_fixtures.add(target_fixture)
             else:
                 # Backwards compatibility fallback to NEXT_ROUND_LOOKUP for World Cup
-                if not f.api_id:
+                competition = f.tournament.competition if f.tournament else None
+                if not f.api_id or not competition or "World Cup" not in competition.name:
                     continue
                 try:
                     match_num = int(f.api_id)
@@ -131,7 +141,7 @@ def propagate_knockout_fixtures(db: Session):
                 next_info = NEXT_ROUND_LOOKUP.get(match_num)
                 if next_info:
                     next_match_num, slot = next_info
-                    next_fixture = fixtures_by_api_id.get(str(next_match_num))
+                    next_fixture = fixtures_by_api_id.get((f.tournament_id, str(next_match_num)))
                     if next_fixture:
                         if slot == "home":
                             if next_fixture.home_team_id != winner_id:
@@ -148,14 +158,14 @@ def propagate_knockout_fixtures(db: Session):
 
                 # 2. Third-place play-off (api_id 103) is populated by the losers of match 101 and 102
                 if match_num == 101:
-                    third_fixture = fixtures_by_api_id.get("103")
+                    third_fixture = fixtures_by_api_id.get((f.tournament_id, "103"))
                     if third_fixture and third_fixture.home_team_id != loser_id:
                         third_fixture.home_team_id = loser_id
                         third_fixture.home_team_placeholder = None
                         updated = True
                         modified_fixtures.add(third_fixture)
                 elif match_num == 102:
-                    third_fixture = fixtures_by_api_id.get("103")
+                    third_fixture = fixtures_by_api_id.get((f.tournament_id, "103"))
                     if third_fixture and third_fixture.away_team_id != loser_id:
                         third_fixture.away_team_id = loser_id
                         third_fixture.away_team_placeholder = None
