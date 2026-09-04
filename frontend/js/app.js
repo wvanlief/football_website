@@ -352,12 +352,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 noticeBanner.id = 'offseason-notice-banner';
                 noticeBanner.className = 'glass';
                 noticeBanner.style.cssText = 'padding: 12px 20px; margin-bottom: 1rem; border: 1px solid rgba(251, 191, 36, 0.4); background: rgba(251, 191, 36, 0.1); border-radius: 12px; color: #fbbf24; font-weight: 600; display: flex; align-items: center; gap: 10px;';
+                const noticeIcon = document.createElement('i');
+                noticeIcon.className = 'fa-solid fa-umbrella-beach';
+                noticeBanner.append(noticeIcon, document.createElement('span'));
                 const triptychContainer = document.querySelector('.triptych-container');
                 if (triptychContainer) {
                     triptychContainer.parentNode.insertBefore(noticeBanner, triptychContainer);
                 }
             }
-            noticeBanner.innerHTML = `<i class="fa-solid fa-umbrella-beach"></i> <span>${activeFixtures.offseason_notice}</span>`;
+            noticeBanner.querySelector('span').textContent = activeFixtures.offseason_notice;
             noticeBanner.style.display = 'flex';
         } else if (noticeBanner) {
             noticeBanner.style.display = 'none';
@@ -384,235 +387,275 @@ document.addEventListener('DOMContentLoaded', () => {
         window.openMatchInSideInspector = openMatchInSideInspector;
     }
 
-    // Curated Fallbacks when local database is off-season or has sparse fixtures
-    const HERO_FALLBACK_TODAY = [
-        {
-            home_team: { name: 'Spain', elo: 2064 },
-            away_team: { name: 'Argentina', elo: 2095 },
-            competition_name: 'Finalissima',
-            competition_badge: '🏆',
-            formatted_time: '19:00',
-            stage: 'Grand Final',
-            watchability: { overall: 92 },
-            odds: { home: 2.35, draw: 3.25, away: 2.85 },
-            reasons: ['World Champions Clash: Reigning Euro Champions Spain vs World Cup Champions Argentina.']
-        },
-        {
-            home_team: { name: 'Arsenal', elo: 1985 },
-            away_team: { name: 'Chelsea', elo: 1940 },
-            competition_name: 'Premier League',
-            competition_badge: '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
-            formatted_time: '17:30',
-            stage: 'Matchday 4',
-            watchability: { overall: 88 },
-            odds: { home: 1.95, draw: 3.60, away: 3.80 },
-            reasons: ['London Derby with high xG output & title race implications.']
-        },
-        {
-            home_team: { name: 'Real Madrid', elo: 2040 },
-            away_team: { name: 'Bayern Munich', elo: 2010 },
-            competition_name: 'Champions League',
-            competition_badge: '⭐',
-            formatted_time: '21:00',
-            stage: 'Semi-Final',
-            watchability: { overall: 86 },
-            odds: { home: 2.10, draw: 3.50, away: 3.30 },
-            reasons: ['European Classic: 20 European Cups combined in heavyweight clash.']
-        }
-    ];
+    function matchWatchability(match) {
+        if (!match) return 0;
+        if (match.watchability && match.watchability.overall != null) return match.watchability.overall;
+        return match.watchability_score || 0;
+    }
 
-    const HERO_FALLBACK_WEEK = [
-        {
-            home_team: { name: 'Manchester City', elo: 2055 },
-            away_team: { name: 'Liverpool', elo: 2015 },
-            competition_name: 'Premier League',
-            competition_badge: '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
-            formatted_time: 'Wed 20:00',
-            stage: 'Matchday 5',
-            watchability: { overall: 91 },
-            odds: { home: 2.05, draw: 3.65, away: 3.40 },
-            reasons: ['Top of the table title clash featuring two top-3 attack lines.']
-        },
-        {
-            home_team: { name: 'Inter Milan', elo: 1970 },
-            away_team: { name: 'Juventus', elo: 1950 },
-            competition_name: 'Serie A',
-            competition_badge: '🇮🇹',
-            formatted_time: 'Fri 20:45',
-            stage: 'Derby d\'Italia',
-            watchability: { overall: 87 },
-            odds: { home: 2.20, draw: 3.15, away: 3.40 },
-            reasons: ['Derby d\'Italia with ultra-close ELO differential and high tactical drama.']
-        }
-    ];
+    function sortByWatchability(list) {
+        return [...(list || [])].sort((a, b) => matchWatchability(b) - matchWatchability(a));
+    }
 
-    // 'Best Match Today' Hero Component (Issue #67)
+    function formatNextMatchLine(match) {
+        if (!match || !match.home_team || !match.away_team) {
+            return 'No upcoming fixtures are scheduled in this window.';
+        }
+        const when = [match.formatted_date_short || match.formatted_date, match.formatted_time]
+            .filter(Boolean)
+            .join(' · ');
+        const line = `${match.home_team.name} vs ${match.away_team.name}`;
+        return when ? `Next match: ${line} · ${when}` : `Next match: ${line}`;
+    }
+
+    function earliestUpcoming(tomorrowFixtures, weekFixtures) {
+        const pool = [...(tomorrowFixtures || []), ...(weekFixtures || [])];
+        pool.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+        return pool[0] || null;
+    }
+
+    function createHeroElement(tagName, className, text) {
+        const element = document.createElement(tagName);
+        if (className) element.className = className;
+        if (text !== undefined) element.textContent = text;
+        return element;
+    }
+
+    function createHeroFlagBackground(side, url) {
+        const flag = createHeroElement('div', `hero-flag-bg ${side}`);
+        flag.style.backgroundImage = `url(${JSON.stringify(url)})`;
+        return flag;
+    }
+
+    function createHeroCrest(team, size) {
+        const crest = createHeroElement('img', 'hero-crest-img');
+        crest.src = getFlagUrl(team, size);
+        crest.alt = '';
+        return crest;
+    }
+
+    function setHeroMatchData(element, match) {
+        element.setAttribute('data-match-data', JSON.stringify(match));
+    }
+
+    function renderHeroEmptyCard(variant, title, subtitle) {
+        const card = createHeroElement('div', `hero-empty-card hero-empty-${variant}`);
+        card.setAttribute('role', 'status');
+        card.setAttribute('data-hero-empty', 'true');
+
+        const icon = createHeroElement('div', 'hero-empty-icon');
+        icon.appendChild(createHeroElement('i', 'fa-regular fa-calendar'));
+        card.append(
+            icon,
+            createHeroElement('h4', '', title),
+            createHeroElement('p', '', subtitle)
+        );
+        return card;
+    }
+
     function renderHeroSpotlight(todayFixtures, weekFixtures, tomorrowFixtures) {
         const mount = document.getElementById('hero-match-spotlight');
         if (!mount) return;
 
-        const sortByScore = (list) => [...list].sort((a, b) => {
-            const scoreA = (a.watchability && a.watchability.overall) || a.watchability_score || 0;
-            const scoreB = (b.watchability && b.watchability.overall) || b.watchability_score || 0;
-            return scoreB - scoreA;
-        });
-
-        let todayList = (todayFixtures && todayFixtures.length > 0) ? sortByScore(todayFixtures).slice(0, 3) : [];
-        if (todayList.length < 3) {
-            todayList = HERO_FALLBACK_TODAY;
-        }
-
-        let weekList = (weekFixtures && weekFixtures.length > 0) ? sortByScore(weekFixtures).slice(0, 2) : [];
+        const todayList = sortByWatchability(todayFixtures).slice(0, 3);
+        let weekList = sortByWatchability(weekFixtures).slice(0, 2);
         if (weekList.length < 2 && tomorrowFixtures && tomorrowFixtures.length > 0) {
-            weekList = sortByScore(tomorrowFixtures).slice(0, 2);
+            const used = new Set(weekList);
+            const extras = sortByWatchability(tomorrowFixtures).filter((match) => !used.has(match));
+            weekList = [...weekList, ...extras].slice(0, 2);
         }
-        if (weekList.length < 2) {
-            weekList = HERO_FALLBACK_WEEK;
-        }
 
-        const topToday = todayList[0] || HERO_FALLBACK_TODAY[0];
-        const today2 = todayList[1] || HERO_FALLBACK_TODAY[1];
-        const today3 = todayList[2] || HERO_FALLBACK_TODAY[2];
-
-        const topWeek = weekList[0] || HERO_FALLBACK_WEEK[0];
-        const week2 = weekList[1] || HERO_FALLBACK_WEEK[1];
-
-        const topTodayScore = Math.round(topToday.watchability?.overall || 92);
-        const topTodayClass = getRatingClass(topTodayScore);
-        const topHomeFlag = getFlagUrl(topToday.home_team, 'w320');
-        const topAwayFlag = getFlagUrl(topToday.away_team, 'w320');
-
-        const topWeekScore = Math.round(topWeek.watchability?.overall || 91);
-        const topWeekClass = getRatingClass(topWeekScore);
-        const weekHomeFlag = getFlagUrl(topWeek.home_team, 'w320');
-        const weekAwayFlag = getFlagUrl(topWeek.away_team, 'w320');
+        const isOffseason = !!(activeFixtures && activeFixtures.is_offseason);
+        const nextUpcoming = earliestUpcoming(tomorrowFixtures, weekFixtures);
+        const nextLine = formatNextMatchLine(nextUpcoming);
+        const emptyTitle = isOffseason ? 'Off-Season' : 'No Matches Today';
+        const emptySubtitle = isOffseason && activeFixtures.offseason_notice
+            ? activeFixtures.offseason_notice
+            : nextLine;
 
         const renderVertCard = (m, rank) => {
-            const score = Math.round(m.watchability?.overall || 85);
+            const score = Math.round(matchWatchability(m));
             const rClass = getRatingClass(score);
-            const hFlag = getFlagUrl(m.home_team, 'w320');
-            const aFlag = getFlagUrl(m.away_team, 'w320');
+            const kickoff = m.formatted_time || '';
+            const card = createHeroElement('div', `hero-card-base hero-vert-card ${rClass}`);
+            setHeroMatchData(card, m);
 
-            return `
-                <div class="hero-card-base hero-vert-card ${rClass}" data-match-data='${JSON.stringify(m).replace(/'/g, "&apos;")}'>
-                    <div class="hero-flag-bg home" style="background-image: url('${hFlag}');"></div>
-                    <div class="hero-flag-bg away" style="background-image: url('${aFlag}');"></div>
+            const header = createHeroElement('div', 'hero-card-header');
+            header.append(
+                createHeroElement('span', 'hero-kicker-tag', `#${rank} · ${m.competition_name || 'Match'}`),
+                createHeroElement('span', `hero-score-badge ${rClass}`, `${score}%`)
+            );
 
-                    <div class="hero-card-header">
-                        <span class="hero-kicker-tag">#${rank} · ${m.competition_name || 'League'}</span>
-                        <span class="hero-score-badge ${rClass}">${score}%</span>
-                    </div>
+            const matchup = createHeroElement('div', 'hero-vert-matchup');
+            [m.home_team, m.away_team].forEach((team) => {
+                const row = createHeroElement('div', 'hero-vert-team-row');
+                row.append(createHeroCrest(team), createHeroElement('span', '', team.name));
+                matchup.appendChild(row);
+            });
 
-                    <div class="hero-vert-matchup">
-                        <div class="hero-vert-team-row">
-                            <img src="${getFlagUrl(m.home_team)}" class="hero-crest-img" alt="">
-                            <span>${m.home_team.name}</span>
-                        </div>
-                        <div class="hero-vert-team-row">
-                            <img src="${getFlagUrl(m.away_team)}" class="hero-crest-img" alt="">
-                            <span>${m.away_team.name}</span>
-                        </div>
-                    </div>
+            const kickoffLabel = createHeroElement('span');
+            if (kickoff) {
+                kickoffLabel.append(
+                    createHeroElement('i', 'fa-regular fa-clock'),
+                    document.createTextNode(` ${kickoff}`)
+                );
+            }
+            const inspectLabel = createHeroElement('span', '', 'Inspect ›');
+            inspectLabel.style.color = 'var(--text-secondary)';
+            inspectLabel.style.fontWeight = '700';
+            const footer = createHeroElement('div', 'hero-vert-footer');
+            footer.append(kickoffLabel, inspectLabel);
 
-                    <div class="hero-vert-footer">
-                        <span><i class="fa-regular fa-clock"></i> ${m.formatted_time || '19:00'}</span>
-                        <span style="color: var(--text-secondary); font-weight: 700;">Inspect ›</span>
-                    </div>
-                </div>
-            `;
+            card.append(
+                createHeroFlagBackground('home', getFlagUrl(m.home_team, 'w320')),
+                createHeroFlagBackground('away', getFlagUrl(m.away_team, 'w320')),
+                header,
+                matchup,
+                footer
+            );
+            return card;
         };
 
-        mount.innerHTML = `
-            <div class="hero-spotlight-container">
-                <!-- 1) Big Hero Card (Today #1) -->
-                <div class="hero-card-base hero-card-featured ${topTodayClass}" data-match-data='${JSON.stringify(topToday).replace(/'/g, "&apos;")}'>
-                    <div class="hero-flag-bg home" style="background-image: url('${topHomeFlag}');"></div>
-                    <div class="hero-flag-bg away" style="background-image: url('${topAwayFlag}');"></div>
+        const renderFeaturedCard = (m) => {
+            const score = Math.round(matchWatchability(m));
+            const rClass = getRatingClass(score);
+            const homeElo = m.home_team.elo != null ? `ELO ${m.home_team.elo}` : '';
+            const awayElo = m.away_team.elo != null ? `ELO ${m.away_team.elo}` : '';
+            const meta = [m.competition_name, m.stage].filter(Boolean).join(' · ');
+            const card = createHeroElement('div', `hero-card-base hero-card-featured ${rClass}`);
+            setHeroMatchData(card, m);
 
-                    <div class="hero-card-header">
-                        <span class="hero-kicker-tag"><i class="fa-solid fa-crown"></i> Best Match Today</span>
-                        <span class="hero-score-badge ${topTodayClass}">${topTodayScore}%</span>
-                    </div>
+            const kicker = createHeroElement('span', 'hero-kicker-tag');
+            kicker.append(createHeroElement('i', 'fa-solid fa-crown'), document.createTextNode(' Best Match Today'));
+            const header = createHeroElement('div', 'hero-card-header');
+            header.append(kicker, createHeroElement('span', `hero-score-badge ${rClass}`, `${score}%`));
 
-                    <div class="hero-featured-matchup">
-                        <div class="hero-featured-team home clickable-team" data-name="${topToday.home_team.name}">
-                            <div class="hero-featured-identity">
-                                <img src="${getFlagUrl(topToday.home_team)}" class="hero-crest-img" alt="">
-                                <span class="hero-featured-name">${topToday.home_team.name}</span>
-                            </div>
-                            <span class="hero-featured-elo">ELO ${topToday.home_team.elo || 2064}</span>
-                        </div>
+            const createTeam = (team, side, elo) => {
+                const teamElement = createHeroElement('div', `hero-featured-team ${side} clickable-team`);
+                teamElement.setAttribute('data-name', team.name);
+                const identity = createHeroElement('div', 'hero-featured-identity');
+                identity.append(
+                    createHeroCrest(team),
+                    createHeroElement('span', 'hero-featured-name', team.name)
+                );
+                teamElement.append(identity, createHeroElement('span', 'hero-featured-elo', elo));
+                return teamElement;
+            };
 
-                        <div class="hero-featured-center">
-                            <span class="hero-featured-score-big">${topTodayScore}</span>
-                            <span class="hero-featured-time-label">${topToday.formatted_time || '19:00'}</span>
-                        </div>
+            const center = createHeroElement('div', 'hero-featured-center');
+            center.append(
+                createHeroElement('span', 'hero-featured-score-big', score),
+                createHeroElement('span', 'hero-featured-time-label', m.formatted_time || '')
+            );
+            const matchup = createHeroElement('div', 'hero-featured-matchup');
+            matchup.append(
+                createTeam(m.home_team, 'home', homeElo),
+                center,
+                createTeam(m.away_team, 'away', awayElo)
+            );
 
-                        <div class="hero-featured-team away clickable-team" data-name="${topToday.away_team.name}">
-                            <div class="hero-featured-identity">
-                                <img src="${getFlagUrl(topToday.away_team)}" class="hero-crest-img" alt="">
-                                <span class="hero-featured-name">${topToday.away_team.name}</span>
-                            </div>
-                            <span class="hero-featured-elo">ELO ${topToday.away_team.elo || 2095}</span>
-                        </div>
-                    </div>
+            const breakdown = createHeroElement('span', '', 'Tactical Breakdown ›');
+            breakdown.style.color = 'var(--text-secondary)';
+            breakdown.style.fontWeight = '700';
+            const footer = createHeroElement('div', 'hero-featured-footer');
+            footer.append(createHeroElement('span', '', meta), breakdown);
 
-                    <div class="hero-featured-footer">
-                        <span>${topToday.competition_name || 'Finalissima'} · ${topToday.stage || 'Final'}</span>
-                        <span style="color: var(--text-secondary); font-weight: 700;">Tactical Breakdown ›</span>
-                    </div>
-                </div>
+            card.append(
+                createHeroFlagBackground('home', getFlagUrl(m.home_team, 'w320')),
+                createHeroFlagBackground('away', getFlagUrl(m.away_team, 'w320')),
+                header,
+                matchup,
+                footer
+            );
+            return card;
+        };
 
-                <!-- 2) Vertical Today Card #2 -->
-                ${renderVertCard(today2, 2)}
+        const renderWeekBigCard = (m) => {
+            const score = Math.round(matchWatchability(m));
+            const rClass = getRatingClass(score);
+            const when = m.formatted_time || m.formatted_date_short || '';
+            const card = createHeroElement('div', `hero-week-big-card ${rClass}`);
+            setHeroMatchData(card, m);
 
-                <!-- 3) Vertical Today Card #3 -->
-                ${renderVertCard(today3, 3)}
+            const kicker = createHeroElement('span', 'hero-kicker-tag week');
+            kicker.append(
+                createHeroElement('i', 'fa-solid fa-calendar-star'),
+                document.createTextNode(` Next 7 Days${when ? ` · ${when}` : ''}`)
+            );
+            const header = createHeroElement('div', 'hero-card-header');
+            header.append(kicker, createHeroElement('span', `hero-score-badge ${rClass}`, `${score}%`));
 
-                <!-- 4) Right Column: Next 7 Days (1 Big + 1 Small) -->
-                <div class="hero-right-column">
-                    <!-- Top Big Row (Next 7 Days #1) -->
-                    <div class="hero-week-big-card ${topWeekClass}" data-match-data='${JSON.stringify(topWeek).replace(/'/g, "&apos;")}'>
-                        <div class="hero-flag-bg home" style="background-image: url('${weekHomeFlag}');"></div>
-                        <div class="hero-flag-bg away" style="background-image: url('${weekAwayFlag}');"></div>
+            const home = createHeroElement('div', 'hero-week-team-item');
+            home.append(createHeroCrest(m.home_team), createHeroElement('span', '', m.home_team.name));
+            const away = createHeroElement('div', 'hero-week-team-item');
+            away.append(createHeroElement('span', '', m.away_team.name), createHeroCrest(m.away_team));
+            const matchup = createHeroElement('div', 'hero-week-matchup');
+            matchup.append(home, createHeroElement('span', 'hero-week-vs-tag', 'vs'), away);
 
-                        <div class="hero-card-header">
-                            <span class="hero-kicker-tag week"><i class="fa-solid fa-calendar-star"></i> Next 7 Days · ${topWeek.formatted_time || 'Wed 20:00'}</span>
-                            <span class="hero-score-badge ${topWeekClass}">${topWeekScore}%</span>
-                        </div>
+            card.append(
+                createHeroFlagBackground('home', getFlagUrl(m.home_team, 'w320')),
+                createHeroFlagBackground('away', getFlagUrl(m.away_team, 'w320')),
+                header,
+                matchup
+            );
+            return card;
+        };
 
-                        <div class="hero-week-matchup">
-                            <div class="hero-week-team-item">
-                                <img src="${getFlagUrl(topWeek.home_team)}" class="hero-crest-img" alt="">
-                                <span>${topWeek.home_team.name}</span>
-                            </div>
-                            <span class="hero-week-vs-tag">vs</span>
-                            <div class="hero-week-team-item">
-                                <span>${topWeek.away_team.name}</span>
-                                <img src="${getFlagUrl(topWeek.away_team)}" class="hero-crest-img" alt="">
-                            </div>
-                        </div>
-                    </div>
+        const renderWeekSmallStrip = (m) => {
+            const score = Math.round(matchWatchability(m));
+            const rClass = getRatingClass(score);
+            const card = createHeroElement('div', `hero-week-small-strip ${rClass}`);
+            setHeroMatchData(card, m);
 
-                    <!-- Bottom Small Single Strip (Next 7 Days #2) -->
-                    <div class="hero-week-small-strip ${getRatingClass(week2.watchability?.overall || 87)}" data-match-data='${JSON.stringify(week2).replace(/'/g, "&apos;")}'>
-                        <div class="hero-week-small-left">
-                            <span class="hero-week-small-time">${week2.formatted_time || 'Fri 20:45'}</span>
-                            <img src="${getFlagUrl(week2.home_team)}" class="hero-crest-img" style="width: 18px; height: 18px;" alt="">
-                            <div class="hero-week-small-names">
-                                <span>${week2.home_team.name}</span>
-                                <span style="color: var(--text-muted); font-size: 0.65rem;">v</span>
-                                <span>${week2.away_team.name}</span>
-                            </div>
-                            <img src="${getFlagUrl(week2.away_team)}" class="hero-crest-img" style="width: 18px; height: 18px;" alt="">
-                        </div>
-                        <span class="hero-score-badge ${getRatingClass(week2.watchability?.overall || 87)}">${Math.round(week2.watchability?.overall || 87)}%</span>
-                    </div>
-                </div>
-            </div>
-        `;
+            const homeCrest = createHeroCrest(m.home_team);
+            const awayCrest = createHeroCrest(m.away_team);
+            [homeCrest, awayCrest].forEach((crest) => {
+                crest.style.width = '18px';
+                crest.style.height = '18px';
+            });
 
-        // Bind interactive clicks on cards
+            const versus = createHeroElement('span', '', 'v');
+            versus.style.color = 'var(--text-muted)';
+            versus.style.fontSize = '0.65rem';
+            const names = createHeroElement('div', 'hero-week-small-names');
+            names.append(
+                createHeroElement('span', '', m.home_team.name),
+                versus,
+                createHeroElement('span', '', m.away_team.name)
+            );
+            const left = createHeroElement('div', 'hero-week-small-left');
+            left.append(
+                createHeroElement('span', 'hero-week-small-time', m.formatted_time || m.formatted_date_short || ''),
+                homeCrest,
+                names,
+                awayCrest
+            );
+            card.append(left, createHeroElement('span', `hero-score-badge ${rClass}`, `${score}%`));
+            return card;
+        };
+
+        const featuredCard = todayList[0]
+            ? renderFeaturedCard(todayList[0])
+            : renderHeroEmptyCard('featured', emptyTitle, emptySubtitle);
+        const today2Card = todayList[1]
+            ? renderVertCard(todayList[1], 2)
+            : renderHeroEmptyCard('vert', todayList.length ? 'No More Matches Today' : emptyTitle, emptySubtitle);
+        const today3Card = todayList[2]
+            ? renderVertCard(todayList[2], 3)
+            : renderHeroEmptyCard('vert', todayList.length < 3 ? (isOffseason ? 'Off-Season' : 'Quiet Schedule') : '', emptySubtitle);
+        const weekBigCard = weekList[0]
+            ? renderWeekBigCard(weekList[0])
+            : renderHeroEmptyCard('week-big', 'Nothing in the Next 7 Days', emptySubtitle);
+        const weekSmallCard = weekList[1]
+            ? renderWeekSmallStrip(weekList[1])
+            : renderHeroEmptyCard('week-small', 'Next Match', emptySubtitle);
+
+        const rightColumn = createHeroElement('div', 'hero-right-column');
+        rightColumn.append(weekBigCard, weekSmallCard);
+        const spotlight = createHeroElement('div', 'hero-spotlight-container');
+        spotlight.append(featuredCard, today2Card, today3Card, rightColumn);
+        mount.replaceChildren(spotlight);
+
         mount.querySelectorAll('[data-match-data]').forEach(el => {
             el.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -630,7 +673,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        // Bind clickable teams
         mount.querySelectorAll('.clickable-team').forEach(teamBox => {
             teamBox.addEventListener('click', (e) => {
                 e.stopPropagation();
