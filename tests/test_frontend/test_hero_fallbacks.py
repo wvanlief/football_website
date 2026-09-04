@@ -1,7 +1,7 @@
 from pathlib import Path
 
 APP_JS = Path("frontend/js/app.js").read_text(encoding="utf-8")
-STYLES = Path("frontend/css/styles.css").read_text(encoding="utf-8")
+HERO_CSS = Path("frontend/css/hero.css").read_text(encoding="utf-8")
 
 
 def test_fabricated_hero_fallback_arrays_are_gone():
@@ -19,7 +19,7 @@ def test_hero_spotlight_renders_offseason_and_next_match_notices():
     assert "Off-Season" in APP_JS
     assert "Next match:" in APP_JS
     assert "renderHeroEmptyCard" in APP_JS
-    assert ".hero-empty-card" in STYLES
+    assert ".hero-empty-card" in HERO_CSS
 
 
 def test_hero_assets_are_served_without_fallbacks(client):
@@ -28,7 +28,7 @@ def test_hero_assets_are_served_without_fallbacks(client):
     assert "HERO_FALLBACK_TODAY" not in js.text
     assert "data-hero-empty" in js.text
 
-    css = client.get("/css/styles.css")
+    css = client.get("/css/hero.css")
     assert css.status_code == 200
     assert ".hero-empty-card" in css.text
 
@@ -36,3 +36,4 @@ def test_hero_assets_are_served_without_fallbacks(client):
     assert home.status_code == 200
     assert "hero-match-spotlight" in home.text
     assert "app.js?v=1.0.9" in home.text
+    assert "hero.css?v=1.1.0" in home.text
