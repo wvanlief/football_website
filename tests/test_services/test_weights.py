@@ -26,11 +26,11 @@ def test_normalize_weights_non_normalized():
 
 
 from unittest.mock import patch
-from backend.scoring import calculate_watchability
+from backend.scoring import score
 from backend.database import Team, Fixture, Competition, Tournament, TournamentTeam, FixtureOdds
 from datetime import datetime
 
-def test_calculate_watchability_dynamic_stakes(db_session):
+def test_score_dynamic_stakes(db_session):
     comp = Competition(name="World Cup Test", type="International")
     db_session.add(comp)
     db_session.flush()
@@ -70,28 +70,28 @@ def test_calculate_watchability_dynamic_stakes(db_session):
     # 1. Test fallback when no simulation probabilities are available (should be 60.0)
     with patch("backend.scoring.get_simulation_probabilities") as mock_get_probs:
         mock_get_probs.return_value = {}
-        res = calculate_watchability(f, t1, t2, db_session)
+        res = score(f, db_session)
         assert res["narrative_score"] == 60.0
         assert any("Crucial World Cup Group A clash" in r for r in res["reasons"])
 
     # 2. Test high stakes decider: both teams at 50%
     with patch("backend.scoring.get_simulation_probabilities") as mock_get_probs:
         mock_get_probs.return_value = {"TeamA": 50.0, "TeamB": 50.0}
-        res = calculate_watchability(f, t1, t2, db_session)
+        res = score(f, db_session)
         assert res["narrative_score"] == 100.0
         assert any("High stakes decider" in r for r in res["reasons"])
         
     # 3. Test dead rubber: both teams qualified (100% chance)
     with patch("backend.scoring.get_simulation_probabilities") as mock_get_probs:
         mock_get_probs.return_value = {"TeamA": 100.0, "TeamB": 100.0}
-        res = calculate_watchability(f, t1, t2, db_session)
+        res = score(f, db_session)
         assert res["narrative_score"] == 10.0
         assert any("Qualification settled" in r for r in res["reasons"])
 
     # 4. Test mixed stakes: one team qualified, one eliminated
     with patch("backend.scoring.get_simulation_probabilities") as mock_get_probs:
         mock_get_probs.return_value = {"TeamA": 100.0, "TeamB": 0.0}
-        res = calculate_watchability(f, t1, t2, db_session)
+        res = score(f, db_session)
         assert res["narrative_score"] == 10.0
         assert any("Mixed stakes" in r for r in res["reasons"])
 

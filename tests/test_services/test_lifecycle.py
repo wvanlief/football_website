@@ -2,7 +2,7 @@
 
 Verifies that finish_fixture atomically performs all three post-match steps:
 1. Settlement  — scores, status, winner, team streaks (via settle_result)
-2. Watchability — watchability_score is non-None after the call (via update_fixture_score)
+2. Watchability — watchability_score is non-None after the call (via score)
 3. Standings   — TournamentTeam standings cache is updated (via recalculate_tournament_team_standings)
 """
 

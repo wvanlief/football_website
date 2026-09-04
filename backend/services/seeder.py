@@ -8,7 +8,7 @@ from backend.database import (
     Team, Player, Fixture, Competition, Tournament, 
     TournamentTeam, PlayerContract, FixtureOdds, EloHistory
 )
-from backend.scoring import update_fixture_score
+from backend.scoring import score
 from backend.services.lifecycle import finish_fixture
 from backend.services.ingestion import NameNormalizer, COUNTRY_ISO_MAP
 from backend.services.odds import calculate_default_odds, update_odds_from_api
@@ -373,7 +373,7 @@ def seed_database(db: Session):
     db.commit()
     
     for fixture in fixtures_to_save:
-        update_fixture_score(fixture, db)
+        score(fixture, db)
         
     db.commit()
     
@@ -925,7 +925,7 @@ def seed_european_cups(db: Session, target_league_id: int = None) -> dict:
                     db.add(init_odds)
                     
                 db.flush()
-                update_fixture_score(fixture, db)
+                score(fixture, db)
                 fixtures_saved.append(fixture)
                 
             from backend.services.standings import recalculate_standings
