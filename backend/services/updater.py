@@ -10,7 +10,8 @@ from backend.database import Team, Fixture, Tournament, Competition, SessionLoca
 from backend.services.ingestion import NameNormalizer
 from backend.services.lifecycle import finish_fixture
 from backend.services.odds import update_odds_from_api, calculate_default_odds
-from backend.services.tournament import propagate_knockout_fixtures, invalidate_fixtures_cache
+from backend.services.knockout import propagate_knockout_fixtures
+from backend.services.queries import evaluate_nations_league_promotions, invalidate_fixtures_cache
 
 from backend.services.simulation import run_monte_carlo_simulation
 from backend.services.standings import recalculate_tournament_team_standings
@@ -243,7 +244,6 @@ def update_results_and_odds(db: Session) -> dict:
         try:
             recalculate_tournament_team_standings(db, tourney.id)
             if tourney.competition and tourney.competition.format_engine == "nations_league":
-                from backend.services.tournament import evaluate_nations_league_promotions
                 evaluate_nations_league_promotions(db, tourney.id)
         except Exception as e:
             print(f"Warning: Failed to recalculate standings/promotions for tournament {tourney.id}: {e}")
@@ -309,7 +309,6 @@ def update_live_scores(db: Session, force: bool = False) -> dict:
             try:
                 recalculate_tournament_team_standings(db, tourney.id)
                 if tourney.competition and tourney.competition.format_engine == "nations_league":
-                    from backend.services.tournament import evaluate_nations_league_promotions
                     evaluate_nations_league_promotions(db, tourney.id)
             except Exception as e:
                 pass

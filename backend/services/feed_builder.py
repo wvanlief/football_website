@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from sqlalchemy.orm import Session, joinedload
 from backend.database import Fixture, Tournament, Competition, Team, TournamentTeam, PlayerContract
-from backend.services.tournament import enrich_fixture, get_timezone
+from backend.services.enrichment import enrich_fixture
 import backend.crud.fixture as crud_fixture
 
 CACHE_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "fixtures_feed_cache.json")
@@ -36,6 +36,7 @@ def build_fixtures_feed_cache(db: Session, force_enrichment: bool = False) -> di
     fixtures = crud_fixture.get_eligible_fixtures(db, tournament_id=None, now_utc=now_utc)
 
     active_ids = crud_fixture.get_active_tournament_ids(db)
+    has_active_tournaments = bool(active_ids)
     if not active_ids:
         active_ids = [t.id for t in db.query(Tournament.id).all()]
 
@@ -59,6 +60,10 @@ def build_fixtures_feed_cache(db: Session, force_enrichment: bool = False) -> di
             enriched_fixtures.append(fdata)
         except Exception as e:
             print(f"Warning: Failed to enrich fixture ID {f.id}: {e}")
+
+    if has_active_tournaments and not enriched_fixtures:
+        print("Warning: No fixtures were enriched for active tournaments; preserving existing feed cache.")
+        return load_precalculated_feed_cache()
 
     feed_payload = {
         "updated_at": now_utc.isoformat(),
