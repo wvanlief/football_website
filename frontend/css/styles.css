@@ -5323,6 +5323,70 @@ body.theme-flag .country-hero-flag-bg {
     text-overflow: ellipsis;
 }
 
+.hero-empty-card {
+    background: rgba(14, 24, 18, 0.35);
+    border: 1px dashed rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    padding: 0.85rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 0.4rem;
+    min-height: 100px;
+    cursor: default;
+    box-sizing: border-box;
+}
+
+.hero-empty-card:hover {
+    transform: none;
+    border-color: rgba(251, 191, 36, 0.28);
+    background: rgba(14, 24, 18, 0.45);
+}
+
+.hero-empty-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.hero-empty-card h4 {
+    margin: 0;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.hero-empty-card p {
+    margin: 0;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    max-width: 220px;
+}
+
+.hero-empty-card.hero-empty-featured {
+    min-height: 140px;
+    border-color: rgba(251, 191, 36, 0.28);
+    background: rgba(251, 191, 36, 0.06);
+}
+
+.hero-empty-card.hero-empty-featured h4 {
+    color: #fbbf24;
+}
+
+.hero-right-column .hero-empty-card {
+    flex: 1;
+}
+
 @media (max-width: 1100px) {
     .hero-spotlight-container {
         grid-template-columns: 1fr 1fr;
