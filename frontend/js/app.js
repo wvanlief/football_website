@@ -352,12 +352,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 noticeBanner.id = 'offseason-notice-banner';
                 noticeBanner.className = 'glass';
                 noticeBanner.style.cssText = 'padding: 12px 20px; margin-bottom: 1rem; border: 1px solid rgba(251, 191, 36, 0.4); background: rgba(251, 191, 36, 0.1); border-radius: 12px; color: #fbbf24; font-weight: 600; display: flex; align-items: center; gap: 10px;';
+                const noticeIcon = document.createElement('i');
+                noticeIcon.className = 'fa-solid fa-umbrella-beach';
+                noticeBanner.append(noticeIcon, document.createElement('span'));
                 const triptychContainer = document.querySelector('.triptych-container');
                 if (triptychContainer) {
                     triptychContainer.parentNode.insertBefore(noticeBanner, triptychContainer);
                 }
             }
-            noticeBanner.innerHTML = `<i class="fa-solid fa-umbrella-beach"></i> <span>${activeFixtures.offseason_notice}</span>`;
+            noticeBanner.querySelector('span').textContent = activeFixtures.offseason_notice;
             noticeBanner.style.display = 'flex';
         } else if (noticeBanner) {
             noticeBanner.style.display = 'none';
@@ -411,14 +414,43 @@ document.addEventListener('DOMContentLoaded', () => {
         return pool[0] || null;
     }
 
+    function createHeroElement(tagName, className, text) {
+        const element = document.createElement(tagName);
+        if (className) element.className = className;
+        if (text !== undefined) element.textContent = text;
+        return element;
+    }
+
+    function createHeroFlagBackground(side, url) {
+        const flag = createHeroElement('div', `hero-flag-bg ${side}`);
+        flag.style.backgroundImage = `url(${JSON.stringify(url)})`;
+        return flag;
+    }
+
+    function createHeroCrest(team, size) {
+        const crest = createHeroElement('img', 'hero-crest-img');
+        crest.src = getFlagUrl(team, size);
+        crest.alt = '';
+        return crest;
+    }
+
+    function setHeroMatchData(element, match) {
+        element.setAttribute('data-match-data', JSON.stringify(match));
+    }
+
     function renderHeroEmptyCard(variant, title, subtitle) {
-        return `
-            <div class="hero-empty-card hero-empty-${variant}" role="status" data-hero-empty="true">
-                <div class="hero-empty-icon"><i class="fa-regular fa-calendar"></i></div>
-                <h4>${title}</h4>
-                <p>${subtitle}</p>
-            </div>
-        `;
+        const card = createHeroElement('div', `hero-empty-card hero-empty-${variant}`);
+        card.setAttribute('role', 'status');
+        card.setAttribute('data-hero-empty', 'true');
+
+        const icon = createHeroElement('div', 'hero-empty-icon');
+        icon.appendChild(createHeroElement('i', 'fa-regular fa-calendar'));
+        card.append(
+            icon,
+            createHeroElement('h4', '', title),
+            createHeroElement('p', '', subtitle)
+        );
+        return card;
     }
 
     function renderHeroSpotlight(todayFixtures, weekFixtures, tomorrowFixtures) {
@@ -444,165 +476,185 @@ document.addEventListener('DOMContentLoaded', () => {
         const renderVertCard = (m, rank) => {
             const score = Math.round(matchWatchability(m));
             const rClass = getRatingClass(score);
-            const hFlag = getFlagUrl(m.home_team, 'w320');
-            const aFlag = getFlagUrl(m.away_team, 'w320');
             const kickoff = m.formatted_time || '';
+            const card = createHeroElement('div', `hero-card-base hero-vert-card ${rClass}`);
+            setHeroMatchData(card, m);
 
-            return `
-                <div class="hero-card-base hero-vert-card ${rClass}" data-match-data='${JSON.stringify(m).replace(/'/g, "&apos;")}'>
-                    <div class="hero-flag-bg home" style="background-image: url('${hFlag}');"></div>
-                    <div class="hero-flag-bg away" style="background-image: url('${aFlag}');"></div>
+            const header = createHeroElement('div', 'hero-card-header');
+            header.append(
+                createHeroElement('span', 'hero-kicker-tag', `#${rank} · ${m.competition_name || 'Match'}`),
+                createHeroElement('span', `hero-score-badge ${rClass}`, `${score}%`)
+            );
 
-                    <div class="hero-card-header">
-                        <span class="hero-kicker-tag">#${rank} · ${m.competition_name || 'Match'}</span>
-                        <span class="hero-score-badge ${rClass}">${score}%</span>
-                    </div>
+            const matchup = createHeroElement('div', 'hero-vert-matchup');
+            [m.home_team, m.away_team].forEach((team) => {
+                const row = createHeroElement('div', 'hero-vert-team-row');
+                row.append(createHeroCrest(team), createHeroElement('span', '', team.name));
+                matchup.appendChild(row);
+            });
 
-                    <div class="hero-vert-matchup">
-                        <div class="hero-vert-team-row">
-                            <img src="${getFlagUrl(m.home_team)}" class="hero-crest-img" alt="">
-                            <span>${m.home_team.name}</span>
-                        </div>
-                        <div class="hero-vert-team-row">
-                            <img src="${getFlagUrl(m.away_team)}" class="hero-crest-img" alt="">
-                            <span>${m.away_team.name}</span>
-                        </div>
-                    </div>
+            const kickoffLabel = createHeroElement('span');
+            if (kickoff) {
+                kickoffLabel.append(
+                    createHeroElement('i', 'fa-regular fa-clock'),
+                    document.createTextNode(` ${kickoff}`)
+                );
+            }
+            const inspectLabel = createHeroElement('span', '', 'Inspect ›');
+            inspectLabel.style.color = 'var(--text-secondary)';
+            inspectLabel.style.fontWeight = '700';
+            const footer = createHeroElement('div', 'hero-vert-footer');
+            footer.append(kickoffLabel, inspectLabel);
 
-                    <div class="hero-vert-footer">
-                        <span>${kickoff ? `<i class="fa-regular fa-clock"></i> ${kickoff}` : ''}</span>
-                        <span style="color: var(--text-secondary); font-weight: 700;">Inspect ›</span>
-                    </div>
-                </div>
-            `;
+            card.append(
+                createHeroFlagBackground('home', getFlagUrl(m.home_team, 'w320')),
+                createHeroFlagBackground('away', getFlagUrl(m.away_team, 'w320')),
+                header,
+                matchup,
+                footer
+            );
+            return card;
         };
 
         const renderFeaturedCard = (m) => {
             const score = Math.round(matchWatchability(m));
             const rClass = getRatingClass(score);
-            const homeFlag = getFlagUrl(m.home_team, 'w320');
-            const awayFlag = getFlagUrl(m.away_team, 'w320');
             const homeElo = m.home_team.elo != null ? `ELO ${m.home_team.elo}` : '';
             const awayElo = m.away_team.elo != null ? `ELO ${m.away_team.elo}` : '';
             const meta = [m.competition_name, m.stage].filter(Boolean).join(' · ');
+            const card = createHeroElement('div', `hero-card-base hero-card-featured ${rClass}`);
+            setHeroMatchData(card, m);
 
-            return `
-                <div class="hero-card-base hero-card-featured ${rClass}" data-match-data='${JSON.stringify(m).replace(/'/g, "&apos;")}'>
-                    <div class="hero-flag-bg home" style="background-image: url('${homeFlag}');"></div>
-                    <div class="hero-flag-bg away" style="background-image: url('${awayFlag}');"></div>
+            const kicker = createHeroElement('span', 'hero-kicker-tag');
+            kicker.append(createHeroElement('i', 'fa-solid fa-crown'), document.createTextNode(' Best Match Today'));
+            const header = createHeroElement('div', 'hero-card-header');
+            header.append(kicker, createHeroElement('span', `hero-score-badge ${rClass}`, `${score}%`));
 
-                    <div class="hero-card-header">
-                        <span class="hero-kicker-tag"><i class="fa-solid fa-crown"></i> Best Match Today</span>
-                        <span class="hero-score-badge ${rClass}">${score}%</span>
-                    </div>
+            const createTeam = (team, side, elo) => {
+                const teamElement = createHeroElement('div', `hero-featured-team ${side} clickable-team`);
+                teamElement.setAttribute('data-name', team.name);
+                const identity = createHeroElement('div', 'hero-featured-identity');
+                identity.append(
+                    createHeroCrest(team),
+                    createHeroElement('span', 'hero-featured-name', team.name)
+                );
+                teamElement.append(identity, createHeroElement('span', 'hero-featured-elo', elo));
+                return teamElement;
+            };
 
-                    <div class="hero-featured-matchup">
-                        <div class="hero-featured-team home clickable-team" data-name="${m.home_team.name}">
-                            <div class="hero-featured-identity">
-                                <img src="${getFlagUrl(m.home_team)}" class="hero-crest-img" alt="">
-                                <span class="hero-featured-name">${m.home_team.name}</span>
-                            </div>
-                            <span class="hero-featured-elo">${homeElo}</span>
-                        </div>
+            const center = createHeroElement('div', 'hero-featured-center');
+            center.append(
+                createHeroElement('span', 'hero-featured-score-big', score),
+                createHeroElement('span', 'hero-featured-time-label', m.formatted_time || '')
+            );
+            const matchup = createHeroElement('div', 'hero-featured-matchup');
+            matchup.append(
+                createTeam(m.home_team, 'home', homeElo),
+                center,
+                createTeam(m.away_team, 'away', awayElo)
+            );
 
-                        <div class="hero-featured-center">
-                            <span class="hero-featured-score-big">${score}</span>
-                            <span class="hero-featured-time-label">${m.formatted_time || ''}</span>
-                        </div>
+            const breakdown = createHeroElement('span', '', 'Tactical Breakdown ›');
+            breakdown.style.color = 'var(--text-secondary)';
+            breakdown.style.fontWeight = '700';
+            const footer = createHeroElement('div', 'hero-featured-footer');
+            footer.append(createHeroElement('span', '', meta), breakdown);
 
-                        <div class="hero-featured-team away clickable-team" data-name="${m.away_team.name}">
-                            <div class="hero-featured-identity">
-                                <img src="${getFlagUrl(m.away_team)}" class="hero-crest-img" alt="">
-                                <span class="hero-featured-name">${m.away_team.name}</span>
-                            </div>
-                            <span class="hero-featured-elo">${awayElo}</span>
-                        </div>
-                    </div>
-
-                    <div class="hero-featured-footer">
-                        <span>${meta}</span>
-                        <span style="color: var(--text-secondary); font-weight: 700;">Tactical Breakdown ›</span>
-                    </div>
-                </div>
-            `;
+            card.append(
+                createHeroFlagBackground('home', getFlagUrl(m.home_team, 'w320')),
+                createHeroFlagBackground('away', getFlagUrl(m.away_team, 'w320')),
+                header,
+                matchup,
+                footer
+            );
+            return card;
         };
 
         const renderWeekBigCard = (m) => {
             const score = Math.round(matchWatchability(m));
             const rClass = getRatingClass(score);
             const when = m.formatted_time || m.formatted_date_short || '';
-            return `
-                <div class="hero-week-big-card ${rClass}" data-match-data='${JSON.stringify(m).replace(/'/g, "&apos;")}'>
-                    <div class="hero-flag-bg home" style="background-image: url('${getFlagUrl(m.home_team, 'w320')}');"></div>
-                    <div class="hero-flag-bg away" style="background-image: url('${getFlagUrl(m.away_team, 'w320')}');"></div>
+            const card = createHeroElement('div', `hero-week-big-card ${rClass}`);
+            setHeroMatchData(card, m);
 
-                    <div class="hero-card-header">
-                        <span class="hero-kicker-tag week"><i class="fa-solid fa-calendar-star"></i> Next 7 Days${when ? ` · ${when}` : ''}</span>
-                        <span class="hero-score-badge ${rClass}">${score}%</span>
-                    </div>
+            const kicker = createHeroElement('span', 'hero-kicker-tag week');
+            kicker.append(
+                createHeroElement('i', 'fa-solid fa-calendar-star'),
+                document.createTextNode(` Next 7 Days${when ? ` · ${when}` : ''}`)
+            );
+            const header = createHeroElement('div', 'hero-card-header');
+            header.append(kicker, createHeroElement('span', `hero-score-badge ${rClass}`, `${score}%`));
 
-                    <div class="hero-week-matchup">
-                        <div class="hero-week-team-item">
-                            <img src="${getFlagUrl(m.home_team)}" class="hero-crest-img" alt="">
-                            <span>${m.home_team.name}</span>
-                        </div>
-                        <span class="hero-week-vs-tag">vs</span>
-                        <div class="hero-week-team-item">
-                            <span>${m.away_team.name}</span>
-                            <img src="${getFlagUrl(m.away_team)}" class="hero-crest-img" alt="">
-                        </div>
-                    </div>
-                </div>
-            `;
+            const home = createHeroElement('div', 'hero-week-team-item');
+            home.append(createHeroCrest(m.home_team), createHeroElement('span', '', m.home_team.name));
+            const away = createHeroElement('div', 'hero-week-team-item');
+            away.append(createHeroElement('span', '', m.away_team.name), createHeroCrest(m.away_team));
+            const matchup = createHeroElement('div', 'hero-week-matchup');
+            matchup.append(home, createHeroElement('span', 'hero-week-vs-tag', 'vs'), away);
+
+            card.append(
+                createHeroFlagBackground('home', getFlagUrl(m.home_team, 'w320')),
+                createHeroFlagBackground('away', getFlagUrl(m.away_team, 'w320')),
+                header,
+                matchup
+            );
+            return card;
         };
 
         const renderWeekSmallStrip = (m) => {
             const score = Math.round(matchWatchability(m));
             const rClass = getRatingClass(score);
-            return `
-                <div class="hero-week-small-strip ${rClass}" data-match-data='${JSON.stringify(m).replace(/'/g, "&apos;")}'>
-                    <div class="hero-week-small-left">
-                        <span class="hero-week-small-time">${m.formatted_time || m.formatted_date_short || ''}</span>
-                        <img src="${getFlagUrl(m.home_team)}" class="hero-crest-img" style="width: 18px; height: 18px;" alt="">
-                        <div class="hero-week-small-names">
-                            <span>${m.home_team.name}</span>
-                            <span style="color: var(--text-muted); font-size: 0.65rem;">v</span>
-                            <span>${m.away_team.name}</span>
-                        </div>
-                        <img src="${getFlagUrl(m.away_team)}" class="hero-crest-img" style="width: 18px; height: 18px;" alt="">
-                    </div>
-                    <span class="hero-score-badge ${rClass}">${score}%</span>
-                </div>
-            `;
+            const card = createHeroElement('div', `hero-week-small-strip ${rClass}`);
+            setHeroMatchData(card, m);
+
+            const homeCrest = createHeroCrest(m.home_team);
+            const awayCrest = createHeroCrest(m.away_team);
+            [homeCrest, awayCrest].forEach((crest) => {
+                crest.style.width = '18px';
+                crest.style.height = '18px';
+            });
+
+            const versus = createHeroElement('span', '', 'v');
+            versus.style.color = 'var(--text-muted)';
+            versus.style.fontSize = '0.65rem';
+            const names = createHeroElement('div', 'hero-week-small-names');
+            names.append(
+                createHeroElement('span', '', m.home_team.name),
+                versus,
+                createHeroElement('span', '', m.away_team.name)
+            );
+            const left = createHeroElement('div', 'hero-week-small-left');
+            left.append(
+                createHeroElement('span', 'hero-week-small-time', m.formatted_time || m.formatted_date_short || ''),
+                homeCrest,
+                names,
+                awayCrest
+            );
+            card.append(left, createHeroElement('span', `hero-score-badge ${rClass}`, `${score}%`));
+            return card;
         };
 
-        const featuredHtml = todayList[0]
+        const featuredCard = todayList[0]
             ? renderFeaturedCard(todayList[0])
             : renderHeroEmptyCard('featured', emptyTitle, emptySubtitle);
-        const today2Html = todayList[1]
+        const today2Card = todayList[1]
             ? renderVertCard(todayList[1], 2)
             : renderHeroEmptyCard('vert', todayList.length ? 'No More Matches Today' : emptyTitle, emptySubtitle);
-        const today3Html = todayList[2]
+        const today3Card = todayList[2]
             ? renderVertCard(todayList[2], 3)
             : renderHeroEmptyCard('vert', todayList.length < 3 ? (isOffseason ? 'Off-Season' : 'Quiet Schedule') : '', emptySubtitle);
-        const weekBigHtml = weekList[0]
+        const weekBigCard = weekList[0]
             ? renderWeekBigCard(weekList[0])
             : renderHeroEmptyCard('week-big', 'Nothing in the Next 7 Days', emptySubtitle);
-        const weekSmallHtml = weekList[1]
+        const weekSmallCard = weekList[1]
             ? renderWeekSmallStrip(weekList[1])
             : renderHeroEmptyCard('week-small', 'Next Match', emptySubtitle);
 
-        mount.innerHTML = `
-            <div class="hero-spotlight-container">
-                ${featuredHtml}
-                ${today2Html}
-                ${today3Html}
-                <div class="hero-right-column">
-                    ${weekBigHtml}
-                    ${weekSmallHtml}
-                </div>
-            </div>
-        `;
+        const rightColumn = createHeroElement('div', 'hero-right-column');
+        rightColumn.append(weekBigCard, weekSmallCard);
+        const spotlight = createHeroElement('div', 'hero-spotlight-container');
+        spotlight.append(featuredCard, today2Card, today3Card, rightColumn);
+        mount.replaceChildren(spotlight);
 
         mount.querySelectorAll('[data-match-data]').forEach(el => {
             el.addEventListener('click', (e) => {

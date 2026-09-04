@@ -22,6 +22,15 @@ def test_hero_spotlight_renders_offseason_and_next_match_notices():
     assert ".hero-empty-card" in HERO_CSS
 
 
+def test_hero_fixture_text_is_rendered_with_dom_apis():
+    assert "noticeBanner.querySelector('span').textContent = activeFixtures.offseason_notice" in APP_JS
+    assert "element.textContent = text" in APP_JS
+    assert "teamElement.setAttribute('data-name', team.name)" in APP_JS
+    assert "element.setAttribute('data-match-data', JSON.stringify(match))" in APP_JS
+    assert '<h4>${title}</h4>' not in APP_JS
+    assert '<p>${subtitle}</p>' not in APP_JS
+
+
 def test_hero_assets_are_served_without_fallbacks(client):
     js = client.get("/js/app.js")
     assert js.status_code == 200

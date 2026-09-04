@@ -499,14 +499,14 @@
 /* Tab Panel States */
 .bracket-tab-panel {
     display: none;
-    animation: fadeInTab 0.4s ease;
+    animation: fade-in-tab 0.4s ease;
 }
 
 .bracket-tab-panel.active {
     display: block;
 }
 
-@keyframes fadeInTab {
+@keyframes fade-in-tab {
     from {
         opacity: 0;
         transform: translateY(8px);
@@ -784,7 +784,7 @@
     display: none;
     align-items: center;
     justify-content: center;
-    animation: fadeInOverlay 0.3s ease;
+    animation: fade-in-overlay 0.3s ease;
 }
 
 .simulation-loading-overlay.show {
@@ -838,10 +838,10 @@
     width: 30%;
     background: var(--gradient-logo);
     border-radius: 3px;
-    animation: pulseProgressBar 2s infinite ease-in-out;
+    animation: pulse-progress-bar 2s infinite ease-in-out;
 }
 
-@keyframes pulseProgressBar {
+@keyframes pulse-progress-bar {
     0% {
         transform: translateX(-100%);
     }
@@ -851,7 +851,7 @@
     }
 }
 
-@keyframes fadeInOverlay {
+@keyframes fade-in-overlay {
     from {
         opacity: 0;
     }
