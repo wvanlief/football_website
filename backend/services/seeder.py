@@ -26,7 +26,7 @@ from backend.database import (
     TournamentTeam,
     PlayerContract,
 )
-from backend.scoring import update_fixture_score
+from backend.scoring import score
 from backend.services.ingestion import (
     NameNormalizer,
     COUNTRY_ISO_MAP,
@@ -374,12 +374,11 @@ def _seed_world_cup(db: Session) -> SeedResult:
     payloads = _fetch_world_cup_api_fixtures(normalizer) or _fallback_fixture_payloads()
     upsert = upserter.upsert_fixtures(db, tourney, payloads, competition=comp)
     db.commit()
-
     fixtures = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).all()
     update_odds_from_api(fixtures, db)
     db.commit()
     for fixture in fixtures:
-        update_fixture_score(fixture, db)
+        score(fixture, db)
     recalculate_standings(db, tourney.id)
     db.commit()
 
@@ -480,7 +479,7 @@ def _seed_european_cups(db: Session, target_league_id: Optional[int] = None) -> 
 
             fixtures = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).all()
             for fixture in fixtures:
-                update_fixture_score(fixture, db)
+                score(fixture, db)
             recalculate_standings(db, tourney.id)
             db.commit()
 

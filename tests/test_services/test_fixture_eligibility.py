@@ -1,3 +1,4 @@
+import json
 import os
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -5,6 +6,7 @@ from backend.database import Competition, Tournament, Team, Fixture, TournamentT
 import backend.crud.fixture as crud_fixture
 from backend.services.tournament import group_enriched_fixtures, get_grouped_fixtures, enrich_fixture
 from backend.services.feed_builder import build_fixtures_feed_cache
+import backend.services.feed_builder as feed_builder
 
 def test_offseason_fallback_returns_only_future_fixtures(db_session):
     """
@@ -283,3 +285,52 @@ def test_feed_builder_integration(db_session):
     assert feed_payload["total_fixtures"] >= 1
     assert len(feed_payload["fixtures"]) >= 1
     assert any(m["id"] == f.id for m in feed_payload["fixtures"])
+
+
+def test_feed_builder_preserves_cache_when_all_enrichment_fails(db_session, monkeypatch, tmp_path):
+    comp = Competition(name="Failed Enrichment League", type="League")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+
+    home = Team(name="Failed Enrichment Home", elo=1700)
+    away = Team(name="Failed Enrichment Away", elo=1650)
+    db_session.add_all([home, away])
+    db_session.flush()
+    fixture = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=home.id,
+        away_team_id=away.id,
+        stage="Regular Season",
+        status="Scheduled",
+        date_utc=(datetime.now(timezone.utc) + timedelta(days=1)).replace(tzinfo=None),
+    )
+    db_session.add(fixture)
+    db_session.commit()
+
+    cache_path = tmp_path / "fixtures_feed_cache.json"
+    existing_payload = {"updated_at": "existing", "total_fixtures": 1, "fixtures": [{"id": 999}]}
+    cache_path.write_text(json.dumps(existing_payload), encoding="utf-8")
+    monkeypatch.setattr(feed_builder, "CACHE_FILE_PATH", str(cache_path))
+
+    def fail_enrichment(*args, **kwargs):
+        raise RuntimeError("test enrichment failure")
+
+    monkeypatch.setattr(feed_builder, "enrich_fixture", fail_enrichment)
+
+    result = feed_builder.build_fixtures_feed_cache(db_session)
+
+    assert result == existing_payload
+    assert json.loads(cache_path.read_text(encoding="utf-8")) == existing_payload
+
+
+def test_feed_builder_writes_empty_cache_without_active_tournaments(db_session, monkeypatch, tmp_path):
+    cache_path = tmp_path / "fixtures_feed_cache.json"
+    monkeypatch.setattr(feed_builder, "CACHE_FILE_PATH", str(cache_path))
+
+    result = feed_builder.build_fixtures_feed_cache(db_session)
+
+    assert result["total_fixtures"] == 0
+    assert json.loads(cache_path.read_text(encoding="utf-8")) == result

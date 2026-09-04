@@ -1,10 +1,37 @@
 import json
 import os
+from dataclasses import asdict, dataclass, field
+
 from sqlalchemy.orm import Session
-from backend.database import Team, Player, Fixture
+
+from backend.crud.player import get_players_by_team
+from backend.database import Fixture, Team, TournamentTeam
 from backend.services.simulation import get_probabilities
+from backend.services.standings import calculate_standings
 
 _derbies_cache = None
+
+
+@dataclass
+class WatchabilityResult:
+    """Canonical watchability payload for a single fixture."""
+
+    watchability_score: float
+    competitiveness_score: float
+    odds_score: float
+    form_score: float
+    narrative_score: float
+    percentile: float
+    tier: str
+    hot_list_eligible: bool
+    reasons: list[str] = field(default_factory=list)
+
+    def as_dict(self) -> dict:
+        return asdict(self)
+
+    def __getitem__(self, key: str):
+        return getattr(self, key)
+
 
 def get_simulation_probabilities(tournament_id: int | None = None):
     """Team -> qualification chance (%), derived from cached simulation results."""
@@ -13,6 +40,7 @@ def get_simulation_probabilities(tournament_id: int | None = None):
         p["team"]: 100.0 - p["group_exit_pct"]
         for p in data.get("probabilities", [])
     }
+
 
 def get_derbies():
     global _derbies_cache
@@ -28,6 +56,7 @@ def get_derbies():
             return _derbies_cache
     except Exception:
         return []
+
 
 DEFAULT_WEIGHTS = {
     "elo": 0.35,         # Proximity and average quality
@@ -60,19 +89,62 @@ WEIGHT_PRESETS = {
 CONMEBOL_COUNTRIES = {"Argentina", "Brazil", "Uruguay", "Colombia", "Chile", "Paraguay", "Ecuador", "Peru", "Bolivia", "Venezuela", "ARG", "BRA", "URU", "COL", "CHI", "PAR", "ECU", "PER", "BOL", "VEN"}
 CONCACAF_COUNTRIES = {"USA", "Canada", "Mexico", "Costa Rica", "Jamaica", "Panama", "USA", "CAN", "MEX", "CRC", "JAM", "PAN"}
 
+
 def get_regional_baseline_elo(team: Team, comp_name: str = "") -> float:
     """Returns baseline ELO for unranked clubs based on region/country."""
     if team and team.elo and team.elo != 1500:
         return float(team.elo)
-    
+
     c_code = team.country_code if (team and team.country_code) else ""
     t_name = team.name if team else ""
-    
+
     if c_code in CONMEBOL_COUNTRIES or "Libertadores" in comp_name or "Sudamericana" in comp_name or "Argentina" in comp_name or "Brasil" in comp_name:
         return 1620.0
     if c_code in CONCACAF_COUNTRIES or "MLS" in comp_name or "CONCACAF" in comp_name:
         return 1520.0
     return 1500.0
+
+
+def _resolve_weights(comp, weights: dict | None) -> dict:
+    if weights is not None:
+        return weights
+    format_engine = comp.format_engine if comp else "group_knockout"
+    return WEIGHT_PRESETS.get(format_engine, DEFAULT_WEIGHTS)
+
+
+def _squad_players(db: Session, team_name: str) -> list:
+    """Load active squad players used for form scoring."""
+    return get_players_by_team(db, team_name)
+
+
+def _league_table(db: Session, tournament_id: int | None) -> list:
+    """Load league standings for narrative rank/stakes calculations."""
+    return calculate_standings(db, "standings", tournament_id=tournament_id)
+
+
+def _group_letter(db: Session, tournament_id: int | None, team_id: int) -> str:
+    """Resolve a team's group letter for group-stage narrative copy."""
+    tt = db.query(TournamentTeam).filter(
+        TournamentTeam.tournament_id == tournament_id,
+        TournamentTeam.team_id == team_id
+    ).first()
+    return tt.group_name if tt else ""
+
+
+def _team_goal_profile(db: Session, team_id: int) -> tuple[float, int, bool]:
+    """Return (avg_goals, matches_played, is_high_scoring) for a team."""
+    home_finished = db.query(Fixture).filter(
+        Fixture.home_team_id == team_id, Fixture.status == "Finished"
+    ).all()
+    away_finished = db.query(Fixture).filter(
+        Fixture.away_team_id == team_id, Fixture.status == "Finished"
+    ).all()
+    goals = sum(g.home_score for g in home_finished) + sum(g.away_score for g in away_finished)
+    played = len(home_finished) + len(away_finished)
+    avg = goals / played if played > 0 else 0.0
+    is_high = (played >= 3 and avg >= 1.75) or (played > 0 and played < 3 and avg >= 2.0)
+    return avg, played, is_high
+
 
 def is_hot_list_eligible(fixture: Fixture, home_team: Team, away_team: Team) -> bool:
     """
@@ -84,61 +156,97 @@ def is_hot_list_eligible(fixture: Fixture, home_team: Team, away_team: Team) -> 
     """
     comp = fixture.tournament.competition if (fixture and fixture.tournament) else None
     comp_name = comp.name if comp else ""
-    
+
     is_non_european = comp_name in (
-        "Copa Libertadores", "Copa Sudamericana", "MLS", "US Open Cup", 
+        "Copa Libertadores", "Copa Sudamericana", "MLS", "US Open Cup",
         "Copa Argentina", "Copa do Brasil", "CONCACAF Champions Cup"
     ) or (home_team and home_team.country_code in CONMEBOL_COUNTRIES.union(CONCACAF_COUNTRIES))
-    
+
     if not is_non_european:
         return True
-        
+
     derbies = get_derbies()
     for d in derbies:
         t1, t2 = d.get("teams", [])
         if (home_team.name == t1 and away_team.name == t2) or (home_team.name == t2 and away_team.name == t1):
             return True
-            
+
     if fixture.stage in ("Quarter-final", "Semi-final", "Final", "3rd Place", "Finals"):
         return True
-        
+
     return False
 
-def calculate_watchability(
-    fixture: Fixture, 
-    home_team: Team, 
-    away_team: Team, 
+
+def _empty_result() -> WatchabilityResult:
+    return WatchabilityResult(
+        watchability_score=0.0,
+        competitiveness_score=0.0,
+        odds_score=0.0,
+        form_score=0.0,
+        narrative_score=0.0,
+        percentile=0.0,
+        tier="Skip",
+        hot_list_eligible=False,
+        reasons=[],
+    )
+
+
+def _persist_result(fixture: Fixture, result: WatchabilityResult) -> None:
+    fixture.watchability_score = result.watchability_score
+    fixture.competitiveness_score = result.competitiveness_score
+    fixture.odds_score = result.odds_score
+    fixture.form_score = result.form_score
+    fixture.narrative_score = result.narrative_score
+    fixture.reasons_json = json.dumps(result.reasons)
+
+
+def score(fixture: Fixture, db: Session, weights: dict = None) -> WatchabilityResult:
+    """Calculate watchability for a fixture and persist the scores on the ORM row.
+
+    Absorbs weight resolution, regional ELO baselines, inline DB lookups, and
+    the former ``update_fixture_score`` write-back.  Callers that previously
+    split ``calculate_watchability`` + ``update_fixture_score`` should call
+    this once.
+    """
+    home_team = fixture.home_team
+    away_team = fixture.away_team
+    if not home_team or not away_team:
+        return _empty_result()
+
+    result = _compute_watchability(fixture, home_team, away_team, db, weights)
+    _persist_result(fixture, result)
+    return result
+
+
+def _compute_watchability(
+    fixture: Fixture,
+    home_team: Team,
+    away_team: Team,
     db: Session,
     weights: dict = None
-) -> dict:
-    """
-    Calculates the watchability score for a fixture based on ELO, betting odds, form, and narratives.
-    Weights can be customized dynamically or resolved based on competition format presets.
-    """
+) -> WatchabilityResult:
+    """Pure scoring math.  All DB access goes through module helpers."""
     comp = fixture.tournament.competition if (fixture.tournament and fixture.tournament.competition) else None
     comp_name = comp.name if comp else ""
-    
-    if weights is None:
-        format_engine = comp.format_engine if comp else "group_knockout"
-        weights = WEIGHT_PRESETS.get(format_engine, DEFAULT_WEIGHTS)
-        
+    weights = _resolve_weights(comp, weights)
+
     reasons = []
-    
+
     # 1. ELO Score (Proximity & Average Quality) with Regional Baselines
     h_elo = get_regional_baseline_elo(home_team, comp_name)
     a_elo = get_regional_baseline_elo(away_team, comp_name)
-    
+
     elo_diff = abs(h_elo - a_elo)
     # Proximity: 100 is identical ELO, 500 difference is 0.
     elo_proximity = max(0.0, 100.0 - (elo_diff / 5.0))
-    
+
     # Average Quality: Reward matches between high-ELO teams.
     elo_avg = (h_elo + a_elo) / 2.0
-    elo_quality = min(100.0, max(0.0, (elo_avg - 1400) / 7.0)) # Scale 1400-2100 to 0-100
-    
+    elo_quality = min(100.0, max(0.0, (elo_avg - 1400) / 7.0))  # Scale 1400-2100 to 0-100
+
     # ELO combined score: 70% proximity (similar strength), 30% elite clash quality
     elo_score = (elo_proximity * 0.7) + (elo_quality * 0.3)
-    
+
     if elo_diff <= 80:
         reasons.append(f"Highly competitive matchup: ELO ratings are extremely close (diff: {elo_diff}).")
     elif elo_diff <= 180:
@@ -160,13 +268,13 @@ def calculate_watchability(
     odds_diff = abs(latest_odds.odds_home - latest_odds.odds_away)
     # Proximity: 100 when odds are equal, drops as gap increases
     odds_proximity = max(0.0, 100.0 - (odds_diff * 25.0))
-    
+
     # Draw index: Lower draw odds indicate bookies expect a very tight, hard-to-break game
     draw_index = max(0.0, 100.0 - ((latest_odds.odds_draw - 2.5) * 40.0))
-    
+
     odds_score = (odds_proximity * 0.8) + (draw_index * 0.2)
     odds_score = min(100.0, max(0.0, odds_score))
-    
+
     if odds_diff < 0.4:
         reasons.append("Bookmakers predict an extremely tight game with almost even odds.")
     elif odds_diff > 2.5:
@@ -174,24 +282,22 @@ def calculate_watchability(
 
     # 3. Form Score (Team & Player Form)
     team_form = (home_team.form_score + away_team.form_score) / 2.0
-    
-    # Query players
-    from backend.crud.player import get_players_by_team
-    home_players = get_players_by_team(db, home_team.name)
-    away_players = get_players_by_team(db, away_team.name)
+
+    home_players = _squad_players(db, home_team.name)
+    away_players = _squad_players(db, away_team.name)
     all_players = home_players + away_players
-    
+
     if all_players:
         player_form = sum(p.form_score for p in all_players) / len(all_players)
         form_score = (team_form * 0.5) + (player_form * 0.5)
     else:
         form_score = team_form
-        
+
     # Check for hot players
     hot_players = [p for p in all_players if p.form_score >= 85]
     if hot_players:
         reasons.append(f"Players to watch: {', '.join([p.name for p in hot_players[:2]])} are in red-hot form.")
-        
+
     if home_team.win_streak >= 3:
         reasons.append(f"{home_team.name} is on a roll with a {home_team.win_streak}-match win streak.")
     if away_team.win_streak >= 3:
@@ -199,21 +305,18 @@ def calculate_watchability(
 
     # 4. Narrative & Stage Score
     is_league = comp and (comp.format_engine == "league" or comp.type == "League")
-    
+
     if is_league:
-        from backend.services.standings import calculate_standings
-        
-        # Calculate dynamic standings to get rank and team points
-        standings = calculate_standings(db, "standings", tournament_id=fixture.tournament_id)
+        standings = _league_table(db, fixture.tournament_id)
         total_teams = len(standings)
         total_matchdays = (total_teams - 1) * 2 if total_teams > 1 else 38
-        
+
         gw = fixture.matchday_number if fixture.matchday_number else 1
         matchday_factor = gw / total_matchdays if total_matchdays > 0 else 1.0
-        
-        narrative_score = 40.0 # Baseline league narrative
+
+        narrative_score = 40.0  # Baseline league narrative
         reasons.append(f"Gameweek {gw} of {total_matchdays} league clash.")
-        
+
         home_rank = None
         away_rank = None
         for idx, s in enumerate(standings):
@@ -221,10 +324,10 @@ def calculate_watchability(
                 home_rank = idx + 1
             if s["name"] == away_team.name:
                 away_rank = idx + 1
-                
+
         if home_rank and away_rank:
             boost = 0.0
-            
+
             # Title Clash
             if home_rank <= 3 and away_rank <= 3:
                 boost = 15.0
@@ -233,7 +336,7 @@ def calculate_watchability(
                 boost = 6.0
                 leader_name = home_team.name if home_rank <= 3 else away_team.name
                 reasons.append(f"{leader_name} is fighting to maintain their championship lead.")
-                
+
             # European Spot Battle
             if 4 <= home_rank <= 6 and 4 <= away_rank <= 6:
                 boost = 8.0
@@ -242,11 +345,11 @@ def calculate_watchability(
                 boost = 4.0
                 contender_name = home_team.name if home_rank <= 6 else away_team.name
                 reasons.append(f"{contender_name} is pursuing crucial points for European qualification.")
-                
+
             # Relegation battle (Dynamic spots detection)
             rel_spots = comp.relegation_spots if (comp and comp.relegation_spots and comp.relegation_spots > 0) else 3
             rel_threshold = total_teams - rel_spots - 1 if total_teams > rel_spots else 15
-            
+
             if home_rank >= rel_threshold and away_rank >= rel_threshold:
                 boost = 12.0
                 reasons.append("Relegation Six-Pointer: A vital battle for survival as both teams fight against relegation.")
@@ -254,22 +357,22 @@ def calculate_watchability(
                 boost = 5.0
                 battler_name = home_team.name if home_rank >= rel_threshold else away_team.name
                 reasons.append(f"{battler_name} is fighting to escape the relegation zone.")
-                
+
             # David vs Goliath / Upset Potential
             is_home_underdog = home_rank >= rel_threshold
             is_away_underdog = away_rank >= rel_threshold
             is_home_favorite = home_rank <= 4
             is_away_favorite = away_rank <= 4
-            
+
             if (is_home_underdog and is_away_favorite) or (is_away_underdog and is_home_favorite):
                 boost = 6.0
                 fav_name = home_team.name if is_home_favorite else away_team.name
                 und_name = home_team.name if is_home_underdog else away_team.name
                 reasons.append(f"David vs. Goliath clash: Underdog {und_name} takes on title challenger {fav_name}!")
-                
+
             narrative_score += boost * matchday_factor
             narrative_score = round(min(100.0, narrative_score), 1)
-            
+
     else:
         stage_scores = {
             "Group Stage": 60.0,
@@ -279,45 +382,39 @@ def calculate_watchability(
             "Final": 100.0
         }
         stage_score = stage_scores.get(fixture.stage, 60.0)
-        
+
         if fixture.stage != "Group Stage":
             narrative_score = stage_score
             reasons.append(f"High stakes: World Cup {fixture.stage} knockout match (winner takes all).")
         else:
             # Dynamic stakes calculation for Group Stage based on qualification probabilities
             probs = get_simulation_probabilities(fixture.tournament_id)
-            
-            from backend.database import TournamentTeam
-            tt = db.query(TournamentTeam).filter(
-                TournamentTeam.tournament_id == fixture.tournament_id,
-                TournamentTeam.team_id == home_team.id
-            ).first()
-            group_letter = tt.group_name if tt else ""
+            group_letter = _group_letter(db, fixture.tournament_id, home_team.id)
             reasons.append(f"Crucial World Cup Group {group_letter} clash.")
-            
+
             if home_team.name in probs and away_team.name in probs:
                 p_home = probs[home_team.name]
                 p_away = probs[away_team.name]
-                
+
                 # Calculate individual team qualification stakes (0 to 100)
                 # Closer to 50% means higher stakes (survival is on the line)
                 s_home = 100.0 - 2.0 * abs(p_home - 50.0)
                 s_away = 100.0 - 2.0 * abs(p_away - 50.0)
-                
+
                 # Combine home and away stakes: weighted towards the higher-stakes team
                 s_match = 0.7 * max(s_home, s_away) + 0.3 * min(s_home, s_away)
-                
+
                 # Scale to stage score (baseline is 10.0, max is 100.0)
                 baseline = 10.0
                 narrative_score = baseline + (100.0 - baseline) * (s_match / 100.0)
                 narrative_score = round(min(100.0, max(0.0, narrative_score)), 1)
-                
+
                 # Add detailed, context-specific stakes analysis reasons
                 is_home_safe = p_home >= 98.0
                 is_away_safe = p_away >= 98.0
                 is_home_out = p_home <= 2.0
                 is_away_out = p_away <= 2.0
-                
+
                 if is_home_safe and is_away_safe:
                     reasons.append("Qualification settled: Both teams have already secured qualification to the knockout stage.")
                 elif is_home_out and is_away_out:
@@ -351,22 +448,10 @@ def calculate_watchability(
         (form_score * weights["form"]) +
         (narrative_score * weights["narrative"])
     )
-    
-    # 5. High Scoring Teams Factor
-    # Calculate goals stats for both teams
-    home_finished_h = db.query(Fixture).filter(Fixture.home_team_id == home_team.id, Fixture.status == "Finished").all()
-    home_finished_a = db.query(Fixture).filter(Fixture.away_team_id == home_team.id, Fixture.status == "Finished").all()
-    home_goals = sum(g.home_score for g in home_finished_h) + sum(g.away_score for g in home_finished_a)
-    home_played = len(home_finished_h) + len(home_finished_a)
-    home_avg = home_goals / home_played if home_played > 0 else 0.0
-    home_high = (home_played >= 3 and home_avg >= 1.75) or (home_played > 0 and home_played < 3 and home_avg >= 2.0)
 
-    away_finished_h = db.query(Fixture).filter(Fixture.home_team_id == away_team.id, Fixture.status == "Finished").all()
-    away_finished_a = db.query(Fixture).filter(Fixture.away_team_id == away_team.id, Fixture.status == "Finished").all()
-    away_goals = sum(g.home_score for g in away_finished_h) + sum(g.away_score for g in away_finished_a)
-    away_played = len(away_finished_h) + len(away_finished_a)
-    away_avg = away_goals / away_played if away_played > 0 else 0.0
-    away_high = (away_played >= 3 and away_avg >= 1.75) or (away_played > 0 and away_played < 3 and away_avg >= 2.0)
+    # 5. High Scoring Teams Factor
+    home_avg, home_played, home_high = _team_goal_profile(db, home_team.id)
+    away_avg, away_played, away_high = _team_goal_profile(db, away_team.id)
 
     if home_high and away_high:
         overall_score += 7.0
@@ -377,7 +462,7 @@ def calculate_watchability(
     elif away_high:
         overall_score += 3.5
         reasons.insert(0, f"High-octane attack: {away_team.name} is scoring an average of {away_avg:.2f} goals per match.")
-        
+
     # 6. Derby / Rivalry Boost
     derbies = get_derbies()
     for d in derbies:
@@ -386,24 +471,25 @@ def calculate_watchability(
             overall_score += d.get("boost", 0.0)
             reasons.insert(0, f"Local Rivalry: {d.get('name')} clash!")
             break
-    
+
     # Guarantee 0-100 range
     overall_score = round(min(100.0, max(0.0, overall_score)), 1)
-    
+
     percentile = calculate_global_percentile(overall_score)
     tier = get_score_tier(overall_score)
-    
-    return {
-        "watchability_score": overall_score,
-        "competitiveness_score": round(elo_score, 1),
-        "odds_score": round(odds_score, 1),
-        "form_score": round(form_score, 1),
-        "narrative_score": round(narrative_score, 1),
-        "percentile": percentile,
-        "tier": tier,
-        "hot_list_eligible": is_hot_list_eligible(fixture, home_team, away_team),
-        "reasons": reasons
-    }
+
+    return WatchabilityResult(
+        watchability_score=overall_score,
+        competitiveness_score=round(elo_score, 1),
+        odds_score=round(odds_score, 1),
+        form_score=round(form_score, 1),
+        narrative_score=round(narrative_score, 1),
+        percentile=percentile,
+        tier=tier,
+        hot_list_eligible=is_hot_list_eligible(fixture, home_team, away_team),
+        reasons=reasons,
+    )
+
 
 def calculate_global_percentile(score: float) -> float:
     """
@@ -414,7 +500,7 @@ def calculate_global_percentile(score: float) -> float:
         return 0.0
     if score >= 100.0:
         return 100.0
-        
+
     anchors = [
         (0.0, 0.0),
         (35.0, 5.0),
@@ -429,15 +515,16 @@ def calculate_global_percentile(score: float) -> float:
         (90.0, 99.9),
         (100.0, 100.0)
     ]
-    
+
     for i in range(len(anchors) - 1):
         s_low, p_low = anchors[i]
         s_high, p_high = anchors[i + 1]
         if s_low <= score <= s_high:
             ratio = (score - s_low) / (s_high - s_low) if (s_high > s_low) else 0.0
             return round(p_low + ratio * (p_high - p_low), 1)
-            
+
     return 100.0
+
 
 def get_score_tier(score: float) -> str:
     """
@@ -457,23 +544,20 @@ def get_score_tier(score: float) -> str:
         return "Average"
     return "Skip"
 
+
+def calculate_watchability(
+    fixture: Fixture,
+    home_team: Team,
+    away_team: Team,
+    db: Session,
+    weights: dict = None
+) -> dict:
+    """Compatibility wrapper.  Prefer ``score(fixture, db)``."""
+    result = score(fixture, db, weights)
+    return result.as_dict()
+
+
 def update_fixture_score(fixture: Fixture, db: Session, weights: dict = None) -> Fixture:
-    """
-    Recalculates and updates the watchability scores for a single fixture.
-    """
-    home_team = fixture.home_team
-    away_team = fixture.away_team
-    
-    if not home_team or not away_team:
-        return fixture
-        
-    scores = calculate_watchability(fixture, home_team, away_team, db, weights)
-    
-    fixture.watchability_score = scores["watchability_score"]
-    fixture.competitiveness_score = scores["competitiveness_score"]
-    fixture.odds_score = scores["odds_score"]
-    fixture.form_score = scores["form_score"]
-    fixture.narrative_score = scores["narrative_score"]
-    fixture.reasons_json = json.dumps(scores["reasons"])
-    
+    """Compatibility wrapper.  Prefer ``score(fixture, db)``."""
+    score(fixture, db, weights)
     return fixture

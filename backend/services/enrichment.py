@@ -100,7 +100,7 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
             "logo_url": away_team.badge_url if away_team else "/static/badges/default.png",
             "players": [{"name": p.name, "position": p.position, "form": p.form_score} for p in away_players]
         },
-        "date": f.date_utc.isoformat(),
+        "date": dt.isoformat(),
         "formatted_time": dt_tz.strftime("%H:%M"),
         "formatted_date": dt_tz.strftime("%B %d, %Y"),
         "formatted_date_short": dt_tz.strftime("%b %d"),
@@ -114,7 +114,7 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
             "away": latest_odds.odds_away
         },
         "watchability": {
-            "overall": f.watchability_score,
+            "overall": overall_score,
             "competitiveness": f.competitiveness_score,
             "odds": f.odds_score,
             "form": f.form_score,
