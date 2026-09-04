@@ -1,0 +1,424 @@
+{
+  "competition": "FIFA World Cup",
+  "season": "2026",
+  "format_engine": "group_knockout",
+  "odds_api_sport_key": "soccer_fifa_world_cup",
+  "api_league_id": 1,
+  "api_season": 2026,
+  "elo_ratings": {
+    "Spain": 2165,
+    "Argentina": 2113,
+    "France": 2082,
+    "England": 2020,
+    "Brazil": 1984,
+    "Portugal": 1984,
+    "Colombia": 1975,
+    "Netherlands": 1961,
+    "Germany": 1923,
+    "Norway": 1912,
+    "Japan": 1904,
+    "Turkey": 1902,
+    "Uruguay": 1892,
+    "Switzerland": 1889,
+    "Senegal": 1878,
+    "Mexico": 1858,
+    "USA": 1721,
+    "Canada": 1784,
+    "Morocco": 1821,
+    "Algeria": 1743,
+    "Croatia": 1930,
+    "Ecuador": 1933,
+    "Austria": 1827,
+    "Paraguay": 1833,
+    "South Korea": 1752,
+    "Australia": 1783,
+    "Scotland": 1767,
+    "Iran": 1760,
+    "Uzbekistan": 1727,
+    "Qatar": 1600,
+    "South Africa": 1650,
+    "Haiti": 1550,
+    "Curaçao": 1500,
+    "Cape Verde": 1580,
+    "Panama": 1737,
+    "Ghana": 1680,
+    "New Zealand": 1550,
+    "Jordan": 1690,
+    "Czechia": 1830,
+    "Bosnia and Herzegovina": 1720,
+    "Côte d'Ivoire": 1800,
+    "Tunisia": 1750,
+    "Poland": 1820,
+    "Belgium": 1960,
+    "Egypt": 1780,
+    "Saudi Arabia": 1710,
+    "Iraq": 1700,
+    "Jamaica": 1680
+  },
+  "groups": {
+    "A": [
+      "Mexico",
+      "South Africa",
+      "South Korea",
+      "Czechia"
+    ],
+    "B": [
+      "Canada",
+      "Switzerland",
+      "Qatar",
+      "Bosnia and Herzegovina"
+    ],
+    "C": [
+      "Brazil",
+      "Morocco",
+      "Scotland",
+      "Haiti"
+    ],
+    "D": [
+      "USA",
+      "Paraguay",
+      "Australia",
+      "Turkey"
+    ],
+    "E": [
+      "Germany",
+      "Ecuador",
+      "Curaçao",
+      "Côte d'Ivoire"
+    ],
+    "F": [
+      "Netherlands",
+      "Japan",
+      "Tunisia",
+      "Poland"
+    ],
+    "G": [
+      "Belgium",
+      "Egypt",
+      "Iran",
+      "New Zealand"
+    ],
+    "H": [
+      "Spain",
+      "Uruguay",
+      "Saudi Arabia",
+      "Cape Verde"
+    ],
+    "I": [
+      "France",
+      "Senegal",
+      "Norway",
+      "Iraq"
+    ],
+    "J": [
+      "Argentina",
+      "Algeria",
+      "Austria",
+      "Jordan"
+    ],
+    "K": [
+      "Portugal",
+      "Colombia",
+      "Uzbekistan",
+      "Jamaica"
+    ],
+    "L": [
+      "England",
+      "Croatia",
+      "Panama",
+      "Ghana"
+    ]
+  },
+  "spotlight_players": {
+    "Germany": [
+      {
+        "name": "Florian Wirtz",
+        "position": "Midfielder",
+        "form": 93.5
+      },
+      {
+        "name": "Jamal Musiala",
+        "position": "Midfielder",
+        "form": 91.0
+      }
+    ],
+    "Ecuador": [
+      {
+        "name": "Moisés Caicedo",
+        "position": "Midfielder",
+        "form": 84.0
+      },
+      {
+        "name": "Piero Hincapié",
+        "position": "Defender",
+        "form": 81.5
+      }
+    ],
+    "France": [
+      {
+        "name": "Kylian Mbappé",
+        "position": "Forward",
+        "form": 95.0
+      },
+      {
+        "name": "Antoine Griezmann",
+        "position": "Forward",
+        "form": 82.0
+      }
+    ],
+    "Spain": [
+      {
+        "name": "Lamine Yamal",
+        "position": "Forward",
+        "form": 94.5
+      },
+      {
+        "name": "Rodri",
+        "position": "Midfielder",
+        "form": 92.0
+      }
+    ],
+    "Uruguay": [
+      {
+        "name": "Federico Valverde",
+        "position": "Midfielder",
+        "form": 88.0
+      },
+      {
+        "name": "Darwin Núñez",
+        "position": "Forward",
+        "form": 82.0
+      }
+    ],
+    "Brazil": [
+      {
+        "name": "Vinícius Júnior",
+        "position": "Forward",
+        "form": 94.0
+      },
+      {
+        "name": "Rodrygo",
+        "position": "Forward",
+        "form": 85.5
+      }
+    ],
+    "Morocco": [
+      {
+        "name": "Achraf Hakimi",
+        "position": "Defender",
+        "form": 86.5
+      },
+      {
+        "name": "Brahim Díaz",
+        "position": "Midfielder",
+        "form": 89.0
+      }
+    ],
+    "Portugal": [
+      {
+        "name": "Cristiano Ronaldo",
+        "position": "Forward",
+        "form": 81.0
+      },
+      {
+        "name": "Bruno Fernandes",
+        "position": "Midfielder",
+        "form": 89.5
+      }
+    ],
+    "Colombia": [
+      {
+        "name": "Luis Díaz",
+        "position": "Forward",
+        "form": 91.0
+      },
+      {
+        "name": "James Rodríguez",
+        "position": "Midfielder",
+        "form": 86.0
+      }
+    ],
+    "England": [
+      {
+        "name": "Jude Bellingham",
+        "position": "Midfielder",
+        "form": 94.0
+      },
+      {
+        "name": "Harry Kane",
+        "position": "Forward",
+        "form": 89.0
+      }
+    ],
+    "Croatia": [
+      {
+        "name": "Luka Modrić",
+        "position": "Midfielder",
+        "form": 81.0
+      },
+      {
+        "name": "Joško Gvardiol",
+        "position": "Defender",
+        "form": 87.5
+      }
+    ],
+    "Argentina": [
+      {
+        "name": "Lionel Messi",
+        "position": "Forward",
+        "form": 92.5
+      },
+      {
+        "name": "Alexis Mac Allister",
+        "position": "Midfielder",
+        "form": 87.0
+      }
+    ],
+    "Netherlands": [
+      {
+        "name": "Cody Gakpo",
+        "position": "Forward",
+        "form": 83.5
+      },
+      {
+        "name": "Virgil van Dijk",
+        "position": "Defender",
+        "form": 86.0
+      }
+    ],
+    "Japan": [
+      {
+        "name": "Kaoru Mitoma",
+        "position": "Forward",
+        "form": 88.0
+      },
+      {
+        "name": "Takefusa Kubo",
+        "position": "Midfielder",
+        "form": 87.0
+      }
+    ],
+    "USA": [
+      {
+        "name": "Christian Pulisic",
+        "position": "Forward",
+        "form": 85.0
+      },
+      {
+        "name": "Weston McKennie",
+        "position": "Midfielder",
+        "form": 79.5
+      }
+    ],
+    "Turkey": [
+      {
+        "name": "Arda Güler",
+        "position": "Midfielder",
+        "form": 89.0
+      },
+      {
+        "name": "Hakan Çalhanoğlu",
+        "position": "Midfielder",
+        "form": 85.0
+      }
+    ],
+    "Belgium": [
+      {
+        "name": "Kevin De Bruyne",
+        "position": "Midfielder",
+        "form": 91.5
+      },
+      {
+        "name": "Romelu Lukaku",
+        "position": "Forward",
+        "form": 83.0
+      }
+    ],
+    "Norway": [
+      {
+        "name": "Erling Haaland",
+        "position": "Forward",
+        "form": 94.0
+      },
+      {
+        "name": "Martin Ødegaard",
+        "position": "Midfielder",
+        "form": 92.5
+      }
+    ]
+  },
+  "fallback_matches": [
+    {
+      "id": "1",
+      "home": "Mexico",
+      "away": "South Africa",
+      "stage": "Group Stage",
+      "date": "2026-06-11T16:00:00+00:00",
+      "status": "Scheduled"
+    },
+    {
+      "id": "2",
+      "home": "South Korea",
+      "away": "Czechia",
+      "stage": "Group Stage",
+      "date": "2026-06-11T23:00:00+00:00",
+      "status": "Scheduled"
+    },
+    {
+      "id": "3",
+      "home": "Canada",
+      "away": "Bosnia and Herzegovina",
+      "stage": "Group Stage",
+      "date": "2026-06-12T19:00:00+00:00",
+      "status": "Scheduled"
+    },
+    {
+      "id": "4",
+      "home": "Qatar",
+      "away": "Switzerland",
+      "stage": "Group Stage",
+      "date": "2026-06-13T16:00:00+00:00",
+      "status": "Scheduled"
+    },
+    {
+      "id": "5",
+      "home": "Germany",
+      "away": "Ecuador",
+      "stage": "Group Stage",
+      "date": "2026-06-13T22:00:00+00:00",
+      "status": "Scheduled"
+    },
+    {
+      "id": "6",
+      "home": "Brazil",
+      "away": "Morocco",
+      "stage": "Group Stage",
+      "date": "2026-06-14T16:00:00+00:00",
+      "status": "Scheduled"
+    },
+    {
+      "id": "7",
+      "home": "Spain",
+      "away": "Uruguay",
+      "stage": "Group Stage",
+      "date": "2026-06-15T20:00:00+00:00",
+      "status": "Scheduled"
+    },
+    {
+      "id": "8",
+      "home": "Portugal",
+      "away": "Colombia",
+      "stage": "Group Stage",
+      "date": "2026-06-16T16:00:00+00:00",
+      "status": "Scheduled"
+    },
+    {
+      "id": "9",
+      "home": "England",
+      "away": "Croatia",
+      "stage": "Group Stage",
+      "date": "2026-06-17T16:00:00+00:00",
+      "status": "Scheduled"
+    }
+  ]
+}

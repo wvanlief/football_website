@@ -241,6 +241,93 @@ def test_propagate_knockout_fixtures(db_session):
     assert f_third.home_team_placeholder is None
 
 
+def test_world_cup_fallback_is_scoped_to_tournament(db_session):
+    from backend.services.tournament import propagate_knockout_fixtures
+
+    comp = Competition(name="FIFA World Cup", type="International")
+    db_session.add(comp)
+    db_session.flush()
+    source_tourney = Tournament(competition_id=comp.id, season_name="2026")
+    other_tourney = Tournament(competition_id=comp.id, season_name="2030")
+    winner = Team(name="Scoped Winner", elo=1900)
+    loser = Team(name="Scoped Loser", elo=1800)
+    db_session.add_all([source_tourney, other_tourney, winner, loser])
+    db_session.flush()
+    source = Fixture(
+        tournament_id=source_tourney.id,
+        home_team_id=winner.id,
+        away_team_id=loser.id,
+        stage="Round of 32",
+        status="Finished",
+        api_id="73",
+        home_score=1,
+        away_score=0,
+        winner_id=winner.id,
+        date_utc=datetime.now(),
+    )
+    correct_target = Fixture(
+        tournament_id=source_tourney.id,
+        stage="Round of 16",
+        status="Scheduled",
+        api_id="90",
+        date_utc=datetime.now(),
+    )
+    other_target = Fixture(
+        tournament_id=other_tourney.id,
+        stage="Round of 16",
+        status="Scheduled",
+        api_id="90",
+        date_utc=datetime.now(),
+    )
+    db_session.add_all([source, correct_target, other_target])
+    db_session.commit()
+
+    propagate_knockout_fixtures(db_session)
+    db_session.commit()
+
+    assert correct_target.home_team_id == winner.id
+    assert other_target.home_team_id is None
+
+
+def test_numeric_fallback_is_disabled_for_non_world_cup(db_session):
+    from backend.services.tournament import propagate_knockout_fixtures
+
+    comp = Competition(name="Domestic Cup", type="Cup")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026")
+    winner = Team(name="Domestic Winner", elo=1900)
+    loser = Team(name="Domestic Loser", elo=1800)
+    db_session.add_all([tourney, winner, loser])
+    db_session.flush()
+    source = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=winner.id,
+        away_team_id=loser.id,
+        stage="Round of 32",
+        status="Finished",
+        api_id="73",
+        home_score=1,
+        away_score=0,
+        winner_id=winner.id,
+        date_utc=datetime.now(),
+    )
+    target = Fixture(
+        tournament_id=tourney.id,
+        stage="Round of 16",
+        status="Scheduled",
+        api_id="90",
+        date_utc=datetime.now(),
+    )
+    db_session.add_all([source, target])
+    db_session.commit()
+
+    propagate_knockout_fixtures(db_session)
+    db_session.commit()
+
+    assert target.home_team_id is None
+
+
 def test_db_driven_propagation(db_session):
     from backend.database import Competition, Tournament, Team, Fixture, FixtureDependency
     from backend.services.tournament import propagate_knockout_fixtures
@@ -374,7 +461,6 @@ def test_upcoming_gems_watchability_filter(db_session):
     assert gems[0]["watchability"]["overall"] == 88.0
     assert gems[1]["watchability"]["overall"] == 79.0
     assert gems[2]["watchability"]["overall"] == 72.0
-
 
 
 

@@ -6,7 +6,10 @@ from backend.services.simulation import (
     simulate_bracket,
     simulate_group_stage,
     get_best_third_placed_teams,
-    assign_third_placed_bipartite
+    assign_third_placed_bipartite,
+    get_probabilities,
+    save_probabilities,
+    results_path,
 )
 
 def test_simulation_service(db_session):
@@ -85,3 +88,27 @@ def test_simulation_service(db_session):
         os.remove(file_path)
     except Exception:
         pass
+
+
+def test_get_probabilities_caches_and_parameterizes(monkeypatch, tmp_path):
+    import backend.services.simulation as simulation
+
+    monkeypatch.setattr(simulation, "_DATA_DIR", str(tmp_path))
+    simulation._PROBABILITIES_CACHE.clear()
+
+    payload = {"probabilities": [{"team": "TeamA", "group_exit_pct": 10.0}]}
+    save_probabilities(2, payload)
+
+    assert os.path.exists(os.path.join(tmp_path, "simulation_results_2.json"))
+    first = get_probabilities(2)
+    second = get_probabilities(2)
+    assert first is second
+    assert first["probabilities"][0]["team"] == "TeamA"
+
+    save_probabilities(1, payload)
+    assert os.path.exists(os.path.join(tmp_path, "simulation_results.json"))
+    assert results_path(None) == results_path(1)
+    wc = get_probabilities(None)
+    assert wc["probabilities"][0]["group_exit_pct"] == 10.0
+
+    assert get_probabilities(99) == {}

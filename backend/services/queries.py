@@ -4,7 +4,6 @@ Read-path functions that load fixtures, standings, and team details for the
 HTTP API. Enrichment and grouping live in ``enrichment.py``; knockout
 propagation lives in ``knockout.py``.
 """
-import json
 import os
 import time
 from datetime import datetime, timedelta, timezone
@@ -18,6 +17,7 @@ import backend.crud.player as crud_player
 import backend.crud.team as crud_team
 from backend.services.enrichment import enrich_fixture, get_timezone, group_enriched_fixtures
 from backend.services.knockout import resolve_placeholder_name
+from backend.services.simulation import get_probabilities
 from backend.services.standings import calculate_points_needed_to_guarantee_top_2, calculate_standings
 
 
@@ -275,16 +275,7 @@ def get_all_third_placed_teams(db: Session, tournament_id: int = None) -> list:
     groups = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
     third_placed = []
 
-    sim_data = None
-    if tournament_id == 1:
-        file_path = os.path.join(os.path.dirname(__file__), "..", "data", "simulation_results.json")
-        if os.path.exists(file_path):
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    sim_data = json.load(f)
-            except Exception:
-                pass
-
+    sim_data = get_probabilities(tournament_id)
     team_probs = {}
     if sim_data and "probabilities" in sim_data:
         for p in sim_data["probabilities"]:
@@ -341,16 +332,7 @@ def get_group_details(db: Session, group_letter: str, tz_str: str, tournament_id
 
     standings = calculate_standings(db, group_letter, tournament_id=tournament_id)
 
-    sim_data = None
-    if tournament_id == 1:
-        file_path = os.path.join(os.path.dirname(__file__), "..", "data", "simulation_results.json")
-        if os.path.exists(file_path):
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    sim_data = json.load(f)
-            except Exception:
-                pass
-
+    sim_data = get_probabilities(tournament_id)
     team_probs = {}
     if sim_data and "probabilities" in sim_data:
         for p in sim_data["probabilities"]:
