@@ -2357,58 +2357,124 @@ body.theme-flag .country-hero-flag-bg {
     pointer-events: none;
 }
 
-/* Deep Page Horizontal Pill Nav Bar */
-.competition-pills-nav-bar {
-    display: flex;
-    gap: 0.75rem;
-    overflow-x: auto;
-    padding: 0.75rem 1rem;
-    border-radius: 12px;
-    margin-bottom: 2rem;
-    scrollbar-width: none;
-    background: rgba(18, 22, 41, 0.4);
+/* Competition picker (left stacked dropdowns on deep pages) */
+body.has-comp-picker .app-main {
+    max-width: none;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    align-items: start;
+    gap: 1.25rem;
+    padding-left: 1rem;
+    padding-right: 1.5rem;
+}
+
+.comp-picker-content {
+    min-width: 0;
+}
+
+.comp-picker-pane {
+    position: sticky;
+    top: 5.5rem;
+    max-height: calc(100vh - 6.5rem);
+    overflow: auto;
+    align-self: start;
+}
+
+.comp-picker-card {
+    background: #110C09;
     border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
 }
 
-.competition-pills-nav-bar::-webkit-scrollbar {
-    display: none;
-}
-
-.comp-nav-pill {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+.comp-picker-search {
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid var(--border-color);
+    background: #0a0d0b;
     color: var(--text-primary);
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
+    padding: 0.85rem 0.9rem;
+    font-family: inherit;
     font-size: 0.85rem;
-    font-weight: 600;
+}
+
+.comp-picker-drop {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.comp-picker-drop:last-child {
+    border-bottom: 0;
+}
+
+.comp-picker-toggle {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #16110e;
+    color: var(--text-primary);
+    border: 0;
+    padding: 0.85rem 0.95rem;
     cursor: pointer;
-    white-space: nowrap;
-    transition: var(--transition-smooth);
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.comp-picker-toggle span {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font-family: var(--font-family);
+    gap: 0.45rem;
 }
 
-.comp-nav-pill:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.15);
+.comp-picker-menu {
+    display: none;
+    padding: 0.35rem;
+    background: #0b0e0c;
 }
 
-.comp-nav-pill.active {
-    background: var(--text-secondary);
-    color: #ffffff;
-    border-color: var(--text-secondary);
-    box-shadow: 0 4px 15px rgba(129, 140, 248, 0.35);
+.comp-picker-drop.is-open .comp-picker-menu {
+    display: block;
 }
 
-.comp-nav-badge {
-    font-size: 1rem;
+.comp-picker-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: transparent;
+    border: 0;
+    color: var(--text-primary);
+    padding: 0.5rem 0.55rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.82rem;
+    text-align: left;
 }
 
-.comp-nav-text {
-    line-height: 1;
+.comp-picker-item:hover,
+.comp-picker-item.is-active {
+    background: rgba(251, 191, 36, 0.12);
+}
+
+.comp-picker-badge {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+}
+
+@media (max-width: 900px) {
+    body.has-comp-picker .app-main {
+        grid-template-columns: 1fr;
+    }
+
+    .comp-picker-pane {
+        position: relative;
+        top: 0;
+        max-height: none;
+    }
 }
 
 /* INLINE WATERFALL FILTER CHIPS & BAR STYLING */

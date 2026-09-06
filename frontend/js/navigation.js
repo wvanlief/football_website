@@ -1,14 +1,107 @@
 document.addEventListener('DOMContentLoaded', () => {
     const path = window.location.pathname.replace(/\/$/, '') || '/';
     const isMainPage = (path === '/' || path === '/recommended');
+    const usesCompetitionPicker = path === '/recommended' || path === '/bracket' || path === '/calendar' || path.startsWith('/group/');
 
-    // 1. Create the horizontal pill bar under the header if it's missing (only on deep pages)
+    function competitionBadgeHtml(comp) {
+        const b = (comp && comp.badge) || '⚽';
+        if (typeof b === 'string' && (b.startsWith('http') || b.startsWith('/'))) {
+            return `<img class="comp-picker-badge" src="${b}" alt="">`;
+        }
+        return `<span class="comp-picker-badge-emoji">${b}</span>`;
+    }
+
+    function navigateToTournament(tourney) {
+        localStorage.setItem('findfootball-tournament-id', tourney.id);
+        const newEngine = tourney.competition.format_engine;
+        if (path === '/recommended') {
+            if (newEngine === 'cup') {
+                window.location.href = '/bracket';
+            } else if (newEngine === 'group_knockout') {
+                window.location.href = '/group/A';
+            } else {
+                window.location.href = '/group/standings';
+            }
+            return;
+        }
+        if ((newEngine === 'league' || newEngine === 'league_phase_knockout') && path.startsWith('/group/') && path !== '/group/standings') {
+            window.location.href = '/group/standings';
+        } else if (newEngine === 'cup') {
+            window.location.href = '/bracket';
+        } else if (newEngine === 'group_knockout' && path === '/group/standings') {
+            window.location.href = '/group/A';
+        } else if (newEngine === 'league' && path === '/bracket') {
+            window.location.href = '/group/standings';
+        } else {
+            window.location.reload();
+        }
+    }
+
+    function renderCompetitionPicker(pane, categories, selectedId) {
+        const selectedCat = categories.find((cat) => cat.items.some((t) => String(t.id) === String(selectedId)));
+        pane.innerHTML = `<div class="comp-picker-card">
+            <input class="comp-picker-search" type="search" placeholder="Filter leagues…" aria-label="Filter leagues">
+            ${categories.map((cat, i) => `
+                <div class="comp-picker-drop${(selectedCat && selectedCat.name === cat.name) || (!selectedCat && i === 0) ? ' is-open' : ''}">
+                    <button type="button" class="comp-picker-toggle">
+                        <span><i class="fa-solid ${cat.icon}"></i> ${cat.name}</span>
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </button>
+                    <div class="comp-picker-menu">
+                        ${cat.items.map((t) => `
+                            <button type="button" class="comp-picker-item${String(t.id) === String(selectedId) ? ' is-active' : ''}" data-tid="${t.id}" data-name="${(t.competition.name || '').toLowerCase().replace(/"/g, '')}">
+                                ${competitionBadgeHtml(t.competition)}
+                                <span>${t.competition.name}</span>
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('')}
+        </div>`;
+
+        pane.querySelectorAll('.comp-picker-toggle').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const drop = btn.parentElement;
+                const open = drop.classList.contains('is-open');
+                pane.querySelectorAll('.comp-picker-drop').forEach((d) => d.classList.remove('is-open'));
+                if (!open) drop.classList.add('is-open');
+            });
+        });
+
+        const search = pane.querySelector('.comp-picker-search');
+        search.addEventListener('input', () => {
+            const q = search.value.trim().toLowerCase();
+            pane.querySelectorAll('.comp-picker-item').forEach((item) => {
+                item.style.display = !q || (item.getAttribute('data-name') || '').includes(q) ? '' : 'none';
+            });
+            if (q) {
+                pane.querySelectorAll('.comp-picker-drop').forEach((d) => d.classList.add('is-open'));
+            }
+        });
+
+        pane.querySelectorAll('.comp-picker-item').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const tid = btn.getAttribute('data-tid');
+                if (String(tid) === String(selectedId)) return;
+                const tourney = categories.flatMap((c) => c.items).find((t) => String(t.id) === String(tid));
+                if (tourney) navigateToTournament(tourney);
+            });
+        });
+    }
+
+    // 1. Left competition picker on Hot List / Standings / Bracket / Calendar
     const mainEl = document.querySelector('main.app-main');
-    if (mainEl && !isMainPage && !document.getElementById('competition-pills-nav')) {
-        const pillNav = document.createElement('div');
-        pillNav.id = 'competition-pills-nav';
-        pillNav.className = 'competition-pills-nav-bar glass';
-        mainEl.insertBefore(pillNav, mainEl.firstChild);
+    if (mainEl && usesCompetitionPicker && !document.getElementById('competition-picker')) {
+        document.body.classList.add('has-comp-picker');
+        const content = document.createElement('div');
+        content.className = 'comp-picker-content';
+        while (mainEl.firstChild) content.appendChild(mainEl.firstChild);
+        const pane = document.createElement('aside');
+        pane.id = 'competition-picker';
+        pane.className = 'comp-picker-pane';
+        pane.setAttribute('aria-label', 'Competitions');
+        mainEl.appendChild(pane);
+        mainEl.appendChild(content);
     }
 
     // 2. Fetch competitions and tournaments
@@ -46,17 +139,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.setItem('findfootball-tournament-id', selectedId);
             }
             
-            // Populate selector pills if container exists
-            const pillsContainer = document.getElementById('competition-pills-nav');
-            if (pillsContainer) {
-                pillsContainer.innerHTML = '';
-                
+            const pickerPane = document.getElementById('competition-picker');
+            if (pickerPane) {
                 const categories = [
                     { name: 'Top Leagues', icon: 'fa-trophy', items: [] },
                     { name: 'European Cups', icon: 'fa-star', items: [] },
                     { name: 'Tournaments & Cups', icon: 'fa-globe', items: [] }
                 ];
-                
+
                 activeTourneysList.forEach(tourney => {
                     const comp = tourney.competition;
                     if (comp.format_engine === 'league_phase_knockout' || comp.name.includes('Champions') || comp.name.includes('Europa')) {
@@ -67,48 +157,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         categories[2].items.push(tourney);
                     }
                 });
-                
-                categories.forEach(cat => {
-                    if (cat.items.length === 0) return;
-                    
-                    const groupWrapper = document.createElement('div');
-                    groupWrapper.className = 'comp-category-group';
-                    groupWrapper.style.cssText = 'display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; background: rgba(0,0,0,0.2); border-radius: 20px; margin-right: 12px; border: 1px solid rgba(255,255,255,0.05);';
-                    
-                    const catLabel = document.createElement('span');
-                    catLabel.className = 'comp-category-label';
-                    catLabel.style.cssText = 'font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); padding: 0 6px; display: flex; align-items: center; gap: 4px;';
-                    catLabel.innerHTML = `<i class="fa-solid ${cat.icon}"></i> ${cat.name}`;
-                    groupWrapper.appendChild(catLabel);
-                    
-                    cat.items.forEach(tourney => {
-                        const comp = tourney.competition;
-                        const btn = document.createElement('button');
-                        btn.className = `comp-nav-pill${String(tourney.id) === String(selectedId) ? ' active' : ''}`;
-                        btn.innerHTML = `<span class="comp-nav-badge">${comp.badge || '⚽'}</span> <span class="comp-nav-text">${comp.name}</span>`;
-                        btn.addEventListener('click', () => {
-                            if (String(tourney.id) !== String(selectedId)) {
-                                localStorage.setItem('findfootball-tournament-id', tourney.id);
-                                
-                                const newEngine = comp.format_engine;
-                                if ((newEngine === 'league' || newEngine === 'league_phase_knockout') && path.startsWith('/group/') && path !== '/group/standings') {
-                                    window.location.href = '/group/standings';
-                                } else if (newEngine === 'cup') {
-                                    window.location.href = '/bracket';
-                                } else if (newEngine === 'group_knockout' && path === '/group/standings') {
-                                    window.location.href = '/group/A';
-                                } else if (newEngine === 'league' && path === '/bracket') {
-                                    window.location.href = '/group/standings';
-                                } else {
-                                    window.location.reload();
-                                }
-                            }
-                        });
-                        groupWrapper.appendChild(btn);
-                    });
-                    
-                    pillsContainer.appendChild(groupWrapper);
-                });
+
+                renderCompetitionPicker(pickerPane, categories.filter((c) => c.items.length), selectedId);
             }
             
             // Get format engine of selected tournament

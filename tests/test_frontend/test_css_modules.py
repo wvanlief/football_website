@@ -50,7 +50,7 @@ def test_css_modules_are_served(client):
 
     home = client.get("/")
     assert home.status_code == 200
-    assert "base.css?v=1.1.0" in home.text
+    assert "base.css?v=1.1.2" in home.text
     assert "hero.css?v=1.1.0" in home.text
     assert "standings.css" not in home.text
     assert "bracket.css" not in home.text
