@@ -423,6 +423,19 @@
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
 }
 
+#matrix-container {
+    max-height: 80vh;
+}
+
+.matrix-table th,
+.matrix-table td {
+    min-width: 2.25rem;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0.15rem !important;
+    box-sizing: border-box;
+}
+
 .clickable-matrix-cell {
     transition: all 0.2s ease-in-out;
 }

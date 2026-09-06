@@ -5,7 +5,7 @@ import random
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
-from backend.database import Team, TournamentTeam, Fixture
+from backend.database import Team, Tournament, TournamentTeam, Fixture
 import backend.crud.fixture as crud_fixture
 import backend.crud.team as crud_team
 
@@ -701,47 +701,124 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000, tournam
     return result
 
 
+_TABLE_STAGES = {"Group Stage", "Regular Season", "League Phase"}
+_QUALIFYING_HINTS = ("qualifying", "preliminary")
+
+_STAGE_TO_BRACKET_SLOT = {
+    "round of 32": "r32",
+    "play-offs": "r32",
+    "playoffs": "r32",
+    "play-off": "r32",
+    "round of 16": "r16",
+    "quarter-final": "qf",
+    "quarter-finals": "qf",
+    "quarterfinal": "qf",
+    "semi-final": "sf",
+    "semi-finals": "sf",
+    "semifinal": "sf",
+    "final": "final",
+    "3rd place": "third",
+    "third place": "third",
+    "third place play-off": "third",
+}
+
+
+def _tbd_bracket_match() -> dict:
+    return {
+        "team1": {"name": "TBD", "elo": 1500, "is_predicted": True},
+        "team2": {"name": "TBD", "elo": 1500, "is_predicted": True},
+        "winner": "TBD",
+        "home_score": None,
+        "away_score": None,
+        "date": None,
+        "matchup_status": "predicted",
+        "match_num": None,
+    }
+
+
 def get_tournament_bracket_tree(db: Session, tournament_id: int) -> dict:
     """
-    Builds a dynamic knockout bracket tree for cup tournaments directly from DB fixtures.
+    Builds a knockout bracket tree from DB fixtures, mapped onto the World Cup
+    round slots the frontend already renders (r32 / r16 / qf / sf / third / final).
+    Qualifying and league-phase matches are excluded.
     """
     tourney = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    empty_bracket = {
+        "r32": [],
+        "r16": [],
+        "qf": [],
+        "sf": [],
+        "third": _tbd_bracket_match(),
+        "final": _tbd_bracket_match(),
+        "champion": "TBD",
+    }
     if not tourney:
-        return {"bracket": {}, "probabilities": []}
-        
+        return {"bracket": empty_bracket, "probabilities": []}
+
     fixtures = db.query(Fixture).filter(Fixture.tournament_id == tournament_id).all()
-    stages = {}
-    
+    slots = {key: [] for key in ("r32", "r16", "qf", "sf")}
+    third_match = None
+    final_match = None
+
     for f in fixtures:
-        if f.stage in ("Group Stage", "Regular Season", "League Phase"):
+        stage = f.stage or ""
+        if stage in _TABLE_STAGES:
             continue
-            
-        stage_key = f.stage.lower().replace(" ", "_").replace("-", "_")
-        stages.setdefault(stage_key, []).append({
+        if any(hint in stage.lower() for hint in _QUALIFYING_HINTS):
+            continue
+
+        slot = _STAGE_TO_BRACKET_SLOT.get(stage.lower())
+        if not slot:
+            continue
+
+        team1_name = f.home_team.name if f.home_team else (f.home_team_placeholder or "TBD")
+        team2_name = f.away_team.name if f.away_team else (f.away_team_placeholder or "TBD")
+        winner = "TBD"
+        if f.winner_id and f.home_team and f.winner_id == f.home_team_id:
+            winner = f.home_team.name
+        elif f.winner_id and f.away_team and f.winner_id == f.away_team_id:
+            winner = f.away_team.name
+
+        match = {
             "match_num": f.id,
             "date": f.date_utc.isoformat() if f.date_utc else None,
             "matchup_status": "official" if f.status == "Finished" else ("scheduled" if f.home_team_id else "predicted"),
             "stage": f.stage,
             "team1": {
-                "name": f.home_team.name if f.home_team else (f.home_team_placeholder or "TBD"),
+                "name": team1_name,
                 "elo": f.home_team.elo if f.home_team else 1500,
-                "logo_url": f.home_team.badge_url if f.home_team else "/static/badges/default.png",
-                "is_predicted": f.home_team_id is None
+                "is_predicted": f.home_team_id is None,
             },
             "team2": {
-                "name": f.away_team.name if f.away_team else (f.away_team_placeholder or "TBD"),
+                "name": team2_name,
                 "elo": f.away_team.elo if f.away_team else 1500,
-                "logo_url": f.away_team.badge_url if f.away_team else "/static/badges/default.png",
-                "is_predicted": f.away_team_id is None
+                "is_predicted": f.away_team_id is None,
             },
             "home_score": f.home_score,
             "away_score": f.away_score,
-            "winner": f.home_team.name if (f.winner_id and f.home_team and f.winner_id == f.home_team_id) else (f.away_team.name if (f.winner_id and f.away_team and f.winner_id == f.away_team_id) else None)
-        })
-        
+            "winner": winner,
+        }
+        if slot == "final":
+            final_match = match
+        elif slot == "third":
+            third_match = match
+        else:
+            slots[slot].append(match)
+
+    final_match = final_match or _tbd_bracket_match()
+    champion = final_match["winner"] if final_match.get("winner") not in (None, "TBD") else "TBD"
+
     return {
-        "bracket": stages,
+        "bracket": {
+            "r32": slots["r32"],
+            "r16": slots["r16"],
+            "qf": slots["qf"],
+            "sf": slots["sf"],
+            "third": third_match or _tbd_bracket_match(),
+            "final": final_match,
+            "champion": champion,
+        },
         "probabilities": [],
         "last_updated": datetime.now(timezone.utc).isoformat(),
-        "num_simulations": 1
+        "num_simulations": 1,
     }

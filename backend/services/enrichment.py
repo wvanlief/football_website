@@ -90,6 +90,7 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
             "form_score": home_team.form_score if home_team else 50.0,
             "win_streak": home_team.win_streak if home_team else 0,
             "logo_url": home_team.badge_url if home_team else "/static/badges/default.png",
+            "api_id": home_team.api_id if home_team else None,
             "players": [{"name": p.name, "position": p.position, "form": p.form_score} for p in home_players]
         },
         "away_team": {
@@ -98,6 +99,7 @@ def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_ma
             "form_score": away_team.form_score if away_team else 50.0,
             "win_streak": away_team.win_streak if away_team else 0,
             "logo_url": away_team.badge_url if away_team else "/static/badges/default.png",
+            "api_id": away_team.api_id if away_team else None,
             "players": [{"name": p.name, "position": p.position, "form": p.form_score} for p in away_players]
         },
         "date": dt.isoformat(),

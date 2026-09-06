@@ -42,3 +42,52 @@ def test_api_group_endpoints(client, db_session):
     assert len(thirds_data) == 1
     assert thirds_data[0]["group"] == "A"
     assert thirds_data[0]["name"] == "RouterTeam_A_1"
+
+
+def test_api_group_standings_league_phase_filters_qualifiers(client, db_session):
+    comp = Competition(
+        name="UEFA Europa League Group API",
+        type="Cup",
+        format_engine="league_phase_knockout",
+    )
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+
+    home = Team(name="API Home", elo=1800)
+    away = Team(name="API Away", elo=1700)
+    qualifier = Team(name="API Qualifier", elo=1500)
+    db_session.add_all([home, away, qualifier])
+    db_session.flush()
+    for team in (home, away, qualifier):
+        db_session.add(TournamentTeam(tournament_id=tourney.id, team_id=team.id))
+
+    db_session.add(Fixture(
+        tournament_id=tourney.id,
+        home_team_id=home.id,
+        away_team_id=away.id,
+        stage="League Phase",
+        status="Scheduled",
+        date_utc=datetime(2026, 9, 17),
+    ))
+    db_session.add(Fixture(
+        tournament_id=tourney.id,
+        home_team_id=qualifier.id,
+        away_team_id=home.id,
+        stage="2nd Qualifying Round",
+        status="Finished",
+        home_score=0,
+        away_score=1,
+        date_utc=datetime(2026, 8, 5),
+    ))
+    db_session.commit()
+
+    response = client.get(f"/api/group/STANDINGS?tournament_id={tourney.id}")
+    assert response.status_code == 200
+    data = response.json()
+    standing_names = {row["name"] for row in data["standings"]}
+    assert standing_names == {"API Home", "API Away"}
+    assert all(f["stage"] == "League Phase" for f in data["fixtures"])
+    assert len(data["fixtures"]) == 1

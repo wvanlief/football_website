@@ -111,6 +111,31 @@ COUNTRY_ISO_MAP: Dict[str, str] = {
     "Indonesia": "IDN",
 }
 
+# National-team spelling variants plus club names used in the UEFA draw JSON
+# that differ from API-Football / ClubElo canonical names.
+TEAM_NAME_ALIASES = {
+    "Korea Republic": "South Korea",
+    "Czech Republic": "Czechia",
+    "Bosnia & Herzegovina": "Bosnia and Herzegovina",
+    "Bosnia & Herzegov.": "Bosnia and Herzegovina",
+    "Bosnia & Herz.": "Bosnia and Herzegovina",
+    "Cote d'Ivoire": "Côte d'Ivoire",
+    "Ivory Coast": "Côte d'Ivoire",
+    "Curacao": "Curaçao",
+    "United States": "USA",
+    "Club Brugge": "Club Brugge KV",
+    "Bayern Munich": "Bayern München",
+    "Paris Saint-Germain": "Paris Saint Germain",
+    "Inter Milan": "Inter",
+    "Young Boys": "BSC Young Boys",
+    "FC Salzburg": "Red Bull Salzburg",
+    "Crvena Zvezda": "FK Crvena Zvezda",
+    "Red Star Belgrade": "FK Crvena Zvezda",
+    "Sparta Prague": "Sparta Praha",
+    "Brest": "Stade Brestois 29",
+}
+
+
 class NameNormalizer:
     """
     Provides team name normalization, ISO country code mapping, and fuzzy name matching.
@@ -146,18 +171,7 @@ class NameNormalizer:
         if not name:
             return ""
         name = name.strip()
-        alias_map = {
-            "Korea Republic": "South Korea",
-            "Czech Republic": "Czechia",
-            "Bosnia & Herzegovina": "Bosnia and Herzegovina",
-            "Bosnia & Herzegov.": "Bosnia and Herzegovina",
-            "Bosnia & Herz.": "Bosnia and Herzegovina",
-            "Cote d'Ivoire": "Côte d'Ivoire",
-            "Ivory Coast": "Côte d'Ivoire",
-            "Curacao": "Curaçao",
-            "United States": "USA",
-        }
-        return alias_map.get(name, name)
+        return TEAM_NAME_ALIASES.get(name, name)
 
     def match_names(self, db_name: str, api_name: str) -> bool:
         """

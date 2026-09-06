@@ -8,6 +8,7 @@ class TeamSimple(BaseModel):
     form_score: float
     win_streak: int
     logo_url: Optional[str] = None
+    api_id: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -26,6 +27,7 @@ class TeamStanding(BaseModel):
     points: int
     elo: int
     logo_url: Optional[str] = None
+    api_id: Optional[int] = None
     qualification_probability: Optional[float] = None
     status: Optional[str] = "Active"
     points_needed_top_2: Optional[int] = None

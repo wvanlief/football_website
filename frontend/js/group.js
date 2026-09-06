@@ -363,7 +363,8 @@ document.addEventListener('DOMContentLoaded', () => {
         thirdsTbody.innerHTML = '<tr><td colspan="10" class="text-center"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading best 3rd standings...</td></tr>';
         
         try {
-            const res = await fetch(`/api/group/thirds`);
+            const tournamentId = localStorage.getItem('findfootball-tournament-id') || '';
+            const res = await fetch(`/api/group/thirds${tournamentId ? `?tournament_id=${tournamentId}` : ''}`);
             if (!res.ok) {
                 thirdsTbody.innerHTML = '<tr><td colspan="10" class="text-danger text-center"><i class="fa-solid fa-triangle-exclamation"></i> Error loading standings.</td></tr>';
                 return;
@@ -472,13 +473,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 matchEl.innerHTML = `
                     <div class="projected-match-teams">
                         <div class="projected-team-row clickable-team" data-name="${t1.name}">
-                            <img src="${getFlagUrl(t1.name)}" class="table-team-flag" alt="">
+                            <img src="${getFlagUrl(t1)}" class="table-team-flag" alt="">
                             <span class="projected-team-name">${t1.name || "TBD"}</span>
                             <span class="projected-team-seed">(${t1.group_name || ""})</span>
                         </div>
                         <div class="projected-vs">vs</div>
                         <div class="projected-team-row clickable-team" data-name="${t2.name}">
-                            <img src="${getFlagUrl(t2.name)}" class="table-team-flag" alt="">
+                            <img src="${getFlagUrl(t2)}" class="table-team-flag" alt="">
                             <span class="projected-team-name">${t2.name || "TBD"}</span>
                             <span class="projected-team-seed">(${t2.group_name || ""})</span>
                         </div>
@@ -686,21 +687,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!matrixContainer) return;
         matrixContainer.innerHTML = '';
 
-        const teams = activeGroupData.standings.map(s => s.name);
+        const standingTeams = activeGroupData.standings || [];
+        const teams = standingTeams.map(s => s.name);
         if (teams.length === 0) {
             matrixContainer.innerHTML = '<div style="padding: 2rem; text-align: center;">No standings data available to build the matrix.</div>';
             return;
         }
 
-        function getAbbreviation(name) {
-            if (!name) return "TBD";
-            const clean = name.replace(/[^a-zA-Z\s]/g, '').trim();
-            const parts = clean.split(/\s+/);
-            if (parts.length >= 2) {
-                return (parts[0][0] + parts[1][0] + (parts[1][1] || '')).toUpperCase();
-            }
-            return clean.substring(0, 3).toUpperCase();
-        }
+        const crestByName = {};
+        standingTeams.forEach(s => {
+            crestByName[s.name] = s;
+        });
 
         const fixtureMap = {};
         teams.forEach(home => {
@@ -746,7 +743,7 @@ document.addEventListener('DOMContentLoaded', () => {
             th.title = team;
             th.innerHTML = `
                 <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
-                    <img src="${getFlagUrl(team)}" style="width: 20px; height: 20px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));" alt="${team}">
+                    <img src="${getFlagUrl(crestByName[team] || team)}" style="width: 20px; height: 20px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));" alt="${team}">
                 </div>
             `;
             headerTr.appendChild(th);
@@ -772,7 +769,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rowHeader.title = homeTeam;
             rowHeader.innerHTML = `
                 <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
-                    <img src="${getFlagUrl(homeTeam)}" style="width: 20px; height: 20px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));" alt="${homeTeam}">
+                    <img src="${getFlagUrl(crestByName[homeTeam] || homeTeam)}" style="width: 20px; height: 20px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));" alt="${homeTeam}">
                 </div>
             `;
             tr.appendChild(rowHeader);
@@ -843,8 +840,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const card = document.createElement('div');
         card.className = `match-card ${ratingClass}`;
         card.innerHTML = `
-            <div class="card-flag-bg home-flag-bg" style="background-image: url('${getFlagUrl(match.home_team.name, 'w320')}');"></div>
-            <div class="card-flag-bg away-flag-bg" style="background-image: url('${getFlagUrl(match.away_team.name, 'w320')}');"></div>
+            <div class="card-flag-bg home-flag-bg" style="background-image: url('${getFlagUrl(match.home_team, 'w320')}');"></div>
+            <div class="card-flag-bg away-flag-bg" style="background-image: url('${getFlagUrl(match.away_team, 'w320')}');"></div>
             
             <div class="card-header">
                 <span class="stage-tag">${match.stage}</span>
@@ -861,7 +858,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="card-matchup">
                 <div class="team-box home clickable-team" data-name="${match.home_team.name}">
                     <div class="team-identity home-identity">
-                        <img src="${getFlagUrl(match.home_team.name)}" class="team-flag" alt="">
+                        <img src="${getFlagUrl(match.home_team)}" class="team-flag" alt="">
                         <span class="team-name" title="${match.home_team.name}">${match.home_team.name}</span>
                     </div>
                     <span class="elo-val">ELO ${match.home_team.elo}</span>
@@ -881,7 +878,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="team-box away clickable-team" data-name="${match.away_team.name}">
                     <div class="team-identity away-identity">
                         <span class="team-name" title="${match.away_team.name}">${match.away_team.name}</span>
-                        <img src="${getFlagUrl(match.away_team.name)}" class="team-flag" alt="">
+                        <img src="${getFlagUrl(match.away_team)}" class="team-flag" alt="">
                     </div>
                     <span class="elo-val">ELO ${match.away_team.elo}</span>
                 </div>

@@ -172,8 +172,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = `match-card ${ratingClass}`;
             card.innerHTML = `
-                <div class="card-flag-bg home-flag-bg" style="background-image: url('${getFlagUrl(match.home_team.name, 'w320')}');"></div>
-                <div class="card-flag-bg away-flag-bg" style="background-image: url('${getFlagUrl(match.away_team.name, 'w320')}');"></div>
+            <div class="card-flag-bg home-flag-bg" style="background-image: url('${getFlagUrl(match.home_team, 'w320')}');"></div>
+            <div class="card-flag-bg away-flag-bg" style="background-image: url('${getFlagUrl(match.away_team, 'w320')}');"></div>
                 <div class="tile-date-title"><i class="fa-regular fa-calendar"></i> ${match.formatted_date} &bull; ${match.formatted_time}</div>
                 <div class="card-header">
                     <span class="stage-tag">${match.stage}</span>
@@ -184,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="card-matchup">
                     <div class="team-box home clickable-team" data-name="${match.home_team.name}">
                         <div class="team-identity home-identity">
-                            <img src="${getFlagUrl(match.home_team.name)}" class="team-flag" alt="">
+                            <img src="${getFlagUrl(match.home_team)}" class="team-flag" alt="">
                             <span class="team-name" title="${match.home_team.name}">${match.home_team.name}</span>
                         </div>
                         <span class="elo-val">ELO ${match.home_team.elo}</span>
@@ -204,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="team-box away clickable-team" data-name="${match.away_team.name}">
                         <div class="team-identity away-identity">
                             <span class="team-name" title="${match.away_team.name}">${match.away_team.name}</span>
-                            <img src="${getFlagUrl(match.away_team.name)}" class="team-flag" alt="">
+                            <img src="${getFlagUrl(match.away_team)}" class="team-flag" alt="">
                         </div>
                         <span class="elo-val">ELO ${match.away_team.elo}</span>
                     </div>

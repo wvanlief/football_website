@@ -1,5 +1,6 @@
 from backend.services.ingestion.normalizer import (
     COUNTRY_ISO_MAP,
+    TEAM_NAME_ALIASES,
     NameNormalizer,
     default_normalizer,
 )
@@ -13,6 +14,7 @@ from backend.services.ingestion.engine import IngestionEngine, seed_competition
 
 __all__ = [
     "COUNTRY_ISO_MAP",
+    "TEAM_NAME_ALIASES",
     "NameNormalizer",
     "default_normalizer",
     "IngestionAborted",

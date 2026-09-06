@@ -202,8 +202,8 @@ def get_future_fixtures_for_country(db: Session, country_name: str, tournament_i
         q = q.filter(Fixture.tournament_id == tournament_id)
     return q.all()
 
-def get_fixtures_for_group(db: Session, team_names: list[str], tournament_id: int = None) -> list[Fixture]:
-    """Returns all fixtures (any status) where both teams are in the provided team list."""
+def get_fixtures_for_group(db: Session, team_names: list[str], tournament_id: int = None, stage: str = None) -> list[Fixture]:
+    """Returns fixtures where both teams are in the provided list, optionally limited to one stage."""
     HomeTeam = aliased(Team)
     AwayTeam = aliased(Team)
     q = db.query(Fixture).options(
@@ -214,6 +214,8 @@ def get_fixtures_for_group(db: Session, team_names: list[str], tournament_id: in
     )
     if tournament_id is not None:
         q = q.filter(Fixture.tournament_id == tournament_id)
+    if stage is not None:
+        q = q.filter(Fixture.stage == stage)
     return q.all()
 
 def get_fixtures_by_stage(db: Session, stage: str, tournament_id: int = None) -> list[Fixture]:

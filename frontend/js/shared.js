@@ -52,14 +52,14 @@ function getFlagUrl(target, size = 'w40') {
     if (url && url.startsWith('http')) {
         return url;
     }
-    if (apiId) {
-        return `https://media.api-sports.io/football/teams/${apiId}.png`;
-    }
     if (url && url.startsWith('/static/badges/') && !url.endsWith('default.png')) {
         const matchId = url.match(/\/static\/badges\/(\d+)\.png/);
         if (matchId) {
             return `https://media.api-sports.io/football/teams/${matchId[1]}.png`;
         }
+    }
+    if (apiId) {
+        return `https://media.api-sports.io/football/teams/${apiId}.png`;
     }
     if (teamName) {
         const code = COUNTRY_FLAGS[teamName];

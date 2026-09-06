@@ -74,10 +74,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Render Bracket Tree
             renderChampion(bracket.final);
-            renderRound(round32List, bracket.r32);
-            renderRound(round16List, bracket.r16);
-            renderRound(quarterFinalsList, bracket.qf);
-            renderRound(semiFinalsList, bracket.sf);
+            renderRound(round32List, bracket.r32 || []);
+            renderRound(round16List, bracket.r16 || []);
+            renderRound(quarterFinalsList, bracket.qf || []);
+            renderRound(semiFinalsList, bracket.sf || []);
             renderFinals(bracket.third, bracket.final);
 
             // Populate Leaderboard Metadata
@@ -114,6 +114,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderChampion(finalMatch) {
+        if (!finalMatch || !finalMatch.winner) {
+            championBannerContainer.innerHTML = '';
+            return;
+        }
         const champName = finalMatch.winner;
         championBannerContainer.innerHTML = `
             <div class="champion-projected-banner glass animate-champion">
@@ -134,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderRound(container, matches) {
         container.innerHTML = '';
-        matches.forEach(match => {
+        (matches || []).forEach(match => {
             const card = createMatchupCard(match);
             container.appendChild(card);
         });
@@ -146,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 1. Final Card
         const finalTitle = document.createElement('div');
         finalTitle.className = 'finals-group-title';
-        finalTitle.innerHTML = '<i class="fa-solid fa-trophy text-warning"></i> WORLD CUP FINAL';
+        finalTitle.innerHTML = '<i class="fa-solid fa-trophy text-warning"></i> FINAL';
         finalsList.appendChild(finalTitle);
         
         const finalCard = createMatchupCard(finalMatch, true); // true highlights the champion

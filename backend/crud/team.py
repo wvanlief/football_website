@@ -62,3 +62,23 @@ def get_all_teams(db: Session, tournament_id: int = None) -> list[Team]:
     if tournament_id is not None:
         return db.query(Team).join(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all()
     return db.query(Team).all()
+
+
+def get_teams_in_stage(db: Session, tournament_id: int, stage: str) -> list[Team]:
+    """Teams that appear in at least one fixture of the given stage for a tournament."""
+    from backend.database import Fixture
+
+    home_ids = db.query(Fixture.home_team_id).filter(
+        Fixture.tournament_id == tournament_id,
+        Fixture.stage == stage,
+        Fixture.home_team_id.isnot(None),
+    )
+    away_ids = db.query(Fixture.away_team_id).filter(
+        Fixture.tournament_id == tournament_id,
+        Fixture.stage == stage,
+        Fixture.away_team_id.isnot(None),
+    )
+    team_ids = {row[0] for row in home_ids} | {row[0] for row in away_ids}
+    if not team_ids:
+        return []
+    return db.query(Team).filter(Team.id.in_(team_ids)).all()

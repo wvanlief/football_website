@@ -6,6 +6,17 @@ from backend.database import Team, TournamentTeam, Fixture, Tournament, Competit
 import backend.crud.fixture as crud_fixture
 import backend.crud.team as crud_team
 
+
+def table_stage_for_competition(comp: Optional[Competition]) -> str:
+    """Fixture stage that feeds the competition's league/group table."""
+    if comp is None:
+        return "Group Stage"
+    if comp.format_engine == "league" or comp.type == "League":
+        return "Regular Season"
+    if comp.format_engine == "league_phase_knockout":
+        return "League Phase"
+    return "Group Stage"
+
 def recalculate_tournament_team_standings(db: Session, tournament_id: int):
     """
     Recalculates and updates the TournamentTeam standings cache for all teams in a tournament
@@ -48,9 +59,9 @@ def recalculate_tournament_team_standings(db: Session, tournament_id: int):
         away_tt.goals_against += home_score
         
         is_league = home_tt.tournament.competition.format_engine == "league"
-        is_group_stage = f.stage == "Group Stage"
+        is_table_stage = f.stage in ("Group Stage", "Regular Season", "League Phase")
         
-        if is_league or is_group_stage:
+        if is_league or is_table_stage:
             home_tt.wins += 1 if home_score > away_score else 0
             home_tt.losses += 1 if home_score < away_score else 0
             home_tt.draws += 1 if home_score == away_score else 0
@@ -121,14 +132,11 @@ def calculate_standings(db: Session, group_letter: str, tournament_id: int = Non
     tourney = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     comp = tourney.competition if tourney else None
     
-    stage = "Group Stage"
-    if comp:
-        if comp.format_engine == "league" or comp.type == "League":
-            stage = "Regular Season"
-        elif comp.format_engine == "league_phase_knockout":
-            stage = "League Phase"
+    stage = table_stage_for_competition(comp)
         
-    if group_letter and group_letter.lower() == "standings":
+    if comp and comp.format_engine == "league_phase_knockout":
+        teams = crud_team.get_teams_in_stage(db, tournament_id, "League Phase")
+    elif group_letter and group_letter.lower() == "standings":
         teams = crud_team.get_all_teams(db, tournament_id=tournament_id)
     else:
         teams = crud_team.get_teams_by_group(db, group_letter, tournament_id=tournament_id)
@@ -145,7 +153,8 @@ def calculate_standings(db: Session, group_letter: str, tournament_id: int = Non
             "goal_difference": 0,
             "points": 0,
             "elo": t.elo,
-            "logo_url": t.badge_url
+            "logo_url": t.badge_url,
+            "api_id": t.api_id,
         })
         
     team_names = [t.name for t in teams]

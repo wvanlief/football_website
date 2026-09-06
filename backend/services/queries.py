@@ -18,7 +18,11 @@ import backend.crud.team as crud_team
 from backend.services.enrichment import enrich_fixture, get_timezone, group_enriched_fixtures
 from backend.services.knockout import resolve_placeholder_name
 from backend.services.simulation import get_probabilities
-from backend.services.standings import calculate_points_needed_to_guarantee_top_2, calculate_standings
+from backend.services.standings import (
+    calculate_points_needed_to_guarantee_top_2,
+    calculate_standings,
+    table_stage_for_competition,
+)
 
 
 _FIXTURES_CACHE = {}
@@ -318,19 +322,15 @@ def get_group_details(db: Session, group_letter: str, tz_str: str, tournament_id
         tournament_id = active_tourney.id if active_tourney else None
 
     contract_type = "Country"
+    tourney = None
     if tournament_id:
         tourney = db.query(Tournament).filter(Tournament.id == tournament_id).first()
         if tourney and tourney.competition:
             contract_type = "Country" if tourney.competition.type == "International" else "Club"
 
-    if group_letter and group_letter.lower() == "standings":
-        teams = crud_team.get_all_teams(db, tournament_id=tournament_id)
-    else:
-        teams = crud_team.get_teams_by_group(db, group_letter, tournament_id=tournament_id)
-    if not teams:
-        return None
-
     standings = calculate_standings(db, group_letter, tournament_id=tournament_id)
+    if not standings:
+        return None
 
     sim_data = get_probabilities(tournament_id)
     team_probs = {}
@@ -357,8 +357,11 @@ def get_group_details(db: Session, group_letter: str, tz_str: str, tournament_id
         else:
             s["points_needed_top_2"] = calculate_points_needed_to_guarantee_top_2(db, s["name"], group_letter, tournament_id=tournament_id)
 
-    team_names = [t.name for t in teams]
-    fixtures = crud_fixture.get_fixtures_for_group(db, team_names, tournament_id=tournament_id)
+    team_names = [s["name"] for s in standings]
+    table_stage = table_stage_for_competition(tourney.competition if tourney else None)
+    fixtures = crud_fixture.get_fixtures_for_group(
+        db, team_names, tournament_id=tournament_id, stage=table_stage
+    )
 
     # Preload maps to avoid N+1 queries
     contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(

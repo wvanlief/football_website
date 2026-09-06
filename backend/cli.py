@@ -18,6 +18,7 @@ from backend.database import SessionLocal, Team
 from backend.services.elo import review_elo_matches, apply_elo_matches
 from backend.services.seeder import seed_database, fetch_and_seed_teams, seed_single_competition
 from backend.services.ingestion import seed_competition
+from backend.services.ingestion.team_merge import apply_clubelo_to_canonical_clubs, merge_club_aliases
 
 
 def download_and_cache_badges(db: Session):
@@ -60,7 +61,7 @@ def main():
     parser = argparse.ArgumentParser(description="findfootball.games Database Ingestion and Seeding CLI")
 
     parser.add_argument("command", nargs="?", default="seed-wc", 
-                        choices=["seed-wc", "fetch-teams", "review-elo-matches", "apply-elo-matches", "seed-competition", "seed-one", "cache-badges"],
+                        choices=["seed-wc", "fetch-teams", "review-elo-matches", "apply-elo-matches", "seed-competition", "seed-one", "cache-badges", "merge-club-aliases"],
                         help="Seeding command to run")
     parser.add_argument("--league", type=int, help="API-Football league ID")
     parser.add_argument("--season", type=int, help="API-Football season year")
@@ -89,6 +90,13 @@ def main():
             review_elo_matches(db, output_path=args.file)
         elif args.command == "apply-elo-matches":
             apply_elo_matches(db, file_path=args.file)
+        elif args.command == "merge-club-aliases":
+            print("Merging draw-name duplicate clubs onto API-Football canonical teams...")
+            for line in merge_club_aliases(db):
+                print(f"  {line}")
+            print("Applying ClubElo to canonical clubs...")
+            for line in apply_clubelo_to_canonical_clubs(db):
+                print(f"  {line}")
         elif args.command == "cache-badges":
             download_and_cache_badges(db)
         elif args.command == "seed-one":

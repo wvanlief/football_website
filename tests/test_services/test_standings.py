@@ -161,3 +161,55 @@ def test_recalculate_tournament_team_standings(db_session):
     db_session.refresh(t2)
     assert t1.win_streak == 1
     assert t2.loss_streak == 1
+
+
+def test_league_phase_standings_exclude_qualifying_teams(db_session):
+    comp = Competition(
+        name="UEFA Champions League Standings Test",
+        type="Cup",
+        format_engine="league_phase_knockout",
+    )
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+
+    madrid = Team(name="Matrix Madrid", elo=1980)
+    city = Team(name="Matrix City", elo=1970)
+    qualifier = Team(name="Matrix Qualifier", elo=1600)
+    db_session.add_all([madrid, city, qualifier])
+    db_session.flush()
+    for team in (madrid, city, qualifier):
+        db_session.add(TournamentTeam(tournament_id=tourney.id, team_id=team.id))
+
+    lp = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=madrid.id,
+        away_team_id=city.id,
+        stage="League Phase",
+        status="Finished",
+        home_score=2,
+        away_score=0,
+        date_utc=datetime(2026, 9, 16, tzinfo=timezone.utc),
+    )
+    qual = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=qualifier.id,
+        away_team_id=madrid.id,
+        stage="3rd Qualifying Round",
+        status="Finished",
+        home_score=1,
+        away_score=3,
+        date_utc=datetime(2026, 8, 12, tzinfo=timezone.utc),
+    )
+    db_session.add_all([lp, qual])
+    db_session.commit()
+
+    standings = calculate_standings(db_session, "STANDINGS", tournament_id=tourney.id)
+    names = [row["name"] for row in standings]
+    assert names == ["Matrix Madrid", "Matrix City"]
+    assert "Matrix Qualifier" not in names
+    assert standings[0]["points"] == 3
+    assert standings[0]["played"] == 1
+    assert standings[1]["played"] == 1
