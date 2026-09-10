@@ -30,6 +30,7 @@ from backend.services.ingestion import (
     COUNTRY_ISO_MAP,
     TeamResolver,
     FixtureUpserter,
+    IngestionAborted,
 )
 from backend.services.odds import update_odds_from_api
 from backend.services.elo import (
@@ -340,6 +341,25 @@ def _seed_world_cup(db: Session) -> SeedResult:
     )
 
 
+def _overlay_ucl_from_football_data(db: Session, tourney, comp):
+    """Stamp official UCL pairings from Football-Data.org onto the draw-seeded tournament."""
+    from backend.services.ingestion.engine import IngestionEngine
+
+    api_season = 2026
+    try:
+        api_season = int(tourney.season_name.split("/")[0])
+    except (ValueError, AttributeError):
+        pass
+
+    engine = IngestionEngine()
+    return engine.overlay_from_football_data(
+        db,
+        tournament=tourney,
+        competition=comp,
+        api_season=api_season,
+    )
+
+
 def _seed_european_cups(db: Session, target_league_id: Optional[int] = None) -> SeedResult:
     if not _EURO_DRAW_JSON.exists():
         print(f"Error: {_EURO_DRAW_JSON} not found.")
@@ -424,6 +444,11 @@ def _seed_european_cups(db: Session, target_league_id: Optional[int] = None) -> 
             created_total += upsert.created
             updated_total += upsert.updated
 
+            if api_league_id == 2:
+                overlay = _overlay_ucl_from_football_data(db, tourney, comp)
+                created_total += overlay.created
+                updated_total += overlay.updated
+
             fixtures = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).all()
             for fixture in fixtures:
                 score(fixture, db)
@@ -435,6 +460,9 @@ def _seed_european_cups(db: Session, target_league_id: Optional[int] = None) -> 
                 f"and {len(payloads)} fixtures"
             )
             print(f"[{comp_name}] {results[comp_name]}")
+        except IngestionAborted:
+            db.rollback()
+            raise
         except Exception as exc:
             db.rollback()
             results[comp_name] = f"Error: {exc}"

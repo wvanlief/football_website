@@ -774,6 +774,48 @@ def test_global_football_data_sync_scopes_team_time_match_to_competition(
     assert cl_fixture.status == "Scheduled"
 
 
+def test_backfill_football_data_results_uses_explicit_dates_and_skips_odds(
+    db_session, monkeypatch
+):
+    from backend.services.updater import backfill_football_data_results
+
+    captured = {}
+
+    def fake_sync(db, date_from, date_to):
+        captured["dates"] = (date_from, date_to)
+        return (2, 5)
+
+    monkeypatch.setattr(
+        "backend.services.updater.sync_football_data_matches", fake_sync
+    )
+    monkeypatch.setattr(
+        "backend.services.updater.propagate_knockout_fixtures", lambda db: None
+    )
+    monkeypatch.setattr(
+        "backend.services.updater.recalculate_tournament_team_standings",
+        lambda db, tid: None,
+    )
+    monkeypatch.setattr(
+        "backend.services.feed_builder.build_fixtures_feed_cache",
+        lambda db: None,
+    )
+
+    called_odds = {"n": 0}
+
+    def fake_odds(*args, **kwargs):
+        called_odds["n"] += 1
+
+    monkeypatch.setattr("backend.services.updater.update_odds_from_api", fake_odds)
+
+    result = backfill_football_data_results(db_session, "2026-09-08", "2026-09-10")
+
+    assert captured["dates"] == ("2026-09-08", "2026-09-10")
+    assert called_odds["n"] == 0
+    assert result["fixtures_updated_results"] == 2
+    assert result["fixtures_finished"] == 5
+    assert result["date_from"] == "2026-09-08"
+
+
 
 
 

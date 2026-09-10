@@ -74,10 +74,13 @@ def test_european_draw_json_invariants():
         assert "Play-offs" in ko_stages or "Round of 16" in ko_stages, f"Knockout stages missing for {comp_name}"
 
 
-def test_seed_european_cups_with_full_draw(db_session):
+def test_seed_european_cups_with_full_draw(db_session, monkeypatch):
     """
     Tests seeding the complete verified European competition dataset into the database.
     """
+    monkeypatch.delenv("FOOTBALL_DATA_ORG_KEY", raising=False)
+    monkeypatch.delenv("FOOTBALL_DATA_API_KEY", raising=False)
+    monkeypatch.delenv("FOOTBALL_DATA_KEY", raising=False)
     results = seed_european_cups(db_session)
     assert "UEFA Champions League" in results
     assert "UEFA Europa League" in results

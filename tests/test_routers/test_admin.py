@@ -28,6 +28,34 @@ def test_admin_update_success(mock_update, client):
     assert data["simulation"] == "Completed"
     mock_update.assert_called_once()
 
+@patch("backend.routers.api_admin.backfill_football_data_results")
+def test_admin_update_date_range_backfill(mock_backfill, client):
+    mock_backfill.return_value = {
+        "status": "success",
+        "date_from": "2026-09-08",
+        "date_to": "2026-09-10",
+        "fixtures_updated_results": 3,
+        "fixtures_finished": 12,
+    }
+    response = client.post(
+        "/api/admin/update?date_from=2026-09-08&date_to=2026-09-10",
+        headers={"X-Admin-Token": "test-admin-token"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["fixtures_finished"] == 12
+    mock_backfill.assert_called_once()
+    assert mock_backfill.call_args[0][1:] == ("2026-09-08", "2026-09-10")
+
+
+def test_admin_update_date_range_requires_both(client):
+    response = client.post(
+        "/api/admin/update?date_from=2026-09-08",
+        headers={"X-Admin-Token": "test-admin-token"},
+    )
+    assert response.status_code == 400
+
+
 def test_admin_update_live_unauthorized_no_header(client):
     response = client.post("/api/admin/update-live")
     assert response.status_code == 401

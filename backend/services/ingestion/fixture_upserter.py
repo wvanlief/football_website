@@ -1,12 +1,19 @@
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
 
 from backend.database import Fixture, FixtureOdds, Tournament, TournamentTeam, Competition
 from backend.services.ingestion.team_resolver import TeamResolver
 from backend.services.odds import calculate_default_odds
 from backend.services.lifecycle import finish_fixture
+
+
+def _as_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 class UpsertResult:
@@ -101,27 +108,9 @@ class FixtureUpserter:
         status = fixture_payload.get("status", "Scheduled")
         matchday = fixture_payload.get("matchday_number")
 
-        # 2. Look up existing fixture
-        fixture = None
-        if api_id and tournament:
-            fixture = db.query(Fixture).filter(
-                Fixture.tournament_id == tournament.id,
-                Fixture.api_id == api_id
-            ).first()
-
-        if not fixture and home_team and away_team and tournament:
-            window_start = date_utc - timedelta(hours=12)
-            window_end = date_utc + timedelta(hours=12)
-            fixture = db.query(Fixture).filter(
-                Fixture.tournament_id == tournament.id,
-                Fixture.stage == stage,
-                Fixture.date_utc >= window_start,
-                Fixture.date_utc <= window_end,
-                or_(
-                    and_(Fixture.home_team_id == home_team.id, Fixture.away_team_id == away_team.id),
-                    and_(Fixture.home_team_id == away_team.id, Fixture.away_team_id == home_team.id)
-                )
-            ).first()
+        fixture = self._find_existing_fixture(
+            db, tournament, api_id, home_team, away_team, date_utc, stage
+        )
 
         is_created = False
         feed_home_score = fixture_payload.get("home_score")
@@ -157,9 +146,11 @@ class FixtureUpserter:
 
             if date_utc and fixture.date_utc != date_utc:
                 fixture.date_utc = date_utc
-            if matchday and fixture.matchday_number != matchday:
+            if stage and fixture.stage != stage:
+                fixture.stage = stage
+            if matchday is not None and fixture.matchday_number != matchday:
                 fixture.matchday_number = matchday
-            if api_id and not fixture.api_id:
+            if api_id and (not fixture.api_id or not str(fixture.api_id).startswith("fd_")):
                 fixture.api_id = api_id
 
         # 3. Handle score settling or status updates
@@ -176,6 +167,62 @@ class FixtureUpserter:
         self._ensure_fixture_odds(db, fixture, home_team, away_team, comp)
 
         return fixture, is_created
+
+    def _find_existing_fixture(
+        self,
+        db: Session,
+        tournament: Optional[Tournament],
+        api_id: Optional[str],
+        home_team: Optional[Any],
+        away_team: Optional[Any],
+        date_utc: datetime,
+        stage: Optional[str],
+    ) -> Optional[Fixture]:
+        """Match by provider id, then unique home/away for stamped overlays, then kickoff window."""
+        if not tournament:
+            return None
+
+        if api_id:
+            fixture = db.query(Fixture).filter(
+                Fixture.tournament_id == tournament.id,
+                Fixture.api_id == api_id,
+            ).first()
+            if fixture:
+                return fixture
+
+        if not home_team or not away_team:
+            return None
+
+        pairing = db.query(Fixture).filter(
+            Fixture.tournament_id == tournament.id,
+            Fixture.home_team_id == home_team.id,
+            Fixture.away_team_id == away_team.id,
+        ).all()
+
+        if stage:
+            staged = [candidate for candidate in pairing if candidate.stage == stage]
+            if len(staged) == 1:
+                return staged[0]
+
+        provider_stamp = bool(api_id) and str(api_id).startswith(("fd_", "of_", "tsdb_"))
+        if provider_stamp and len(pairing) == 1:
+            return pairing[0]
+
+        kickoff = _as_utc(date_utc)
+        if kickoff is None:
+            return None
+        window_start = kickoff - timedelta(hours=12)
+        window_end = kickoff + timedelta(hours=12)
+        for candidate in pairing:
+            cand_dt = _as_utc(candidate.date_utc)
+            if cand_dt is None:
+                continue
+            if not (window_start <= cand_dt <= window_end):
+                continue
+            if not provider_stamp and stage and candidate.stage != stage:
+                continue
+            return candidate
+        return None
 
     def _ensure_fixture_odds(
         self,

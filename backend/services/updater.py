@@ -108,6 +108,44 @@ def sync_football_data_matches(db: Session, date_from: str, date_to: str) -> tup
     return updated, finished
 
 
+def backfill_football_data_results(db: Session, date_from: str, date_to: str) -> dict:
+    """Apply Football-Data.org scores for an explicit date range without refreshing odds."""
+    updated, finished = sync_football_data_matches(db, date_from, date_to)
+
+    tournaments = db.query(Tournament).filter(Tournament.status == "Active").all()
+    if not tournaments:
+        tournaments = db.query(Tournament).all()
+
+    try:
+        propagate_knockout_fixtures(db)
+    except Exception as e:
+        print(f"Warning: propagate_knockout_fixtures failed: {e}")
+    db.commit()
+
+    for tourney in tournaments:
+        try:
+            recalculate_tournament_team_standings(db, tourney.id)
+            if tourney.competition and tourney.competition.format_engine == "nations_league":
+                evaluate_nations_league_promotions(db, tourney.id)
+        except Exception as e:
+            print(f"Warning: Failed to recalculate standings/promotions for tournament {tourney.id}: {e}")
+    db.commit()
+
+    try:
+        from backend.services.feed_builder import build_fixtures_feed_cache
+        build_fixtures_feed_cache(db)
+    except Exception as e:
+        print(f"Warning: Failed to rebuild feed cache: {e}")
+
+    return {
+        "status": "success",
+        "date_from": date_from,
+        "date_to": date_to,
+        "fixtures_updated_results": updated,
+        "fixtures_finished": finished,
+    }
+
+
 def sync_global_date_results(db: Session, date_from: str, date_to: str) -> tuple:
     """
     Fetches yesterday and today's matches in one Football-Data.org date-range query
@@ -259,11 +297,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="findfootball.games Database Ingestion and Update Task")
     parser.add_argument("--live", action="store_true", help="Run lightweight live-score update only")
     parser.add_argument("--force", action="store_true", help="Force updates even outside active match windows")
+    parser.add_argument("--date-from", dest="date_from", help="Backfill start date YYYY-MM-DD (with --date-to)")
+    parser.add_argument("--date-to", dest="date_to", help="Backfill end date YYYY-MM-DD (with --date-from)")
     args = parser.parse_args()
+
+    if bool(args.date_from) != bool(args.date_to):
+        parser.error("--date-from and --date-to must be used together")
+    if args.live and args.date_from:
+        parser.error("--live cannot be combined with --date-from/--date-to")
     
     db = SessionLocal()
     try:
-        if args.live:
+        if args.date_from:
+            print(f"Running Football-Data.org results backfill {args.date_from}..{args.date_to}...")
+            result = backfill_football_data_results(db, args.date_from, args.date_to)
+            print(json.dumps(result, indent=2))
+        elif args.live:
             print("Running live-score updater...")
             result = update_live_scores(db, force=args.force)
             print(json.dumps(result, indent=2))

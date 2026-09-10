@@ -160,6 +160,75 @@ def test_raw_api_id_lookup_is_restricted_by_competition(db_session):
     assert found.id == expected.id
 
 
+def test_find_fixture_matches_atletico_de_madrid_alias(db_session):
+    from backend.services.providers.football_data import apply_matches_to_existing_fixtures
+
+    cl = Competition(name="UEFA Champions League", type="Cup")
+    db_session.add(cl)
+    db_session.flush()
+    tourney = Tournament(competition_id=cl.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+    home = Team(name="Liverpool")
+    away = Team(name="Atlético Madrid")
+    db_session.add_all([home, away])
+    db_session.flush()
+    kickoff = datetime(2026, 9, 9, 19, 0, tzinfo=timezone.utc)
+    fixture = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=home.id,
+        away_team_id=away.id,
+        date_utc=kickoff.replace(tzinfo=None),
+        stage="League Phase",
+        status="Scheduled",
+    )
+    db_session.add(fixture)
+    db_session.commit()
+
+    updated, finished = apply_matches_to_existing_fixtures(
+        db_session,
+        [
+            {
+                "id": 575340,
+                "utcDate": "2026-09-09T19:00:00Z",
+                "status": "FINISHED",
+                "homeTeam": {"name": "Liverpool FC", "shortName": "Liverpool"},
+                "awayTeam": {
+                    "name": "Club Atlético de Madrid",
+                    "shortName": "Atleti",
+                },
+                "score": {"fullTime": {"home": 2, "away": 1}},
+                "competition": {"code": "CL", "name": "UEFA Champions League"},
+            }
+        ],
+        tournament_id=tourney.id,
+    )
+
+    assert (updated, finished) == (0, 1)
+    db_session.refresh(fixture)
+    assert fixture.status == "Finished"
+    assert fixture.home_score == 2
+    assert fixture.away_score == 1
+    assert fixture.api_id == "fd_575340"
+
+
+def test_find_team_prefers_full_name_over_short_slovan(db_session):
+    from backend.services.providers.football_data import _find_team_for_sync
+
+    bratislava = Team(name="Slovan Bratislava")
+    liberec = Team(name="Slovan Liberec")
+    db_session.add_all([bratislava, liberec])
+    db_session.commit()
+
+    found = _find_team_for_sync(
+        db_session,
+        {"name": "ŠK Slovan Bratislava", "shortName": "Slovan"},
+        [liberec, bratislava],
+        NameNormalizer(),
+    )
+    assert found.id == bratislava.id
+
+
 def test_raw_api_id_from_other_competition_is_rejected(db_session):
     pl = Competition(name="Premier League", type="League")
     cl = Competition(name="UEFA Champions League", type="Cup")

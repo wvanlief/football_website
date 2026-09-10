@@ -7,6 +7,7 @@ from backend.services.ingestion.normalizer import (
 from backend.services.ingestion.preflight import (
     IngestionAborted,
     PreflightGuard,
+    has_provider_fixture_id,
 )
 from backend.services.ingestion.team_resolver import TeamResolver
 from backend.services.ingestion.fixture_upserter import FixtureUpserter, UpsertResult
@@ -19,6 +20,7 @@ __all__ = [
     "default_normalizer",
     "IngestionAborted",
     "PreflightGuard",
+    "has_provider_fixture_id",
     "TeamResolver",
     "FixtureUpserter",
     "UpsertResult",

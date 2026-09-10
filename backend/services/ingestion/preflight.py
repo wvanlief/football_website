@@ -2,6 +2,11 @@ from sqlalchemy.orm import Session
 from backend.database import Fixture
 
 
+def has_provider_fixture_id(api_id) -> bool:
+    """True when a fixture has been stamped with a live provider id (not a draw placeholder)."""
+    return api_id is not None and str(api_id).strip() != ""
+
+
 class IngestionAborted(Exception):
     """Raised when pre-flight safety checks fail to prevent data loss."""
     pass
@@ -25,7 +30,15 @@ class PreflightGuard:
         if tournament_id is None:
             return
 
-        existing_count = db.query(Fixture).filter(Fixture.tournament_id == tournament_id).count()
+        existing_count = (
+            db.query(Fixture)
+            .filter(
+                Fixture.tournament_id == tournament_id,
+                Fixture.api_id.isnot(None),
+                Fixture.api_id != "",
+            )
+            .count()
+        )
 
         if existing_count == 0:
             return

@@ -16,6 +16,10 @@ def test_club_draw_names_normalize_to_api_football_names():
     assert normalizer.normalize("Crvena Zvezda") == "FK Crvena Zvezda"
     assert normalizer.normalize("Sparta Prague") == "Sparta Praha"
     assert normalizer.normalize("Brest") == "Stade Brestois 29"
+    assert normalizer.normalize("Atlético de Madrid") == "Atlético Madrid"
+    assert normalizer.normalize("Club Atlético de Madrid") == "Atlético Madrid"
+    assert normalizer.normalize("Atletico Madrid") == "Atlético Madrid"
+    assert normalizer.normalize("ŠK Slovan Bratislava") == "Slovan Bratislava"
     assert "Club Brugge" in TEAM_NAME_ALIASES
 
 

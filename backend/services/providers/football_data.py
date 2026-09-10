@@ -61,6 +61,11 @@ STATUS_MAP = {
 STAGE_MAP = {
     "REGULAR_SEASON": "Regular Season",
     "GROUP_STAGE": "Group Stage",
+    "LEAGUE_STAGE": "League Phase",
+    "LEAGUE": "League Phase",
+    "PLAYOFFS": "Play-offs",
+    "PLAY_OFF_ROUND": "Play-offs",
+    "LAST_16": "Round of 16",
     "ROUND_OF_16": "Round of 16",
     "QUARTER_FINALS": "Quarter-final",
     "SEMI_FINALS": "Semi-final",
@@ -288,13 +293,19 @@ def _find_team_for_sync(db: Session, raw: dict, teams: List[Team], normalizer: N
         mapped = get_team_by_external_id(db, PROVIDER_NAME, str(ext_id))
         if mapped:
             return mapped
-    names = [raw.get("shortName"), raw.get("name")]
+    names = [raw.get("name"), raw.get("shortName")]
     for name in names:
         if not name:
             continue
         norm = normalizer.normalize(name)
         for team in teams:
-            if team.name == norm or normalizer.match_names(team.name, name):
+            if team.name == norm:
+                return team
+    for name in names:
+        if not name:
+            continue
+        for team in teams:
+            if normalizer.match_names(team.name, name):
                 return team
     return None
 

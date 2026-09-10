@@ -334,3 +334,61 @@ def test_feed_builder_writes_empty_cache_without_active_tournaments(db_session, 
 
     assert result["total_fixtures"] == 0
     assert json.loads(cache_path.read_text(encoding="utf-8")) == result
+
+
+def test_eligible_hides_scheduled_unstamped_once_tournament_is_stamped(db_session):
+    """Homepage eligibility omits scheduled draw leftovers after a stamped UCL row exists."""
+    comp = Competition(name="UCL Hide Unstamped", type="Cup", format_engine="league_phase_knockout")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+
+    villa = Team(name="BSC Young Boys")
+    yb_opp = Team(name="Aston Villa")
+    liv = Team(name="Liverpool")
+    atl = Team(name="Atlético Madrid")
+    db_session.add_all([villa, yb_opp, liv, atl])
+    db_session.flush()
+
+    now_utc = datetime(2026, 9, 16, 12, 0, tzinfo=timezone.utc)
+    draw_row = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=villa.id,
+        away_team_id=yb_opp.id,
+        stage="League Phase",
+        status="Scheduled",
+        api_id=None,
+        date_utc=datetime(2026, 9, 17, 18, 45),
+    )
+    finished_unstamped = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=liv.id,
+        away_team_id=yb_opp.id,
+        stage="League Phase",
+        status="Finished",
+        api_id=None,
+        date_utc=datetime(2026, 9, 10, 19, 0),
+        home_score=1,
+        away_score=0,
+    )
+    stamped = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=liv.id,
+        away_team_id=atl.id,
+        stage="League Phase",
+        status="Scheduled",
+        api_id="fd_9002",
+        date_utc=datetime(2026, 9, 16, 19, 0),
+    )
+    db_session.add_all([draw_row, finished_unstamped, stamped])
+    db_session.commit()
+
+    eligible = crud_fixture.get_eligible_fixtures(
+        db_session, tournament_id=tourney.id, now_utc=now_utc
+    )
+    ids = {f.id for f in eligible}
+    assert stamped.id in ids
+    assert finished_unstamped.id in ids
+    assert draw_row.id not in ids

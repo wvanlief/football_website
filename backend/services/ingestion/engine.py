@@ -170,6 +170,57 @@ class IngestionEngine:
         )
         return result
 
+    def overlay_from_football_data(
+        self,
+        db: Session,
+        tournament: Tournament,
+        competition: Competition,
+        api_season: int,
+    ) -> UpsertResult:
+        """Additive Football-Data.org overlay. Never falls back to other providers or DELETE."""
+        if not getattr(self.fd_provider, "api_key", None):
+            print(
+                f"Overlay: skipped for {competition.name}; Football-Data.org key is not configured."
+            )
+            return UpsertResult(
+                status="skipped",
+                message="Football-Data.org key is not configured",
+            )
+
+        raw_fixtures = self.fd_provider.fetch_fixtures(competition.name, api_season) or []
+        if not raw_fixtures:
+            print(
+                f"Overlay: Football-Data.org returned no fixtures for {competition.name}."
+            )
+            return UpsertResult(
+                status="skipped",
+                message="Football-Data.org returned no fixtures",
+            )
+
+        self.preflight.check_fixture_count(db, tournament.id, len(raw_fixtures))
+
+        normalized_fixtures = []
+        for item in raw_fixtures:
+            norm_item = self.fd_provider.normalize_fixture_payload(
+                db, item, tournament.id, competition.type or "Cup"
+            )
+            if not norm_item:
+                continue
+            if not norm_item.get("home_team") or not norm_item.get("away_team"):
+                continue
+            normalized_fixtures.append(norm_item)
+
+        result = self.upserter.upsert_fixtures(
+            db, tournament, normalized_fixtures, competition=competition
+        )
+        db.flush()
+        print(
+            f"Overlay: Football-Data.org stamped/inserted "
+            f"{result.created} created / {result.updated} updated "
+            f"fixtures for {competition.name}."
+        )
+        return result
+
     def sync_tournament(self, db: Session, tournament: Tournament) -> UpsertResult:
         """
         Synchronizes ongoing fixtures for an existing tournament.

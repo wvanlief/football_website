@@ -36,3 +36,5 @@ def test_match_names():
     # Negative matches
     assert norm.match_names("Arsenal", "Chelsea") is False
     assert norm.match_names("", "Spain") is False
+    assert norm.match_names("Atlético Madrid", "Atlético de Madrid") is True
+    assert norm.match_names("Slovan Bratislava", "ŠK Slovan Bratislava") is True
