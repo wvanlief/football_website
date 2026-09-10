@@ -1,4 +1,3 @@
-import os
 import json
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
@@ -8,7 +7,6 @@ load_dotenv()
 
 from backend.database import Team, Fixture, Tournament, Competition, SessionLocal
 from backend.services.ingestion import NameNormalizer
-from backend.services.lifecycle import finish_fixture
 from backend.services.odds import update_odds_from_api, calculate_default_odds
 from backend.services.knockout import propagate_knockout_fixtures
 from backend.services.queries import evaluate_nations_league_promotions, invalidate_fixtures_cache
@@ -22,8 +20,11 @@ from backend.services.format_adapters import (
     parse_match_date,
 )
 
-from backend.services.elo import fetch_current_elo_ratings, fetch_clubelo_ratings
-from backend.services.providers.api_football import call_football_api, parse_match_status
+from backend.services.providers.football_data import (
+    FootballDataProvider,
+    apply_matches_to_existing_fixtures,
+    get_football_data_org_key,
+)
 from backend.utils import fetch_json_with_retry, fetch_url_with_retry, fetch_json
 
 
@@ -35,181 +36,64 @@ def matches_team_name(db_name: str, api_name: str) -> bool:
     """Checks if two team names match using fuzzy matching and alias mapping."""
     return NameNormalizer().match_names(db_name, api_name)
 
-def sync_global_date_results(db: Session, target_date: str) -> tuple:
-    """
-    Fetches all match fixtures globally for a specific date and settles finished matches atomically.
+def _yesterday_and_today() -> tuple[str, str]:
+    today = datetime.now(timezone.utc)
+    today_str = today.strftime("%Y-%m-%d")
+    yesterday_str = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+    return yesterday_str, today_str
 
-    Calls the API-Football API (GET /fixtures?date=YYYY-MM-DD) and matches returned
-    fixtures to existing database records by API ID or by home/away team + date.
-    Finished fixtures are settled via finish_fixture() to ensure atomic updates of
-    scores, watchability, and standings cache. Returns (created_count, updated_count).
+
+def sync_football_data_matches(db: Session, date_from: str, date_to: str) -> tuple[int, int]:
+    """Fetch Football-Data.org matches for a date range and update existing fixtures.
+
+    Returns (non_finished_updates, finished_count).
     """
-    print(f"Fetching global results from API-Football for date={target_date}...")
-    try:
-        res = call_football_api("fixtures", {"date": target_date})
-    except Exception as e:
-        print(f"Error fetching global results for date {target_date}: {e}")
+    if not get_football_data_org_key():
+        print("FOOTBALL_DATA_ORG_KEY not configured. Skipping Football-Data.org match sync.")
         return 0, 0
 
-    if not res or not isinstance(res, dict) or "response" not in res:
-        print(f"No response data returned for date={target_date}")
-        return 0, 0
-
-    items = res.get("response", [])
-    print(f"Received {len(items)} global match fixtures for date={target_date}.")
-
-    fixtures_updated = 0
-    fixtures_created = 0
-
-    for item in items:
-        fixture_info = item.get("fixture", {})
-        api_id = str(fixture_info.get("id"))
-        status_info = fixture_info.get("status", {})
-        status_short = status_info.get("short")
-        
-        new_status = parse_match_status(status_short)
-
-        goals = item.get("goals", {})
-        home_goals = goals.get("home")
-        away_goals = goals.get("away")
-
-        fixture = db.query(Fixture).filter(Fixture.api_id == api_id).first()
-        
-        if not fixture:
-            teams_info = item.get("teams", {})
-            api_home_id = str(teams_info.get("home", {}).get("id"))
-            api_away_id = str(teams_info.get("away", {}).get("id"))
-            
-            home_team = db.query(Team).filter(Team.api_id == api_home_id).first()
-            away_team = db.query(Team).filter(Team.api_id == api_away_id).first()
-            
-            if home_team and away_team and fixture_info.get("date"):
-                match_dt = datetime.fromisoformat(fixture_info["date"].replace("Z", "+00:00"))
-                match_date_str = match_dt.strftime("%Y-%m-%d")
-                incoming_league_id = item.get("league", {}).get("id")
-                
-                candidates = db.query(Fixture).filter(
-                    Fixture.home_team_id == home_team.id,
-                    Fixture.away_team_id == away_team.id
-                ).all()
-                
-                for cand in candidates:
-                    if cand.date_utc and cand.date_utc.strftime("%Y-%m-%d") == match_date_str:
-                        # League Isolation Guardrail: verify candidate competition matches incoming API league
-                        cand_api_league = cand.tournament.competition.api_league_id if (cand.tournament and cand.tournament.competition) else None
-                        if cand_api_league and incoming_league_id:
-                            try:
-                                if int(cand_api_league) != int(incoming_league_id):
-                                    continue
-                            except (ValueError, TypeError):
-                                pass
-                        fixture = cand
-                        break
-
-        if fixture:
-            changed = False
-            if new_status == "Finished":
-                if fixture.status != "Finished" or fixture.home_score != home_goals or fixture.away_score != away_goals:
-                    final_home = home_goals if home_goals is not None else fixture.home_score
-                    final_away = away_goals if away_goals is not None else fixture.away_score
-                    finish_fixture(fixture, final_home, final_away, db, update_standings=False)
-                    changed = True
-            else:
-                if fixture.status != new_status:
-                    fixture.status = new_status
-                    changed = True
-                if home_goals is not None and fixture.home_score != home_goals:
-                    fixture.home_score = home_goals
-                    changed = True
-                if away_goals is not None and fixture.away_score != away_goals:
-                    fixture.away_score = away_goals
-                    changed = True
-
-            if changed:
-                fixtures_updated += 1
-
+    print(f"Fetching Football-Data.org matches dateFrom={date_from} dateTo={date_to}...")
+    provider = FootballDataProvider()
+    matches = provider.fetch_matches(date_from, date_to)
+    print(f"Received {len(matches)} Football-Data.org matches for {date_from}..{date_to}.")
+    updated, finished = apply_matches_to_existing_fixtures(db, matches)
     db.commit()
-    print(f"Global sync for {target_date}: updated {fixtures_updated} fixtures.")
-    return fixtures_created, fixtures_updated
+    print(f"Football-Data.org sync {date_from}..{date_to}: updated {updated}, finished {finished}.")
+    return updated, finished
+
+
+def sync_global_date_results(db: Session, date_from: str, date_to: str) -> tuple:
+    """
+    Fetches yesterday and today's matches in one Football-Data.org date-range query
+    and settles finished matches atomically.
+
+    Matches returned fixtures to existing database records by prefixed provider id
+    (`fd_{id}`) or by home/away team + kickoff window. Finished fixtures are settled
+    via finish_fixture(). Returns (created_count, updated_count).
+    """
+    updated, finished = sync_football_data_matches(db, date_from, date_to)
+    return 0, updated + finished
+
 
 def sync_global_live_scores(db: Session) -> tuple:
     """
-    Fetches all live match scores globally and settles any that have finished.
+    Fetches in-window live or delayed scores from Football-Data.org matches.
 
-    Calls the API-Football API (GET /fixtures?live=all) and updates scores and statuses
-    for all ongoing matches. Matches that transition to Finished status are settled via
-    finish_fixture() to ensure atomic updates of scores, watchability, and standings cache.
-    Returns (updated_count, finished_count).
+    Delayed scores on the free plan are acceptable. Matches that transition to
+    Finished are settled via finish_fixture(). Returns (updated_count, finished_count).
     """
-    print("Fetching global live matches from API-Football (GET /fixtures?live=all)...")
-    try:
-        res = call_football_api("fixtures", {"live": "all"})
-    except Exception as e:
-        print(f"Error fetching live matches: {e}")
-        return 0, 0
-
-    if not res or not isinstance(res, dict) or "response" not in res:
-        return 0, 0
-
-    items = res.get("response", [])
-    print(f"Received {len(items)} global live matches.")
-
-    fixtures_updated = 0
-    fixtures_finished = 0
-
-    for item in items:
-        fixture_info = item.get("fixture", {})
-        api_id = str(fixture_info.get("id"))
-        status_info = fixture_info.get("status", {})
-        status_short = status_info.get("short")
-
-        new_status = parse_match_status(status_short, default="Live")
-
-        goals = item.get("goals", {})
-        home_goals = goals.get("home")
-        away_goals = goals.get("away")
-
-        fixture = db.query(Fixture).filter(Fixture.api_id == api_id).first()
-        if fixture:
-            changed = False
-            if new_status == "Finished":
-                if fixture.status != "Finished":
-                    fixtures_finished += 1
-                if fixture.status != "Finished" or fixture.home_score != home_goals or fixture.away_score != away_goals:
-                    final_home = home_goals if home_goals is not None else fixture.home_score
-                    final_away = away_goals if away_goals is not None else fixture.away_score
-                    finish_fixture(fixture, final_home, final_away, db, update_standings=False)
-                    changed = True
-            else:
-                if fixture.status != new_status:
-                    fixture.status = new_status
-                    changed = True
-                if home_goals is not None and fixture.home_score != home_goals:
-                    fixture.home_score = home_goals
-                    changed = True
-                if away_goals is not None and fixture.away_score != away_goals:
-                    fixture.away_score = away_goals
-                    changed = True
-
-            if changed:
-                fixtures_updated += 1
-
-    db.commit()
-    return fixtures_updated, fixtures_finished
+    date_from, date_to = _yesterday_and_today()
+    return sync_football_data_matches(db, date_from, date_to)
 
 def update_results_and_odds(db: Session) -> dict:
     """
     Main daily update task. Queries global results in single-call API requests for today (and yesterday),
     updates odds history, and recalculates standings.
     """
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    yesterday_str = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
-
-    c1, u1 = sync_global_date_results(db, yesterday_str)
-    c2, u2 = sync_global_date_results(db, today_str)
-
-    fixtures_created = c1 + c2
-    fixtures_updated_results = u1 + u2
+    yesterday_str, today_str = _yesterday_and_today()
+    fixtures_created, fixtures_updated_results = sync_global_date_results(
+        db, yesterday_str, today_str
+    )
 
     # Fallback to tournament adapters if global date sync did not find/update fixtures
     if fixtures_created == 0 and fixtures_updated_results == 0:

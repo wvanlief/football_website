@@ -7,7 +7,44 @@ def test_competition_code_mapping():
     provider = FootballDataProvider()
     assert provider.get_competition_code("Premier League") == "PL"
     assert provider.get_competition_code("La Liga") == "PD"
+    assert provider.get_competition_code("Brasileirão Série A") == "BSA"
     assert provider.get_competition_code("Non Existent League") is None
+
+def test_get_football_data_org_key_prefers_canonical(monkeypatch):
+    from backend.services.providers.football_data import get_football_data_org_key
+
+    monkeypatch.setenv("FOOTBALL_DATA_ORG_KEY", "canonical")
+    monkeypatch.setenv("FOOTBALL_DATA_API_KEY", "alias-api")
+    monkeypatch.setenv("FOOTBALL_DATA_KEY", "alias-short")
+    assert get_football_data_org_key() == "canonical"
+
+
+def test_get_football_data_org_key_reads_aliases(monkeypatch):
+    from backend.services.providers.football_data import get_football_data_org_key
+
+    monkeypatch.delenv("FOOTBALL_DATA_ORG_KEY", raising=False)
+    monkeypatch.setenv("FOOTBALL_DATA_API_KEY", "alias-api")
+    monkeypatch.delenv("FOOTBALL_DATA_KEY", raising=False)
+    assert get_football_data_org_key() == "alias-api"
+
+    monkeypatch.delenv("FOOTBALL_DATA_API_KEY", raising=False)
+    monkeypatch.setenv("FOOTBALL_DATA_KEY", "alias-short")
+    assert get_football_data_org_key() == "alias-short"
+
+
+@patch("backend.services.providers.football_data.fetch_json_with_retry")
+def test_fetch_matches_date_range(mock_fetch):
+    mock_fetch.return_value = {"matches": [{"id": 1}, {"id": 2}]}
+    provider = FootballDataProvider(api_key="test_key")
+    matches = provider.fetch_matches("2026-09-09", "2026-09-10")
+
+    assert len(matches) == 2
+    url = mock_fetch.call_args[0][0]
+    assert url.startswith("https://api.football-data.org/v4/matches?")
+    assert "dateFrom=2026-09-09" in url
+    assert "dateTo=2026-09-10" in url
+    assert mock_fetch.call_args.kwargs.get("use_cache") is False
+
 
 @patch("backend.services.providers.football_data.fetch_json_with_retry")
 def test_fetch_fixtures(mock_fetch):
@@ -33,12 +70,19 @@ def test_fetch_fixtures(mock_fetch):
 
 def test_resolve_team_and_mapping(db_session):
     provider = FootballDataProvider()
-    raw_home = {"id": 57, "name": "Arsenal FC", "shortName": "Arsenal", "area": {"name": "England"}}
+    raw_home = {
+        "id": 57,
+        "name": "Arsenal FC",
+        "shortName": "Arsenal",
+        "crest": "https://crests.football-data.org/57.png",
+        "area": {"name": "England"},
+    }
 
     # Resolve team (should create team and external mapping)
     team = provider.resolve_team(db_session, raw_home, team_type="Club")
     assert team is not None
     assert team.name == "Arsenal"
+    assert team.logo_url == "https://crests.football-data.org/57.png"
 
     # Verify external mapping exists in DB
     mapped_team = get_team_by_external_id(db_session, "football_data", 57)

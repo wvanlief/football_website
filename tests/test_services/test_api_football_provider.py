@@ -155,11 +155,11 @@ def test_seeder_no_longer_defines_call_football_api():
     assert "def call_football_api" not in source
 
 
-def test_updater_imports_provider_not_seeder():
-    """Acceptance: updater.py imports call_football_api from the provider module."""
+def test_updater_does_not_import_api_football():
+    """Daily results and live scores must not import the API-Football client."""
     import backend.services.updater as updater
 
     source = inspect.getsource(updater)
     assert "from backend.services.seeder import call_football_api" not in source
-    assert "from backend.services.providers.api_football import" in source
-    assert updater.call_football_api.__module__ == "backend.services.providers.api_football"
+    assert "api_football" not in source
+    assert "call_football_api" not in source
