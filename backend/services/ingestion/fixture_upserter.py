@@ -10,10 +10,19 @@ from backend.services.lifecycle import finish_fixture
 
 
 class UpsertResult:
-    def __init__(self, created: int = 0, updated: int = 0, odds_added: int = 0):
+    def __init__(
+        self,
+        created: int = 0,
+        updated: int = 0,
+        odds_added: int = 0,
+        status: str = "success",
+        message: str = "",
+    ):
         self.created = created
         self.updated = updated
         self.odds_added = odds_added
+        self.status = status
+        self.message = message
 
     def to_dict(self) -> dict:
         return {

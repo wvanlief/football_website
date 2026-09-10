@@ -1,27 +1,33 @@
 # Domain Glossary & Model Conventions (findfootball.games)
 
 ## Team Badges & Assets
-- **`logo_url`**: Canonical URL string stored on the `Team` model pointing to the team's crest image (`/static/badges/{api_id}.png` for clubs, or flagcdn URL for national teams).
-- **Badge Caching**: All team badges are downloaded and stored locally on disk under static assets during ingestion to eliminate third-party CDN latency and quota usage.
+- **`logo_url`**: Canonical URL string stored on the `Team` model pointing to the team's crest image (`/static/badges/{api_id}.png` for clubs, a Football-Data.org crest URL, or flagcdn for national teams). Never an API-Sports media CDN URL.
+- **`badge_url`**: Resolved crest URL on `Team` for API payloads. Prefers stored `logo_url`, then `/static/badges/{api_id}.png` (`api_id` is an opaque local cache key), then flagcdn. Must not construct or emit `media.api-sports.io` URLs.
+- **Badge Caching**: Club badges already on disk under static assets are served from `/static/badges/{api_id}.png`. New clubs can store a Football-Data.org crest on `logo_url`. National flags use flagcdn.
 
 ## Season & Date Filtering
 - **Date Anchoring**: Fixture recommendations and hot lists must filter strictly against `datetime.now(target_tz)` for active/upcoming matches, anchored to current or upcoming matchdays.
 - **Active Season Filtering**: Only query fixtures for active current seasons (`season_name == "2026"`) to prevent past resolved seasons (e.g. 2025) from polluting the hot list.
 
 ## Competition Format & UI Routing
-- **`format_engine`**: Determines UI rendering layout:
-  - `league`: Single 20-team table, bracket tab disabled.
-  - `league_phase_knockout`: Single 36-team flat table (Top 8 auto-R16, 9-24 playoff, 25-36 eliminated), bracket enabled for knockout stage. Filtered strictly to `League Phase` fixtures.
-  - `cup`: Pure knockout bracket tree (R1 through Final), group standings tab disabled.
-  - `group_knockout` / `nations_league`: Group tables + Knockout Bracket Tree.
+- **`format_engine`**: Determines UI rendering layout and the header label for the table view (one HTML page: `group.html`):
+  - `league`: Header says **Standings** (`/group/standings`). Single table. Bracket tab hidden.
+  - `league_phase_knockout`: Header says **Standings** (`/group/standings`). Single 36-team table (Top 8 auto-R16, 9-24 playoff, 25-36 eliminated). Bracket enabled for knockout.
+  - `cup`: Header hides the table link. Pure knockout on **Bracket**.
+  - `group_knockout` / `nations_league`: Header says **Groups** (`/group/A`). Group tables + knockout on **Bracket**.
+- Public surfaces and routes: `docs/site-map.md`.
 
 ## Performance & Pre-Calculated Feed Caching
 - **Pre-Calculated Feed JSON**: `/api/fixtures` reads from a pre-built static JSON document (`fixtures_feed_cache.json`) built by a background worker. Zero live DB scans on HTTP requests.
 - **Twice-Weekly Heavy Enrichment**: Heavy fixture enrichment (narrative scoring, ELO calculations, competitiveness) runs twice a week (Monday/Friday). Score updates read existing pre-computed fields.
 
+## Multi-Source Fixture Ingestion
+- **Priority Fallback Chain**: Match fixtures are ingested in order `Football-Data.org` → `openfootball` → `TheSportsDB`. If a provider returns an error, timeout, empty payload, or has no mapping for the competition, the engine fails over to the next. Odds remain on The Odds API. Live scores remain on Football-Data.org.
+- **TheSportsDB coverage**: Tertiary source for cups the other two miss on the free plan / published datasets — notably **UEFA Europa League** and **UEFA Conference League**.
+
 ## Global API Sync & Quota Management
-- **Single-Call Daily Sync**: Schedules and results update via single global date calls (`GET /fixtures?date=TODAY`). Individual per-league looping is disabled.
-- **Live Score Polling**: 15-minute polling intervals during active match windows using `GET /fixtures?live=all`.
+- **Single-Call Daily Sync**: Yesterday and today’s scores update via one Football-Data.org matches query (`GET /v4/matches?dateFrom=YESTERDAY&dateTo=TODAY`). Individual per-league looping is disabled.
+- **Live Score Polling**: 15-minute polling during active match windows uses Football-Data.org matches for in-window live or delayed scores.
 
 ## Watchability Gating & Regional Baselines
 - **Regional ELO Baselines**: CONMEBOL clubs (~1600) and MLS (~1500) use regional baselines until custom in-house ELO engine is implemented.

@@ -34,7 +34,8 @@ class TeamResolver:
         default_elo: int = 1500,
         country_code: Optional[str] = None,
         api_id: Optional[int] = None,
-        logo_url: Optional[str] = None
+        logo_url: Optional[str] = None,
+        elo_source: Optional[str] = None,
     ) -> Optional[Team]:
         """
         Resolves a raw API team payload to an internal database Team entity.
@@ -47,6 +48,9 @@ class TeamResolver:
         if provider_name and external_id is not None and str(external_id) != "0":
             mapped_team = get_team_by_external_id(db, provider_name=provider_name, external_id=external_id)
             if mapped_team:
+                if logo_url and not mapped_team.logo_url:
+                    mapped_team.logo_url = logo_url
+                    db.flush()
                 return mapped_team
 
         norm_name = self.normalizer.normalize(raw_name) if raw_name else ""
@@ -70,7 +74,9 @@ class TeamResolver:
                 link_team_external_id(db, team_id=team.id, provider_name=provider_name, external_id=external_id)
             if api_id and team.api_id is None:
                 team.api_id = api_id
-                db.flush()
+            if logo_url and not team.logo_url:
+                team.logo_url = logo_url
+            db.flush()
             return team
 
         # 5. Create new Team if not found
@@ -81,13 +87,15 @@ class TeamResolver:
             calc_country_code = norm_name[:3].upper()
 
         form_score = round(min(95.0, max(45.0, 50.0 + (default_elo - 1500) * 0.05)), 1)
-        elo_source = "clubelo" if team_type == "Club" else "eloratings"
+        resolved_elo_source = elo_source or (
+            "clubelo" if team_type == "Club" else "eloratings"
+        )
 
         new_team = Team(
             name=norm_name or raw_name.strip(),
             country_code=calc_country_code,
             team_type=team_type,
-            elo_source=elo_source,
+            elo_source=resolved_elo_source,
             elo=default_elo,
             form_score=form_score,
             api_id=api_id,

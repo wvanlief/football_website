@@ -121,7 +121,8 @@ def fetch_json_with_retry(
     retries: int = 3,
     backoff_factor: float = 1.5,
     use_cache: bool = True,
-    provider: str = None
+    provider: str = None,
+    raise_on_rate_limit: bool = False,
 ) -> Any:
     """Fetches a URL and parses it as JSON."""
     try:
@@ -137,8 +138,9 @@ def fetch_json_with_retry(
         return json.loads(content.decode('utf-8'))
     except RuntimeError as r_err:
         print(f"{r_err}")
+        if raise_on_rate_limit:
+            raise
         return {}
 
 fetch_json = fetch_json_with_retry
-
 
