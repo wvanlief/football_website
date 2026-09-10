@@ -39,6 +39,7 @@ class IngestionEngine:
         self.tsdb_provider = tsdb_provider or TheSportsDBProvider(
             team_resolver=self.team_resolver
         )
+        self._fixture_request_skipped = False
 
     def _collect_raw_fixtures(
         self,
@@ -46,11 +47,14 @@ class IngestionEngine:
         api_season: int,
     ) -> Tuple[List[dict], Optional[object], str]:
         fd_fixtures = self.fd_provider.fetch_fixtures(competition_name, api_season) or []
+        fd_skipped = getattr(self.fd_provider, "last_request_skipped", False) is True
+        self._fixture_request_skipped = fd_skipped
         if fd_fixtures:
             print(
                 f"Ingestion: using Football-Data.org for {competition_name} "
                 f"({len(fd_fixtures)} fixtures)."
             )
+            self._fixture_request_skipped = False
             return fd_fixtures, self.fd_provider, "Football-Data.org"
 
         print(
@@ -156,6 +160,9 @@ class IngestionEngine:
 
         # 5. Batch Upsert Fixtures
         result = self.upserter.upsert_fixtures(db, tourney, normalized_fixtures, competition=comp)
+        if self._fixture_request_skipped:
+            result.status = "skipped"
+            result.message = "Football-Data.org fixture request was skipped"
         db.commit()
         print(
             f"Ingestion: upserted {result.created} created / {result.updated} updated "

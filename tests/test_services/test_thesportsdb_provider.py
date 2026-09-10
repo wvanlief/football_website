@@ -166,6 +166,20 @@ def test_normalize_fixture_payload(db_session):
     assert mapped.id == norm["home_team"].id
 
 
+def test_finished_event_with_partial_score_remains_ingestible(db_session):
+    provider = TheSportsDBProvider()
+    item = dict(TSDB_UEL_EVENT)
+    item["intAwayScore"] = None
+
+    norm = provider.normalize_fixture_payload(
+        db_session, item, tournament_id=10, competition_type="Cup"
+    )
+
+    assert norm["status"] == "Live"
+    assert norm["home_score"] == 2
+    assert norm["away_score"] is None
+
+
 def test_normalize_qualifying_round_has_no_matchday(db_session):
     provider = TheSportsDBProvider()
     item = dict(TSDB_UEL_EVENT)

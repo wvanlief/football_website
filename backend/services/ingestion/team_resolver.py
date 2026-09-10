@@ -34,7 +34,8 @@ class TeamResolver:
         default_elo: int = 1500,
         country_code: Optional[str] = None,
         api_id: Optional[int] = None,
-        logo_url: Optional[str] = None
+        logo_url: Optional[str] = None,
+        elo_source: Optional[str] = None,
     ) -> Optional[Team]:
         """
         Resolves a raw API team payload to an internal database Team entity.
@@ -86,13 +87,15 @@ class TeamResolver:
             calc_country_code = norm_name[:3].upper()
 
         form_score = round(min(95.0, max(45.0, 50.0 + (default_elo - 1500) * 0.05)), 1)
-        elo_source = "clubelo" if team_type == "Club" else "eloratings"
+        resolved_elo_source = elo_source or (
+            "clubelo" if team_type == "Club" else "eloratings"
+        )
 
         new_team = Team(
             name=norm_name or raw_name.strip(),
             country_code=calc_country_code,
             team_type=team_type,
-            elo_source=elo_source,
+            elo_source=resolved_elo_source,
             elo=default_elo,
             form_score=form_score,
             api_id=api_id,

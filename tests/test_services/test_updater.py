@@ -712,6 +712,67 @@ def test_calculate_default_odds_custom_advantage():
     assert h_odds_70 > h_odds_100
 
 
+def test_global_football_data_sync_scopes_team_time_match_to_competition(
+    db_session, monkeypatch
+):
+    from backend.services.updater import sync_football_data_matches
+
+    monkeypatch.setenv("FOOTBALL_DATA_ORG_KEY", "test-fd-key")
+    kickoff = datetime.now(timezone.utc)
+    home = Team(name="Arsenal")
+    away = Team(name="Chelsea")
+    pl = Competition(name="Premier League", type="League")
+    cl = Competition(name="UEFA Champions League", type="Cup")
+    db_session.add_all([home, away, pl, cl])
+    db_session.flush()
+    pl_tourney = Tournament(competition_id=pl.id, season_name="2026/27", status="Active")
+    cl_tourney = Tournament(competition_id=cl.id, season_name="2026/27", status="Active")
+    db_session.add_all([pl_tourney, cl_tourney])
+    db_session.flush()
+    pl_fixture = Fixture(
+        tournament_id=pl_tourney.id,
+        home_team_id=home.id,
+        away_team_id=away.id,
+        date_utc=kickoff,
+        stage="Regular Season",
+        status="Scheduled",
+    )
+    cl_fixture = Fixture(
+        tournament_id=cl_tourney.id,
+        home_team_id=home.id,
+        away_team_id=away.id,
+        date_utc=kickoff,
+        stage="Regular Season",
+        status="Scheduled",
+    )
+    db_session.add_all([pl_fixture, cl_fixture])
+    db_session.commit()
+
+    monkeypatch.setattr(
+        "backend.services.updater.FootballDataProvider.fetch_matches",
+        lambda self, date_from, date_to: [
+            {
+                "id": 8080,
+                "utcDate": kickoff.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "status": "IN_PLAY",
+                "homeTeam": {"shortName": "Arsenal"},
+                "awayTeam": {"shortName": "Chelsea"},
+                "score": {"fullTime": {"home": 1, "away": 0}},
+                "competition": {"code": "PL", "name": "Premier League"},
+            }
+        ],
+    )
+
+    updated, finished = sync_football_data_matches(
+        db_session, "2026-09-09", "2026-09-10"
+    )
+
+    assert (updated, finished) == (1, 0)
+    db_session.refresh(pl_fixture)
+    db_session.refresh(cl_fixture)
+    assert pl_fixture.status == "Live"
+    assert cl_fixture.status == "Scheduled"
+
 
 
 

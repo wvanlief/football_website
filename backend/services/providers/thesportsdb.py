@@ -249,6 +249,12 @@ class TheSportsDBProvider:
         if event_id is None:
             return None
 
+        status = parse_event_status(item.get("strStatus"), item.get("strPostponed"))
+        home_score = parse_score(item.get("intHomeScore"))
+        away_score = parse_score(item.get("intAwayScore"))
+        if status == "Finished" and (home_score is None or away_score is None):
+            status = "Live" if home_score is not None or away_score is not None else "Scheduled"
+
         return {
             "api_id": f"tsdb_{event_id}",
             "raw_id": str(event_id),
@@ -262,7 +268,7 @@ class TheSportsDBProvider:
             "date_utc": date_utc,
             "stage": stage,
             "matchday_number": matchday,
-            "status": parse_event_status(item.get("strStatus"), item.get("strPostponed")),
-            "home_score": parse_score(item.get("intHomeScore")),
-            "away_score": parse_score(item.get("intAwayScore")),
+            "status": status,
+            "home_score": home_score,
+            "away_score": away_score,
         }

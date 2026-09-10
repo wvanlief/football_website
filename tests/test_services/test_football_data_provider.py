@@ -1,7 +1,14 @@
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timezone
-from backend.services.providers.football_data import FootballDataProvider, COMPETITION_CODE_MAP
+from backend.services.providers.football_data import (
+    COMPETITION_CODE_MAP,
+    FootballDataProvider,
+    extract_match_scores,
+    find_fixture_for_match,
+)
 from backend.crud.mapping import get_team_by_external_id
+from backend.database import Competition, Fixture, Team, Tournament
+from backend.services.ingestion import NameNormalizer
 
 def test_competition_code_mapping():
     provider = FootballDataProvider()
@@ -67,6 +74,118 @@ def test_fetch_fixtures(mock_fetch):
     assert len(fixtures) == 1
     assert fixtures[0]["id"] == 1001
     mock_fetch.assert_called_once()
+    assert mock_fetch.call_args.kwargs["use_cache"] is True
+
+
+@patch("backend.services.providers.football_data.fetch_json_with_retry")
+def test_fetch_fixtures_can_bypass_cache(mock_fetch):
+    mock_fetch.return_value = {"matches": []}
+
+    FootballDataProvider(api_key="test_key").fetch_fixtures(
+        "Premier League", 2026, use_cache=False
+    )
+
+    assert mock_fetch.call_args.kwargs["use_cache"] is False
+
+
+@patch("backend.services.providers.football_data.fetch_json_with_retry")
+def test_fetch_fixtures_records_rate_limit_skip(mock_fetch):
+    mock_fetch.side_effect = RuntimeError("rate limit safeguard")
+    provider = FootballDataProvider(api_key="test_key")
+
+    assert provider.fetch_fixtures("Premier League", 2026) == []
+    assert provider.last_request_skipped is True
+
+
+def test_extract_match_scores_prefers_complete_pair_over_partial_full_time():
+    item = {
+        "score": {
+            "fullTime": {"home": 2, "away": None},
+            "regularTime": {"home": 1, "away": 1},
+            "halfTime": {"home": 0, "away": 0},
+        }
+    }
+
+    assert extract_match_scores(item) == (1, 1)
+
+
+def test_extract_match_scores_uses_partial_pair_as_last_resort():
+    item = {"score": {"fullTime": {"home": 2, "away": None}}}
+
+    assert extract_match_scores(item) == (2, None)
+
+
+def test_raw_api_id_lookup_is_restricted_by_competition(db_session):
+    pl = Competition(name="Premier League", type="League")
+    cl = Competition(name="UEFA Champions League", type="Cup")
+    db_session.add_all([pl, cl])
+    db_session.flush()
+    pl_tourney = Tournament(competition_id=pl.id, season_name="2026/27", status="Active")
+    cl_tourney = Tournament(competition_id=cl.id, season_name="2026/27", status="Active")
+    db_session.add_all([pl_tourney, cl_tourney])
+    db_session.flush()
+    home = Team(name="Arsenal")
+    away = Team(name="Chelsea")
+    db_session.add_all([home, away])
+    db_session.flush()
+    foreign = Fixture(
+        tournament_id=cl_tourney.id,
+        api_id="4242",
+        home_team_id=home.id,
+        away_team_id=away.id,
+        date_utc=datetime.now(timezone.utc),
+        status="Scheduled",
+        stage="Regular Season",
+    )
+    expected = Fixture(
+        tournament_id=pl_tourney.id,
+        api_id="4242",
+        home_team_id=home.id,
+        away_team_id=away.id,
+        date_utc=datetime.now(timezone.utc),
+        status="Scheduled",
+        stage="Regular Season",
+    )
+    db_session.add_all([foreign, expected])
+    db_session.commit()
+
+    match = {"id": 4242, "competition": {"code": "PL"}}
+    found = find_fixture_for_match(
+        db_session,
+        match,
+        [home, away],
+        NameNormalizer(),
+    )
+
+    assert found.id == expected.id
+
+
+def test_raw_api_id_from_other_competition_is_rejected(db_session):
+    pl = Competition(name="Premier League", type="League")
+    cl = Competition(name="UEFA Champions League", type="Cup")
+    db_session.add_all([pl, cl])
+    db_session.flush()
+    cl_tourney = Tournament(competition_id=cl.id, season_name="2026/27", status="Active")
+    db_session.add(cl_tourney)
+    db_session.flush()
+    fixture = Fixture(
+        tournament_id=cl_tourney.id,
+        api_id="4242",
+        date_utc=datetime.now(timezone.utc),
+        status="Scheduled",
+        stage="Regular Season",
+    )
+    db_session.add(fixture)
+    db_session.commit()
+
+    found = find_fixture_for_match(
+        db_session,
+        {"id": 4242, "competition": {"code": "PL"}},
+        [],
+        NameNormalizer(),
+    )
+
+    assert found is None
 
 def test_resolve_team_and_mapping(db_session):
     provider = FootballDataProvider()

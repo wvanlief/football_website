@@ -77,6 +77,7 @@ class FootballDataProvider:
         self.api_key = api_key or get_football_data_org_key()
         self.normalizer = NameNormalizer()
         self.team_resolver = team_resolver or TeamResolver(self.normalizer)
+        self.last_request_skipped = False
 
     def get_headers(self) -> Dict[str, str]:
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -94,6 +95,7 @@ class FootballDataProvider:
             headers=self.get_headers(),
             use_cache=use_cache,
             provider="football_data_org",
+            raise_on_rate_limit=True,
         )
 
     def get_competition_code(self, competition_name: str) -> Optional[str]:
@@ -118,22 +120,37 @@ class FootballDataProvider:
             print(f"Football-Data.org API error fetching matches {date_from}..{date_to}: {e}")
             return []
 
-    def fetch_fixtures(self, competition_name: str, season: int) -> List[dict]:
+    def fetch_fixtures(
+        self,
+        competition_name: str,
+        season: int,
+        use_cache: bool = True,
+    ) -> List[dict]:
+        self.last_request_skipped = False
         code = self.get_competition_code(competition_name)
         if not code:
             print(f"Football-Data.org: Competition '{competition_name}' not mapped to a code.")
             return []
         
         try:
-            res = self.call_api(f"competitions/{code}/matches", {"season": season})
+            res = self.call_api(
+                f"competitions/{code}/matches",
+                {"season": season},
+                use_cache=use_cache,
+            )
             if not isinstance(res, dict) or "matches" not in res:
                 return []
             return res.get("matches", [])
+        except RuntimeError as e:
+            self.last_request_skipped = True
+            print(f"Football-Data.org API call skipped for {competition_name}: {e}")
+            return []
         except Exception as e:
             print(f"Football-Data.org API error fetching fixtures for {competition_name}: {e}")
             return []
 
     def fetch_teams(self, competition_name: str, season: int) -> List[dict]:
+        self.last_request_skipped = False
         code = self.get_competition_code(competition_name)
         if not code:
             return []
@@ -142,11 +159,22 @@ class FootballDataProvider:
             if not isinstance(res, dict) or "teams" not in res:
                 return []
             return res.get("teams", [])
+        except RuntimeError as e:
+            self.last_request_skipped = True
+            print(f"Football-Data.org API call skipped for teams in {competition_name}: {e}")
+            return []
         except Exception as e:
             print(f"Football-Data.org API error fetching teams for {competition_name}: {e}")
             return []
 
-    def resolve_team(self, db: Session, raw_team_info: dict, team_type: str = "Club") -> Optional[Team]:
+    def resolve_team(
+        self,
+        db: Session,
+        raw_team_info: dict,
+        team_type: str = "Club",
+        default_elo: int = 1500,
+        elo_source: Optional[str] = None,
+    ) -> Optional[Team]:
         """
         Resolves a raw Football-Data team dict through TeamResolver:
         mapping tables, NameNormalizer, then create. Stores crest URLs on logo_url.
@@ -164,8 +192,10 @@ class FootballDataProvider:
             raw_name=raw_name,
             external_id=ext_id,
             team_type=team_type,
+            default_elo=default_elo,
             country_code=country_code,
             logo_url=crest,
+            elo_source=elo_source,
         )
 
     def normalize_fixture_payload(self, db: Session, item: dict, tournament_id: int, competition_type: str = "League") -> Optional[dict]:
@@ -230,13 +260,16 @@ def match_status(raw_status: Optional[str]) -> str:
 def extract_match_scores(item: dict) -> Tuple[Optional[int], Optional[int]]:
     """Read current or full-time scores from a Football-Data.org match payload."""
     score = item.get("score") or {}
+    partial = (None, None)
     for key in ("fullTime", "regularTime", "halfTime"):
         block = score.get(key) or {}
         home = block.get("home")
         away = block.get("away")
-        if home is not None or away is not None:
+        if home is not None and away is not None:
             return home, away
-    return None, None
+        if partial == (None, None) and (home is not None or away is not None):
+            partial = (home, away)
+    return partial
 
 
 def _parse_match_dt(item: dict) -> Optional[datetime]:
@@ -308,10 +341,20 @@ def find_fixture_for_match(
 
     match_id = item.get("id")
     if match_id is not None:
-        for api_id in (f"fd_{match_id}", str(match_id)):
-            fixture = query.filter(Fixture.api_id == api_id).first()
-            if fixture:
-                return fixture
+        fixture = query.filter(Fixture.api_id == f"fd_{match_id}").first()
+        if fixture:
+            return fixture
+
+        raw_id_candidates = query.filter(Fixture.api_id == str(match_id)).all()
+        incoming_code = _incoming_competition_code(item)
+        for candidate in raw_id_candidates:
+            expected_code = _fixture_competition_code(candidate)
+            if tournament_id is not None:
+                if incoming_code and expected_code and incoming_code != expected_code:
+                    continue
+                return candidate
+            if incoming_code and expected_code == incoming_code:
+                return candidate
 
     home_team = _find_team_for_sync(db, item.get("homeTeam") or {}, teams, normalizer)
     away_team = _find_team_for_sync(db, item.get("awayTeam") or {}, teams, normalizer)
@@ -342,9 +385,12 @@ def find_fixture_for_match(
     incoming_code = _incoming_competition_code(item)
     for cand in candidates:
         expected_code = _fixture_competition_code(cand)
-        if incoming_code and expected_code and incoming_code != expected_code:
-            continue
-        return cand
+        if tournament_id is not None:
+            if incoming_code and expected_code and incoming_code != expected_code:
+                continue
+            return cand
+        if incoming_code is not None and expected_code == incoming_code:
+            return cand
     return None
 
 
@@ -400,4 +446,3 @@ def apply_matches_to_existing_fixtures(
             updated += 1
 
     return updated, finished
-

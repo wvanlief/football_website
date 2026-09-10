@@ -32,7 +32,13 @@ from backend.services.ingestion import (
     FixtureUpserter,
 )
 from backend.services.odds import update_odds_from_api
-from backend.services.elo import fetch_current_elo_ratings, record_elo_history, elo_to_form
+from backend.services.elo import (
+    elo_to_form,
+    fetch_clubelo_ratings,
+    fetch_current_elo_ratings,
+    fuzzy_match_team,
+    record_elo_history,
+)
 from backend.services.standings import recalculate_standings
 
 NATIONAL_TEAM_ISO_CODES = COUNTRY_ISO_MAP
@@ -445,8 +451,9 @@ def _seed_european_cups(db: Session, target_league_id: Optional[int] = None) -> 
 def _live_seedable_competitions() -> set[str]:
     from backend.services.providers.football_data import COMPETITION_CODE_MAP
     from backend.services.providers.openfootball import OPENFOOTBALL_DATASETS
+    from backend.services.providers.thesportsdb import LEAGUE_ID_MAP
 
-    names = set(COMPETITION_CODE_MAP) | set(OPENFOOTBALL_DATASETS)
+    names = set(COMPETITION_CODE_MAP) | set(OPENFOOTBALL_DATASETS) | set(LEAGUE_ID_MAP)
     names.discard("FIFA World Cup")
     names.discard("European Championship")
     return names
@@ -467,6 +474,7 @@ def _seed_all(db: Session) -> SeedResult:
             continue
         try:
             comp = db.query(Competition).filter(Competition.name == name).first()
+            tourney = None
             if comp:
                 tourney = db.query(Tournament).filter(
                     Tournament.competition_id == comp.id,
@@ -480,8 +488,23 @@ def _seed_all(db: Session) -> SeedResult:
                         continue
 
             print(f"Seeding competition: {name}...")
-            fetch_and_seed_teams(db, api_league_id=league_id, api_season=api_season, fetch_squads=False)
-            seed_competition(
+            teams_exist = bool(
+                tourney
+                and db.query(TournamentTeam).filter(
+                    TournamentTeam.tournament_id == tourney.id
+                ).first()
+            )
+            team_result = None
+            if teams_exist:
+                print(f"Skipping team fetch for {name}: tournament teams already exist.")
+            else:
+                team_result = fetch_and_seed_teams(
+                    db,
+                    api_league_id=league_id,
+                    api_season=api_season,
+                    fetch_squads=False,
+                )
+            fixture_result = seed_competition(
                 db=db,
                 competition_name=name,
                 competition_type=comp_type,
@@ -492,7 +515,15 @@ def _seed_all(db: Session) -> SeedResult:
                 relegation_spots=releg_spots,
                 home_advantage_elo=home_adv,
             )
-            results[name] = "Seeded successfully"
+            skipped = [
+                result.message
+                for result in (team_result, fixture_result)
+                if getattr(result, "status", None) == "skipped"
+            ]
+            if skipped:
+                results[name] = f"Skipped: {'; '.join(skipped)}"
+            else:
+                results[name] = "Seeded successfully"
         except Exception as exc:
             print(f"Error seeding {name}: {exc}")
             results[name] = f"Error: {exc}"
@@ -661,29 +692,51 @@ def fetch_and_seed_teams(
         competition_name = comp.name if comp else None
     if not competition_name:
         print(f"No mapped competition name for league {api_league_id}; skipping team seed.")
-        return
+        return SeedResult(status="skipped", message="No mapped competition name")
 
     print(f"Fetching Football-Data.org teams for {competition_name}, season {api_season}...")
     provider = FootballDataProvider()
     teams_data = provider.fetch_teams(competition_name, api_season)
     if not teams_data:
         print(f"No Football-Data.org teams returned for {competition_name}.")
-        return
+        status = "skipped" if provider.last_request_skipped else "success"
+        message = "Football-Data.org team request was skipped" if provider.last_request_skipped else ""
+        return SeedResult(status=status, message=message)
 
     if fetch_squads:
         print("Squad ingestion is not available without API-Football; seeding team crests only.")
 
+    clubelo_ratings = fetch_clubelo_ratings() if team_type == "Club" else {}
+    clubelo_names = list(clubelo_ratings)
+
     print(f"Seeding {len(teams_data)} teams...")
     for t_info in teams_data:
-        db_team = provider.resolve_team(db, t_info, team_type=team_type)
+        raw_name = t_info.get("shortName") or t_info.get("name", "")
+        clubelo_name, confidence = fuzzy_match_team(raw_name, clubelo_names)
+        matched_elo = (
+            clubelo_ratings.get(clubelo_name)
+            if clubelo_name and confidence >= 0.85
+            else None
+        )
+        db_team = provider.resolve_team(
+            db,
+            t_info,
+            team_type=team_type,
+            default_elo=matched_elo if matched_elo is not None else 1500,
+            elo_source="manual",
+        )
         if not db_team:
             continue
         db_team.team_type = team_type
-        db_team.elo_source = elo_source
+        if matched_elo is not None:
+            db_team.elo = matched_elo
+            db_team.form_score = elo_to_form(matched_elo)
+            db_team.elo_source = elo_source
         db.flush()
 
     db.commit()
     print(f"Successfully seeded teams for {competition_name} (league={api_league_id}).")
+    return SeedResult(status="success")
 
 
 def seed_competition(

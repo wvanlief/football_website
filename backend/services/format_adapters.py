@@ -231,7 +231,11 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                     )
                     matches = fd_res.get("matches", []) if isinstance(fd_res, dict) else []
                 else:
-                    matches = FootballDataProvider().fetch_fixtures(comp.name, api_season)
+                    matches = FootballDataProvider().fetch_fixtures(
+                        comp.name,
+                        api_season,
+                        use_cache=False,
+                    )
                 if matches:
                     updated, finished = apply_matches_to_existing_fixtures(
                         db, matches, tournament_id=tourney.id

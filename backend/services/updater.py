@@ -21,10 +21,13 @@ from backend.services.format_adapters import (
 )
 
 from backend.services.providers.football_data import (
+    COMPETITION_CODE_MAP,
     FootballDataProvider,
+    PROVIDER_NAME,
     apply_matches_to_existing_fixtures,
     get_football_data_org_key,
 )
+from backend.crud.mapping import get_competition_by_external_id
 from backend.utils import fetch_json_with_retry, fetch_url_with_retry, fetch_json
 
 
@@ -35,6 +38,35 @@ def normalize_team_name(name: str) -> str:
 def matches_team_name(db_name: str, api_name: str) -> bool:
     """Checks if two team names match using fuzzy matching and alias mapping."""
     return NameNormalizer().match_names(db_name, api_name)
+
+
+def _tournament_id_for_match(db: Session, match: dict) -> int | None:
+    competition_data = match.get("competition") or {}
+    competition = None
+    external_id = competition_data.get("id")
+    if external_id is not None:
+        competition = get_competition_by_external_id(db, PROVIDER_NAME, external_id)
+
+    if competition is None:
+        code = competition_data.get("code")
+        name = competition_data.get("name")
+        canonical_name = next(
+            (candidate for candidate, mapped_code in COMPETITION_CODE_MAP.items() if mapped_code == code),
+            name,
+        )
+        if canonical_name:
+            competition = db.query(Competition).filter(
+                Competition.name == canonical_name
+            ).first()
+
+    if competition is None:
+        return None
+
+    tournament = db.query(Tournament).filter(
+        Tournament.competition_id == competition.id,
+        Tournament.status == "Active",
+    ).first()
+    return tournament.id if tournament else None
 
 def _yesterday_and_today() -> tuple[str, str]:
     today = datetime.now(timezone.utc)
@@ -56,7 +88,21 @@ def sync_football_data_matches(db: Session, date_from: str, date_to: str) -> tup
     provider = FootballDataProvider()
     matches = provider.fetch_matches(date_from, date_to)
     print(f"Received {len(matches)} Football-Data.org matches for {date_from}..{date_to}.")
-    updated, finished = apply_matches_to_existing_fixtures(db, matches)
+    updated = 0
+    finished = 0
+    matches_by_tournament: dict[int | None, list[dict]] = {}
+    for match in matches:
+        tournament_id = _tournament_id_for_match(db, match)
+        matches_by_tournament.setdefault(tournament_id, []).append(match)
+
+    for tournament_id, tournament_matches in matches_by_tournament.items():
+        match_updated, match_finished = apply_matches_to_existing_fixtures(
+            db,
+            tournament_matches,
+            tournament_id=tournament_id,
+        )
+        updated += match_updated
+        finished += match_finished
     db.commit()
     print(f"Football-Data.org sync {date_from}..{date_to}: updated {updated}, finished {finished}.")
     return updated, finished
