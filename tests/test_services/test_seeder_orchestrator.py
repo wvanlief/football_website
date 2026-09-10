@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 from backend.database import Team, TournamentTeam, Competition, Tournament, Fixture
 from backend.services.seeder import (
@@ -75,6 +76,34 @@ def test_seed_database_wrapper_delegates_to_seed(db_session, monkeypatch):
     assert isinstance(result, SeedResult)
     assert result.status == "success"
     assert db_session.query(Team).count() >= 48
+
+
+@patch("backend.services.providers.api_football.call_football_api")
+def test_seed_world_cup_does_not_call_api_football(mock_api_football, db_session, monkeypatch):
+    """World Cup seed uses the static dataset even when an API-Football key is present."""
+    static_elo = json.loads(WC_JSON.read_text(encoding="utf-8"))["elo_ratings"]
+    monkeypatch.setattr("backend.services.seeder.fetch_current_elo_ratings", lambda: dict(static_elo))
+    monkeypatch.setenv("FOOTBALL_API_KEY", "suspended-key")
+    mock_api_football.return_value = {
+        "response": [
+            {
+                "fixture": {"id": 999001, "date": "2026-06-11T16:00:00Z", "status": {"short": "NS"}},
+                "teams": {"home": {"id": 1, "name": "Mexico"}, "away": {"id": 2, "name": "South Africa"}},
+                "goals": {"home": None, "away": None},
+                "league": {"round": "Group Stage"},
+            }
+        ]
+    }
+
+    result = seed(db_session, {"kind": "world_cup"})
+
+    assert result.status == "success"
+    mock_api_football.assert_not_called()
+    comp = db_session.query(Competition).filter_by(name="FIFA World Cup").one()
+    tourney = db_session.query(Tournament).filter_by(competition_id=comp.id).one()
+    api_ids = {f.api_id for f in db_session.query(Fixture).filter_by(tournament_id=tourney.id).all()}
+    assert "1" in api_ids
+    assert "999001" not in api_ids
 
 
 def test_seed_world_cup_overlays_sparse_live_elo(db_session, monkeypatch):

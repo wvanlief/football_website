@@ -1,54 +1,223 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from datetime import datetime, timezone
 import pytest
-from backend.database import Competition, Tournament, Fixture
+
+from backend.database import Competition, Tournament, Fixture, Team, ExternalTeamMapping
+from backend.crud.mapping import get_team_by_external_id
 from backend.services.ingestion.engine import IngestionEngine, seed_competition
 from backend.services.ingestion.preflight import IngestionAborted
 
+FD_ARSENAL_CREST = "https://crests.football-data.org/57.png"
+FD_UNITED_CREST = "https://crests.football-data.org/66.png"
 
-@patch("backend.services.providers.football_data.FootballDataProvider.fetch_fixtures")
-def test_engine_seed_competition_primary_fd(mock_fd_fetch, db_session):
-    """IngestionEngine.seed_competition successfully populates competition via primary provider."""
-    mock_fd_fetch.return_value = [
-        {
-            "id": 8001,
-            "utcDate": "2026-08-22T14:00:00Z",
-            "status": "SCHEDULED",
-            "matchday": 1,
-            "stage": "REGULAR_SEASON",
-            "homeTeam": {"id": 57, "name": "Arsenal FC", "shortName": "Arsenal"},
-            "awayTeam": {"id": 66, "name": "Manchester United FC", "shortName": "Man United"}
-        }
-    ]
+FD_PL_MATCH = {
+    "id": 8001,
+    "utcDate": "2026-08-22T14:00:00Z",
+    "status": "SCHEDULED",
+    "matchday": 1,
+    "stage": "REGULAR_SEASON",
+    "homeTeam": {
+        "id": 57,
+        "name": "Arsenal FC",
+        "shortName": "Arsenal",
+        "crest": FD_ARSENAL_CREST,
+    },
+    "awayTeam": {
+        "id": 66,
+        "name": "Manchester United FC",
+        "shortName": "Man United",
+        "crest": FD_UNITED_CREST,
+    },
+}
 
-    engine = IngestionEngine()
-    result = engine.seed_competition(
+OF_PL_MATCH = {
+    "round": "Matchday 1",
+    "date": "2026-08-22",
+    "time": "14:00",
+    "team1": "Arsenal FC",
+    "team2": "Chelsea FC",
+}
+
+OF_UCL_MATCH = {
+    "round": "Matchday 1",
+    "date": "2026-09-09",
+    "time": "20:00",
+    "team1": "Invented UCL Home",
+    "team2": "Invented UCL Away",
+}
+
+
+def _fd_http(matches=None, teams=None):
+    def _fetch(url, *args, **kwargs):
+        if "/matches" in url:
+            return {"matches": list(matches or [])}
+        if "/teams" in url:
+            return {"teams": list(teams or [])}
+        return {}
+    return _fetch
+
+
+def _of_http(matches=None):
+    def _fetch(url, *args, **kwargs):
+        if "football.json" in url:
+            return {"name": "community", "matches": list(matches or [])}
+        return {}
+    return _fetch
+
+
+@patch("backend.services.providers.openfootball.fetch_json_with_retry")
+@patch("backend.services.providers.football_data.fetch_json_with_retry")
+def test_seed_competition_with_football_data_org_http(mock_fd_http, mock_of_http, db_session):
+    """seed_competition with Football-Data.org HTTP creates mapped fixtures and stores crests."""
+    mock_fd_http.side_effect = _fd_http(matches=[FD_PL_MATCH])
+    mock_of_http.side_effect = _of_http(matches=[OF_PL_MATCH])
+
+    result = seed_competition(
         db=db_session,
-        competition_name="Premier League Engine Test",
+        competition_name="Premier League",
         competition_type="League",
         format_engine="league",
         season="2026/27",
         api_league_id=39,
-        api_season=2026
+        api_season=2026,
     )
 
     assert result.created == 1
-    comp = db_session.query(Competition).filter_by(name="Premier League Engine Test").first()
-    assert comp is not None
+    tourney = db_session.query(Tournament).join(Competition).filter(
+        Competition.name == "Premier League"
+    ).one()
+    fixture = db_session.query(Fixture).filter_by(tournament_id=tourney.id).one()
+    assert fixture.api_id == "fd_8001"
+    assert fixture.home_team.name == "Arsenal"
+    assert fixture.away_team.name == "Man United"
+    assert fixture.home_team.logo_url == FD_ARSENAL_CREST
+    assert fixture.away_team.logo_url == FD_UNITED_CREST
 
-    tourney = db_session.query(Tournament).filter_by(competition_id=comp.id).first()
-    assert tourney is not None
+    mapped = get_team_by_external_id(db_session, "football_data", 57)
+    assert mapped is not None
+    assert mapped.id == fixture.home_team_id
+    mapping = db_session.query(ExternalTeamMapping).filter_by(
+        provider_name="football_data",
+        external_id="57",
+    ).one()
+    assert mapping.team_id == fixture.home_team_id
 
-    fixtures = db_session.query(Fixture).filter_by(tournament_id=tourney.id).all()
-    assert len(fixtures) == 1
-    assert fixtures[0].api_id == "fd_8001"
+
+@patch("backend.services.providers.openfootball.fetch_json_with_retry")
+@patch("backend.services.providers.football_data.fetch_json_with_retry")
+def test_empty_football_data_falls_back_to_openfootball(mock_fd_http, mock_of_http, db_session):
+    """Empty Football-Data.org payload falls back to published openfootball domestic datasets."""
+    mock_fd_http.side_effect = _fd_http(matches=[])
+    mock_of_http.side_effect = _of_http(matches=[OF_PL_MATCH])
+
+    result = seed_competition(
+        db=db_session,
+        competition_name="Premier League",
+        competition_type="League",
+        format_engine="league",
+        season="2026/27",
+        api_league_id=39,
+        api_season=2026,
+    )
+
+    assert result.created == 1
+    tourney = db_session.query(Tournament).join(Competition).filter(
+        Competition.name == "Premier League"
+    ).one()
+    fixture = db_session.query(Fixture).filter_by(tournament_id=tourney.id).one()
+    assert fixture.home_team.name in ("Arsenal FC", "Arsenal")
+    assert fixture.away_team.name in ("Chelsea FC", "Chelsea")
+    assert fixture.api_id
+    assert not str(fixture.api_id).startswith("fd_")
 
 
-@patch("backend.services.providers.football_data.FootballDataProvider.fetch_fixtures")
-@patch("backend.services.providers.api_football.ApiFootballProvider.fetch_fixtures")
-def test_engine_preflight_aborts_data_loss(mock_af_fetch, mock_fd_fetch, db_session):
-    """Preflight guard aborts ingestion when providers return <50% of existing DB fixture count."""
-    comp = Competition(name="La Liga Guard Test", type="League", format_engine="league")
+@patch("backend.services.providers.thesportsdb.TheSportsDBProvider.fetch_fixtures")
+@patch("backend.services.providers.openfootball.fetch_json_with_retry")
+@patch("backend.services.providers.football_data.fetch_json_with_retry")
+def test_empty_football_data_does_not_invent_ucl_openfootball_path(
+    mock_fd_http, mock_of_http, mock_tsdb_fetch, db_session
+):
+    """Champions League must not be filled from an invented openfootball community path."""
+    mock_fd_http.side_effect = _fd_http(matches=[])
+    mock_of_http.side_effect = _of_http(matches=[OF_UCL_MATCH])
+    mock_tsdb_fetch.return_value = []
+
+    seed_competition(
+        db=db_session,
+        competition_name="UEFA Champions League",
+        competition_type="Cup",
+        format_engine="league_phase_knockout",
+        season="2026/27",
+        api_league_id=2,
+        api_season=2026,
+    )
+
+    invented = db_session.query(Team).filter(Team.name == "Invented UCL Home").first()
+    assert invented is None
+    fixtures = db_session.query(Fixture).all()
+    assert fixtures == []
+
+
+@patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
+@patch("backend.services.providers.openfootball.fetch_json_with_retry")
+@patch("backend.services.providers.football_data.fetch_json_with_retry")
+def test_empty_fd_and_openfootball_falls_back_to_thesportsdb_for_conference_league(
+    mock_fd_http, mock_of_http, mock_tsdb_http, db_session
+):
+    """Conference League has no FD free-plan or openfootball dataset; TheSportsDB is tertiary."""
+    mock_fd_http.side_effect = _fd_http(matches=[])
+    mock_of_http.side_effect = _of_http(matches=[])
+    mock_tsdb_http.return_value = {
+        "events": [
+            {
+                "idEvent": "3000001",
+                "idLeague": "5071",
+                "strHomeTeam": "Fiorentina",
+                "strAwayTeam": "Real Betis",
+                "idHomeTeam": "133832",
+                "idAwayTeam": "133739",
+                "intRound": "1",
+                "intHomeScore": None,
+                "intAwayScore": None,
+                "strTimestamp": "2026-10-01T19:00:00",
+                "dateEvent": "2026-10-01",
+                "strTime": "19:00:00",
+                "strPostponed": "no",
+                "strStatus": "Not Started",
+            }
+        ]
+    }
+
+    result = seed_competition(
+        db=db_session,
+        competition_name="UEFA Conference League",
+        competition_type="Cup",
+        format_engine="league_phase_knockout",
+        season="2026/27",
+        api_league_id=848,
+        api_season=2026,
+    )
+
+    assert result.created == 1
+    tourney = db_session.query(Tournament).join(Competition).filter(
+        Competition.name == "UEFA Conference League"
+    ).one()
+    fixture = db_session.query(Fixture).filter_by(tournament_id=tourney.id).one()
+    assert fixture.api_id == "tsdb_3000001"
+    assert fixture.home_team.name == "Fiorentina"
+    assert fixture.away_team.name == "Real Betis"
+    mock_tsdb_http.assert_called()
+    url = mock_tsdb_http.call_args[0][0]
+    assert "eventsseason.php" in url
+    assert "id=5071" in url
+    assert "s=2026-2027" in url
+
+
+@patch("backend.services.providers.openfootball.fetch_json_with_retry")
+@patch("backend.services.providers.football_data.fetch_json_with_retry")
+def test_engine_preflight_aborts_sparse_provider_payload(mock_fd_http, mock_of_http, db_session):
+    """Pre-flight aborts when providers return far fewer fixtures than already stored."""
+    comp = Competition(name="La Liga", type="League", format_engine="league")
     db_session.add(comp)
     db_session.flush()
 
@@ -57,37 +226,84 @@ def test_engine_preflight_aborts_data_loss(mock_af_fetch, mock_fd_fetch, db_sess
     db_session.flush()
 
     now_utc = datetime.now(timezone.utc)
-    # Pre-populate 10 fixtures
     for i in range(10):
         db_session.add(Fixture(
             tournament_id=tourney.id,
             api_id=f"exist_{i}",
             date_utc=now_utc,
             stage="Regular Season",
-            status="Scheduled"
+            status="Scheduled",
         ))
     db_session.commit()
 
-    # Providers fail / return only 1 fixture (10% of 10 -> below 50% threshold)
-    mock_fd_fetch.return_value = []
-    mock_af_fetch.return_value = [
-        {
-            "fixture": {"id": 999, "date": "2026-08-22T14:00:00Z", "status": {"short": "NS"}},
-            "teams": {"home": {"id": 1, "name": "Real Madrid"}, "away": {"id": 2, "name": "Barcelona"}},
-            "goals": {"home": None, "away": None},
-            "league": {"round": "Regular Season - 1"}
-        }
-    ]
+    sparse_match = dict(FD_PL_MATCH)
+    mock_fd_http.side_effect = _fd_http(matches=[sparse_match])
+    mock_of_http.side_effect = _of_http(matches=[OF_PL_MATCH])
 
     engine = IngestionEngine()
     with pytest.raises(IngestionAborted):
         engine.seed_competition(
             db=db_session,
-            competition_name="La Liga Guard Test",
+            competition_name="La Liga",
             season="2026/27",
-            api_league_id=140
+            api_league_id=140,
         )
 
-    # Verify original 10 fixtures remain untouched in DB
     existing_after = db_session.query(Fixture).filter_by(tournament_id=tourney.id).all()
     assert len(existing_after) == 10
+    assert {f.api_id for f in existing_after} == {f"exist_{i}" for i in range(10)}
+
+
+@patch("backend.services.providers.openfootball.fetch_json_with_retry")
+@patch("backend.services.providers.football_data.fetch_json_with_retry")
+def test_seeding_mapped_league_leaves_uncovered_competitions(mock_fd_http, mock_of_http, db_session):
+    """Uncovered cups and Americas competitions stay in the database during a mapped seed."""
+    now_utc = datetime.now(timezone.utc)
+    for name, fmt, api_league_id in (
+        ("FA Cup", "cup", 45),
+        ("Major League Soccer", "league", 253),
+        ("Copa Libertadores", "group_knockout", 13),
+    ):
+        comp = Competition(
+            name=name,
+            type="Cup" if fmt != "league" else "League",
+            format_engine=fmt,
+            api_league_id=api_league_id,
+        )
+        db_session.add(comp)
+        db_session.flush()
+        tourney = Tournament(competition_id=comp.id, season_name="2026", status="Active")
+        db_session.add(tourney)
+        db_session.flush()
+        db_session.add(Fixture(
+            tournament_id=tourney.id,
+            api_id=f"{name}-keep",
+            date_utc=now_utc,
+            stage="Regular Season",
+            status="Scheduled",
+        ))
+    db_session.commit()
+
+    mock_fd_http.side_effect = _fd_http(matches=[FD_PL_MATCH])
+    mock_of_http.side_effect = _of_http(matches=[])
+
+    seed_competition(
+        db=db_session,
+        competition_name="Premier League",
+        competition_type="League",
+        format_engine="league",
+        season="2026/27",
+        api_league_id=39,
+        api_season=2026,
+    )
+
+    for name in ("FA Cup", "Major League Soccer", "Copa Libertadores"):
+        leftover = db_session.query(Competition).filter_by(name=name).one()
+        leftover_tourney = db_session.query(Tournament).filter_by(
+            competition_id=leftover.id
+        ).one()
+        leftover_fixtures = db_session.query(Fixture).filter_by(
+            tournament_id=leftover_tourney.id
+        ).all()
+        assert len(leftover_fixtures) == 1
+        assert leftover_fixtures[0].api_id == f"{name}-keep"
