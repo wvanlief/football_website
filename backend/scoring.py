@@ -244,6 +244,10 @@ def _compute_watchability(
     elo_avg = (h_elo + a_elo) / 2.0
     elo_quality = min(100.0, max(0.0, (elo_avg - 1400) / 7.0))  # Scale 1400-2100 to 0-100
 
+    # Default 1500 vs 1500 is missing ClubElo, not a perfectly matched fixture.
+    if h_elo == 1500.0 and a_elo == 1500.0:
+        elo_proximity = min(elo_proximity, 40.0)
+
     # ELO combined score: 70% proximity (similar strength), 30% elite clash quality
     elo_score = (elo_proximity * 0.7) + (elo_quality * 0.3)
 

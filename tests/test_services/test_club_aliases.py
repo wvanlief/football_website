@@ -20,7 +20,9 @@ def test_club_draw_names_normalize_to_api_football_names():
     assert normalizer.normalize("Club Atlético de Madrid") == "Atlético Madrid"
     assert normalizer.normalize("Atletico Madrid") == "Atlético Madrid"
     assert normalizer.normalize("ŠK Slovan Bratislava") == "Slovan Bratislava"
+    assert normalizer.normalize("Como 1907") == "Como"
     assert "Club Brugge" in TEAM_NAME_ALIASES
+    assert "Como 1907" in TEAM_NAME_ALIASES
 
 
 def test_merge_club_aliases_rewires_fixtures(db_session):

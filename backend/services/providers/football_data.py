@@ -185,7 +185,10 @@ class FootballDataProvider:
         mapping tables, NameNormalizer, then create. Stores crest URLs on logo_url.
         """
         ext_id = str(raw_team_info.get("id")) if raw_team_info.get("id") is not None else None
-        raw_name = raw_team_info.get("shortName") or raw_team_info.get("name", "")
+        official_name = raw_team_info.get("name") or ""
+        short_name = raw_team_info.get("shortName") or ""
+        raw_name = official_name or short_name
+        alt_names = [short_name] if short_name and short_name != raw_name else []
         area = raw_team_info.get("area") or {}
         country = area.get("name") if isinstance(area, dict) else None
         country_code = self.normalizer.get_country_code(country) if country else None
@@ -201,6 +204,7 @@ class FootballDataProvider:
             country_code=country_code,
             logo_url=crest,
             elo_source=elo_source,
+            alt_names=alt_names,
         )
 
     def normalize_fixture_payload(self, db: Session, item: dict, tournament_id: int, competition_type: str = "League") -> Optional[dict]:

@@ -117,3 +117,51 @@ def test_derby_boost(db_session: Session):
 
     res = score(fixture, db_session)
     assert any("North London Derby" in r for r in res["reasons"])
+
+
+def test_default_elo_clash_is_not_treated_as_elite_matchup(db_session: Session):
+    comp = Competition(name="UEL Scoring Test", type="Cup", format_engine="league_phase_knockout")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+
+    unrated_h = Team(name="Estrela Test", elo=1500, form_score=50.0)
+    unrated_a = Team(name="SC Braga Test", elo=1500, form_score=50.0)
+    como = Team(name="Como Test", elo=1760, form_score=70.0)
+    leipzig = Team(name="RB Leipzig Test", elo=1761, form_score=70.0)
+    db_session.add_all([unrated_h, unrated_a, como, leipzig])
+    db_session.flush()
+
+    unknown = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=unrated_h.id,
+        away_team_id=unrated_a.id,
+        date_utc=datetime.now(timezone.utc),
+        stage="League Phase",
+        status="Scheduled",
+    )
+    elite = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=como.id,
+        away_team_id=leipzig.id,
+        date_utc=datetime.now(timezone.utc),
+        stage="League Phase",
+        status="Scheduled",
+    )
+    db_session.add_all([unknown, elite])
+    db_session.flush()
+    now = datetime.now(timezone.utc)
+    db_session.add_all([
+        FixtureOdds(fixture_id=unknown.id, recorded_at=now, odds_home=2.2, odds_draw=3.2, odds_away=3.1),
+        FixtureOdds(fixture_id=elite.id, recorded_at=now, odds_home=2.4, odds_draw=3.3, odds_away=2.9),
+    ])
+    db_session.flush()
+
+    unknown_score = score(unknown, db_session)
+    elite_score = score(elite, db_session)
+
+    assert unknown_score.competitiveness_score < 50
+    assert elite_score.competitiveness_score > unknown_score.competitiveness_score
+    assert elite_score.watchability_score > unknown_score.watchability_score

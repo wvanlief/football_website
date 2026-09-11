@@ -37,7 +37,7 @@ def test_seed_competition_primary_football_data(mock_fd_fetch, db_session):
     assert len(fixtures) == 1
     assert fixtures[0].api_id == "fd_5001"
     assert fixtures[0].home_team.name == "Arsenal"
-    assert fixtures[0].away_team.name == "Man United"
+    assert fixtures[0].away_team.name == "Manchester United"
 
 
 @patch("backend.services.providers.openfootball.OpenFootballProvider.fetch_fixtures")

@@ -304,4 +304,4 @@ def test_normalize_fixture_payload(db_session):
     assert norm["home_score"] == 2
     assert norm["away_score"] == 1
     assert norm["home_team"].name == "Arsenal"
-    assert norm["away_team"].name == "Man United"
+    assert norm["away_team"].name == "Manchester United"

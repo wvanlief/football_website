@@ -89,7 +89,7 @@ def test_seed_competition_with_football_data_org_http(mock_fd_http, mock_of_http
     fixture = db_session.query(Fixture).filter_by(tournament_id=tourney.id).one()
     assert fixture.api_id == "fd_8001"
     assert fixture.home_team.name == "Arsenal"
-    assert fixture.away_team.name == "Man United"
+    assert fixture.away_team.name == "Manchester United"
     assert fixture.home_team.logo_url == FD_ARSENAL_CREST
     assert fixture.away_team.logo_url == FD_UNITED_CREST
 
@@ -206,6 +206,7 @@ def test_empty_fd_and_openfootball_falls_back_to_thesportsdb_for_conference_leag
     assert fixture.api_id == "tsdb_3000001"
     assert fixture.home_team.name == "Fiorentina"
     assert fixture.away_team.name == "Real Betis"
+    assert fixture.watchability_score and fixture.watchability_score > 0
     mock_tsdb_http.assert_called()
     url = mock_tsdb_http.call_args[0][0]
     assert "eventsseason.php" in url

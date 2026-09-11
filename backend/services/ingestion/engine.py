@@ -1,10 +1,12 @@
 from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 
-from backend.database import Competition, Tournament
+from backend.database import Competition, Tournament, Fixture
+from backend.scoring import score
 from backend.services.ingestion.preflight import PreflightGuard
 from backend.services.ingestion.team_resolver import TeamResolver
 from backend.services.ingestion.fixture_upserter import FixtureUpserter, UpsertResult
+from backend.services.ingestion.team_merge import merge_club_aliases
 from backend.services.providers.football_data import FootballDataProvider
 from backend.services.providers.openfootball import OpenFootballProvider
 from backend.services.providers.thesportsdb import TheSportsDBProvider
@@ -105,6 +107,8 @@ class IngestionEngine:
         Creates Competition and Tournament entities if missing, runs pre-flight guard,
         and batch-upserts normalized fixture payloads.
         """
+        merge_club_aliases(db, commit=False)
+
         # 1. Ensure Competition exists
         comp = db.query(Competition).filter(Competition.name == competition_name).first()
         if not comp:
@@ -160,6 +164,8 @@ class IngestionEngine:
 
         # 5. Batch Upsert Fixtures
         result = self.upserter.upsert_fixtures(db, tourney, normalized_fixtures, competition=comp)
+        merge_club_aliases(db, commit=False)
+        self._score_tournament_fixtures(db, tourney.id)
         if self._fixture_request_skipped:
             result.status = "skipped"
             result.message = "Football-Data.org fixture request was skipped"
@@ -213,6 +219,8 @@ class IngestionEngine:
         result = self.upserter.upsert_fixtures(
             db, tournament, normalized_fixtures, competition=competition
         )
+        merge_club_aliases(db, commit=False)
+        self._score_tournament_fixtures(db, tournament.id)
         db.flush()
         print(
             f"Overlay: Football-Data.org stamped/inserted "
@@ -220,6 +228,16 @@ class IngestionEngine:
             f"fixtures for {competition.name}."
         )
         return result
+
+    def _score_tournament_fixtures(self, db: Session, tournament_id: int) -> None:
+        fixtures = (
+            db.query(Fixture)
+            .filter(Fixture.tournament_id == tournament_id)
+            .all()
+        )
+        for fixture in fixtures:
+            if fixture.home_team_id and fixture.away_team_id:
+                score(fixture, db)
 
     def sync_tournament(self, db: Session, tournament: Tournament) -> UpsertResult:
         """
