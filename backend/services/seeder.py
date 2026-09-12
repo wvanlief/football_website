@@ -7,8 +7,6 @@ ingestion delegates to ``IngestionEngine``.
 from __future__ import annotations
 
 import json
-import os
-import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -32,12 +30,16 @@ from backend.services.ingestion import (
     COUNTRY_ISO_MAP,
     TeamResolver,
     FixtureUpserter,
-    IngestionEngine,
     IngestionAborted,
 )
 from backend.services.odds import update_odds_from_api
-from backend.services.elo import fetch_current_elo_ratings, record_elo_history, elo_to_form
-from backend.services.providers.api_football import call_football_api, parse_match_status
+from backend.services.elo import (
+    elo_to_form,
+    fetch_clubelo_ratings,
+    fetch_current_elo_ratings,
+    fuzzy_match_team,
+    record_elo_history,
+)
 from backend.services.standings import recalculate_standings
 
 NATIONAL_TEAM_ISO_CODES = COUNTRY_ISO_MAP
@@ -68,7 +70,7 @@ def _load_world_cup_data() -> dict:
 
 
 def get_fallback_matches() -> list[dict]:
-    """World Cup 2026 group-stage fixtures used when the live API is unavailable."""
+    """World Cup 2026 group-stage fixtures from the static tournament dataset."""
     return list(_load_world_cup_data()["fallback_matches"])
 
 
@@ -209,62 +211,6 @@ def _normalize_wc_stage(raw_stage: str) -> str:
     return raw_stage or "Group Stage"
 
 
-def _parse_iso_datetime(value: Optional[str], fallback: datetime) -> datetime:
-    if not value:
-        return fallback
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except Exception as date_err:
-        print(f"Error parsing date {value}: {date_err}")
-        return fallback
-
-
-def _fetch_world_cup_api_fixtures(normalizer: NameNormalizer) -> list[dict]:
-    api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
-    if not api_key:
-        return []
-    wc = _load_world_cup_data()
-    try:
-        print("Fetching official schedule from API-Football...")
-        res = call_football_api("fixtures", {
-            "league": wc.get("api_league_id", 1),
-            "season": wc.get("api_season", 2026),
-        })
-    except Exception as exc:
-        print(f"Failed to fetch matches from API-Football: {exc}. Seeding fallback schedule.")
-        return []
-
-    if not isinstance(res, dict) or "response" not in res:
-        return []
-
-    payloads = []
-    default_kickoff = datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc)
-    for raw in res["response"]:
-        fixture_info = raw.get("fixture", {})
-        teams_info = raw.get("teams", {})
-        goals_info = raw.get("goals", {})
-        league_info = raw.get("league", {})
-        status = parse_match_status(fixture_info.get("status", {}).get("short", ""))
-        dt_utc = _parse_iso_datetime(fixture_info.get("date"), default_kickoff)
-        home_score = goals_info.get("home")
-        away_score = goals_info.get("away")
-        payloads.append({
-            "api_id": str(fixture_info.get("id")),
-            "home_team_name": normalizer.normalize(teams_info.get("home", {}).get("name", "")),
-            "away_team_name": normalizer.normalize(teams_info.get("away", {}).get("name", "")),
-            "home_team_api_id": teams_info.get("home", {}).get("id"),
-            "away_team_api_id": teams_info.get("away", {}).get("id"),
-            "date_utc": dt_utc,
-            "stage": _normalize_wc_stage(league_info.get("round", "Group Stage")),
-            "status": status,
-            "home_score": home_score,
-            "away_score": away_score,
-            "provider_name": "api_football",
-        })
-    print(f"Successfully fetched {len(payloads)} matches from API-Football.")
-    return payloads
-
-
 def _fallback_fixture_payloads() -> list[dict]:
     payloads = []
     for match in get_fallback_matches():
@@ -373,7 +319,7 @@ def _seed_world_cup(db: Session) -> SeedResult:
 
     _seed_spotlight_players(db, wc.get("spotlight_players") or {})
 
-    payloads = _fetch_world_cup_api_fixtures(normalizer) or _fallback_fixture_payloads()
+    payloads = _fallback_fixture_payloads()
     upsert = upserter.upsert_fixtures(db, tourney, payloads, competition=comp)
     db.commit()
     fixtures = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).all()
@@ -392,6 +338,25 @@ def _seed_world_cup(db: Session) -> SeedResult:
         created=upsert.created,
         updated=upsert.updated,
         details={"fixtures": len(fixtures)},
+    )
+
+
+def _overlay_ucl_from_football_data(db: Session, tourney, comp):
+    """Stamp official UCL pairings from Football-Data.org onto the draw-seeded tournament."""
+    from backend.services.ingestion.engine import IngestionEngine
+
+    api_season = 2026
+    try:
+        api_season = int(tourney.season_name.split("/")[0])
+    except (ValueError, AttributeError):
+        pass
+
+    engine = IngestionEngine()
+    return engine.overlay_from_football_data(
+        db,
+        tournament=tourney,
+        competition=comp,
+        api_season=api_season,
     )
 
 
@@ -455,8 +420,6 @@ def _seed_european_cups(db: Session, target_league_id: Optional[int] = None) -> 
                 _link_tournament_team(db, tourney.id, db_team.id)
             db.flush()
 
-            retire_european_draw_placeholders(db, tourney.id)
-
             payloads = []
             for f_info in comp_data.get("fixtures", []):
                 h_name = normalizer.normalize(f_info["home"])
@@ -481,6 +444,11 @@ def _seed_european_cups(db: Session, target_league_id: Optional[int] = None) -> 
             created_total += upsert.created
             updated_total += upsert.updated
 
+            if api_league_id == 2:
+                overlay = _overlay_ucl_from_football_data(db, tourney, comp)
+                created_total += overlay.created
+                updated_total += overlay.updated
+
             fixtures = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).all()
             for fixture in fixtures:
                 score(fixture, db)
@@ -492,6 +460,9 @@ def _seed_european_cups(db: Session, target_league_id: Optional[int] = None) -> 
                 f"and {len(payloads)} fixtures"
             )
             print(f"[{comp_name}] {results[comp_name]}")
+        except IngestionAborted:
+            db.rollback()
+            raise
         except Exception as exc:
             db.rollback()
             results[comp_name] = f"Error: {exc}"
@@ -505,6 +476,17 @@ def _seed_european_cups(db: Session, target_league_id: Optional[int] = None) -> 
     )
 
 
+def _live_seedable_competitions() -> set[str]:
+    from backend.services.providers.football_data import COMPETITION_CODE_MAP
+    from backend.services.providers.openfootball import OPENFOOTBALL_DATASETS
+    from backend.services.providers.thesportsdb import LEAGUE_ID_MAP
+
+    names = set(COMPETITION_CODE_MAP) | set(OPENFOOTBALL_DATASETS) | set(LEAGUE_ID_MAP)
+    names.discard("FIFA World Cup")
+    names.discard("European Championship")
+    return names
+
+
 def _seed_all(db: Session) -> SeedResult:
     results = {}
     print("--- Starting Full Multi-Competition Database Seeding ---")
@@ -514,48 +496,65 @@ def _seed_all(db: Session) -> SeedResult:
     except Exception as exc:
         results["FIFA World Cup"] = f"Error: {exc}"
 
-    api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
-    if api_key:
-        for name, comp_type, format_eng, league_id, season_str, api_season, releg_spots, home_adv in DEFAULT_LEAGUES_TO_SEED:
-            try:
-                comp = db.query(Competition).filter(Competition.name == name).first()
-                if comp:
-                    tourney = db.query(Tournament).filter(
-                        Tournament.competition_id == comp.id,
-                        Tournament.season_name == season_str,
-                    ).first()
-                    if tourney:
-                        f_count = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).count()
-                        if f_count > 0 and league_id in EURO_CUP_LEAGUE_IDS:
-                            print(f"Refreshing {name} ({season_str}) from live API (placeholder draw must not block league-phase dates).")
-                            live = sync_european_cup_from_api(db, league_id)
-                            results[name] = f"Refreshed from API ({live})"
-                            continue
-                        if f_count > 0:
-                            print(f"Skipping {name} ({season_str}): already seeded with {f_count} fixtures.")
-                            results[name] = f"Already seeded ({f_count} fixtures)"
-                            continue
+    covered = _live_seedable_competitions()
+    for name, comp_type, format_eng, league_id, season_str, api_season, releg_spots, home_adv in DEFAULT_LEAGUES_TO_SEED:
+        if name not in covered:
+            continue
+        try:
+            comp = db.query(Competition).filter(Competition.name == name).first()
+            tourney = None
+            if comp:
+                tourney = db.query(Tournament).filter(
+                    Tournament.competition_id == comp.id,
+                    Tournament.season_name == season_str,
+                ).first()
+                if tourney:
+                    f_count = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).count()
+                    if f_count > 0:
+                        print(f"Skipping {name} ({season_str}): already seeded with {f_count} fixtures.")
+                        results[name] = f"Already seeded ({f_count} fixtures)"
+                        continue
 
-                print(f"Seeding competition: {name}...")
-                fetch_and_seed_teams(db, api_league_id=league_id, api_season=api_season, fetch_squads=False)
-                seed_competition(
-                    db=db,
-                    competition_name=name,
-                    competition_type=comp_type,
-                    format_engine=format_eng,
-                    season=season_str,
+            print(f"Seeding competition: {name}...")
+            teams_exist = bool(
+                tourney
+                and db.query(TournamentTeam).filter(
+                    TournamentTeam.tournament_id == tourney.id
+                ).first()
+            )
+            team_result = None
+            if teams_exist:
+                print(f"Skipping team fetch for {name}: tournament teams already exist.")
+            else:
+                team_result = fetch_and_seed_teams(
+                    db,
                     api_league_id=league_id,
                     api_season=api_season,
-                    relegation_spots=releg_spots,
-                    home_advantage_elo=home_adv,
+                    fetch_squads=False,
                 )
+            fixture_result = seed_competition(
+                db=db,
+                competition_name=name,
+                competition_type=comp_type,
+                format_engine=format_eng,
+                season=season_str,
+                api_league_id=league_id,
+                api_season=api_season,
+                relegation_spots=releg_spots,
+                home_advantage_elo=home_adv,
+            )
+            skipped = [
+                result.message
+                for result in (team_result, fixture_result)
+                if getattr(result, "status", None) == "skipped"
+            ]
+            if skipped:
+                results[name] = f"Skipped: {'; '.join(skipped)}"
+            else:
                 results[name] = "Seeded successfully"
-            except Exception as exc:
-                print(f"Error seeding {name}: {exc}")
-                results[name] = f"Error: {exc}"
-    else:
-        print("FOOTBALL_API_KEY not found. Skipping API-Football league seeding.")
-        results["Leagues"] = "Skipped (No FOOTBALL_API_KEY)"
+        except Exception as exc:
+            print(f"Error seeding {name}: {exc}")
+            results[name] = f"Error: {exc}"
 
     print("--- Full Database Seeding Completed ---")
     return SeedResult(status="success", details=results)
@@ -590,29 +589,20 @@ def _seed_named_competition(db: Session, config: dict) -> SeedResult:
 def _seed_single(db: Session, league_id: int, fetch_squads: bool = False) -> SeedResult:
     if league_id in EURO_CUP_LEAGUE_IDS and _EURO_DRAW_JSON.exists():
         euro_res = seed_european_cups(db, target_league_id=league_id)
-        api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
-        live = None
-        if api_key:
-            try:
-                fetch_and_seed_teams(db, api_league_id=league_id, api_season=2026, fetch_squads=fetch_squads)
-            except Exception as exc:
-                print(f"Warning: Failed to fetch API teams for euro cup {league_id}: {exc}")
-            live = sync_european_cup_from_api(db, league_id)
-        details = euro_res if isinstance(euro_res, dict) else {}
-        if live:
-            details = {**details, "live_api_sync": live}
+        try:
+            fetch_and_seed_teams(db, api_league_id=league_id, api_season=2026, fetch_squads=fetch_squads)
+        except Exception as exc:
+            print(f"Warning: Failed to fetch Football-Data.org teams for euro cup {league_id}: {exc}")
         return SeedResult(
             status="success",
             message=f"European cup (league_id={league_id}) seeded successfully.",
             league_id=league_id,
-            details=details,
+            details=euro_res if isinstance(euro_res, dict) else {},
         )
 
     if league_id in DEFAULT_LEAGUES_BY_ID:
         name, comp_type, format_eng, _lid, season_str, api_season, releg_spots, home_adv = DEFAULT_LEAGUES_BY_ID[league_id]
-        api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
-        if api_key:
-            fetch_and_seed_teams(db, api_league_id=league_id, api_season=api_season, fetch_squads=fetch_squads)
+        fetch_and_seed_teams(db, api_league_id=league_id, api_season=api_season, fetch_squads=fetch_squads)
         upsert_res = seed_competition(
             db=db,
             competition_name=name,
@@ -656,8 +646,7 @@ def _seed_single(db: Session, league_id: int, fetch_squads: bool = False) -> See
         pass
 
     eff_api_league_id = comp.api_league_id or league_id
-    api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
-    if api_key and eff_api_league_id:
+    if eff_api_league_id:
         fetch_and_seed_teams(db, api_league_id=eff_api_league_id, api_season=api_season, fetch_squads=fetch_squads)
 
     upsert_res = seed_competition(
@@ -688,13 +677,13 @@ def seed_database(db: Session) -> SeedResult:
 
 
 def seed_all_default_competitions(db: Session) -> dict:
-    """Seeds World Cup plus the default API-Football competitions."""
+    """Seeds World Cup plus Football-Data.org / openfootball-covered competitions."""
     return seed(db, {"kind": "all"}).details
 
 
 def seed_single_competition(db: Session, league_id: int, fetch_squads: bool = False) -> dict:
     """
-    Seeds or updates a single competition idempotently by API-Football league ID or Competition ID.
+    Seeds or updates a single competition idempotently by catalog league id or Competition id.
     """
     result = seed(db, {"kind": "single", "league_id": league_id, "fetch_squads": fetch_squads})
     if result.status == "error":
@@ -721,104 +710,61 @@ def fetch_and_seed_teams(
     elo_source: str = "clubelo",
     fetch_squads: bool = False,
 ):
-    """Fetches all teams for a league and optionally picks spotlight players for each team."""
-    normalizer = NameNormalizer()
-    resolver = TeamResolver(normalizer)
-    print(f"Fetching teams for league {api_league_id}, season {api_season}...")
-    try:
-        res = call_football_api("teams", {"league": api_league_id, "season": api_season})
-    except Exception as exc:
-        print(f"Error calling football API for teams: {exc}")
-        return
+    """Fetch teams for a covered competition from Football-Data.org and store crests on logo_url."""
+    from backend.services.providers.football_data import FootballDataProvider
 
-    if not isinstance(res, dict) or "response" not in res:
-        print(f"Invalid API response: {res}")
-        return
-    if res.get("errors"):
-        print(f"API-Football Error: {res['errors']}")
-        return
+    entry = DEFAULT_LEAGUES_BY_ID.get(api_league_id)
+    competition_name = entry[0] if entry else None
+    if not competition_name:
+        comp = db.query(Competition).filter(Competition.api_league_id == api_league_id).first()
+        competition_name = comp.name if comp else None
+    if not competition_name:
+        print(f"No mapped competition name for league {api_league_id}; skipping team seed.")
+        return SeedResult(status="skipped", message="No mapped competition name")
 
-    teams_data = res["response"]
+    print(f"Fetching Football-Data.org teams for {competition_name}, season {api_season}...")
+    provider = FootballDataProvider()
+    teams_data = provider.fetch_teams(competition_name, api_season)
+    if not teams_data:
+        print(f"No Football-Data.org teams returned for {competition_name}.")
+        status = "skipped" if provider.last_request_skipped else "success"
+        message = "Football-Data.org team request was skipped" if provider.last_request_skipped else ""
+        return SeedResult(status=status, message=message)
+
+    if fetch_squads:
+        print("Squad ingestion is not available without API-Football; seeding team crests only.")
+
+    clubelo_ratings = fetch_clubelo_ratings() if team_type == "Club" else {}
+    clubelo_names = list(clubelo_ratings)
+
     print(f"Seeding {len(teams_data)} teams...")
-
-    for t_wrapper in teams_data:
-        t_info = t_wrapper.get("team", {})
-        api_team_id = t_info.get("id")
-        name = normalizer.normalize(t_info.get("name", ""))
-        country_name = t_info.get("country", "")
-        country_code = t_info.get("code")
-        if not country_code and country_name:
-            country_code = normalizer.get_country_code(country_name)
-
-        db_team = resolver.resolve(
+    for t_info in teams_data:
+        raw_name = t_info.get("shortName") or t_info.get("name", "")
+        clubelo_name, confidence = fuzzy_match_team(raw_name, clubelo_names)
+        matched_elo = (
+            clubelo_ratings.get(clubelo_name)
+            if clubelo_name and confidence >= 0.85
+            else None
+        )
+        db_team = provider.resolve_team(
             db,
-            provider_name="api_football",
-            raw_name=name,
-            external_id=api_team_id,
+            t_info,
             team_type=team_type,
-            default_elo=1500,
-            country_code=country_code,
-            api_id=api_team_id,
+            default_elo=matched_elo if matched_elo is not None else 1500,
+            elo_source="manual",
         )
         if not db_team:
             continue
-        db_team.api_id = api_team_id
-        if country_code:
-            db_team.country_code = country_code
         db_team.team_type = team_type
-        db_team.elo_source = elo_source
+        if matched_elo is not None:
+            db_team.elo = matched_elo
+            db_team.form_score = elo_to_form(matched_elo)
+            db_team.elo_source = elo_source
         db.flush()
 
-        if not fetch_squads:
-            continue
-
-        existing_contracts = db.query(PlayerContract).filter(PlayerContract.team_id == db_team.id).first()
-        if existing_contracts:
-            print(f"Squad already populated for {name}, skipping squad API call.")
-            continue
-        try:
-            print(f"Fetching squad for {name}...")
-            squad_res = call_football_api("players/squads", {"team": api_team_id})
-            time.sleep(6.0)
-            squad_data = squad_res.get("response", [])
-            if not (squad_data and isinstance(squad_data, list)):
-                continue
-            players_list = squad_data[0].get("players", [])
-            gks = [p for p in players_list if p.get("position") == "Goalkeeper"]
-            mids = [p for p in players_list if p.get("position") == "Midfielder"]
-            fwds = [p for p in players_list if p.get("position") in ("Attacker", "Forward")]
-            spotlights = []
-            for p_group in (gks, mids, fwds):
-                if p_group:
-                    p_group_sorted = sorted(p_group, key=lambda x: x.get("age") or 0, reverse=True)
-                    spotlights.append(p_group_sorted[0])
-            for player in spotlights:
-                p_name = player.get("name")
-                p_pos = player.get("position")
-                if p_pos == "Attacker":
-                    p_pos = "Forward"
-                db_player = db.query(Player).filter(Player.name == p_name, Player.position == p_pos).first()
-                if not db_player:
-                    db_player = Player(name=p_name, position=p_pos, form_score=75.0)
-                    db.add(db_player)
-                    db.flush()
-                contract = db.query(PlayerContract).filter(
-                    PlayerContract.player_id == db_player.id,
-                    PlayerContract.team_id == db_team.id,
-                    PlayerContract.type == team_type,
-                ).first()
-                if not contract:
-                    db.add(PlayerContract(
-                        player_id=db_player.id,
-                        team_id=db_team.id,
-                        type=team_type,
-                        is_active=True,
-                    ))
-        except Exception as squad_err:
-            print(f"Warning: Failed to fetch squad for {name}: {squad_err}")
-
     db.commit()
-    print(f"Successfully seeded teams and spotlights for league={api_league_id}.")
+    print(f"Successfully seeded teams for {competition_name} (league={api_league_id}).")
+    return SeedResult(status="success")
 
 
 def seed_competition(
@@ -907,58 +853,3 @@ def retire_european_draw_placeholders(db: Session, tournament_id: int) -> int:
     return count
 
 
-def sync_european_cup_from_api(db: Session, league_id: int) -> dict:
-    """
-    Overlay live API-Football fixtures onto a UEFA cup tournament.
-
-    The static european_draw_2026.json file is a bootstrap only; it used last
-    season's mid-September matchday pattern and invented pairings. League-phase
-    dates must come from the live provider.
-    """
-    if league_id not in DEFAULT_LEAGUES_BY_ID:
-        return {"status": "error", "message": f"Unknown euro cup league_id={league_id}"}
-
-    name, comp_type, format_eng, _lid, season_str, api_season, _releg, home_adv = DEFAULT_LEAGUES_BY_ID[league_id]
-    engine = IngestionEngine()
-    try:
-        upsert = engine.seed_competition(
-            db,
-            competition_name=name,
-            competition_type=comp_type,
-            format_engine=format_eng,
-            season=season_str,
-            api_league_id=league_id,
-            api_season=api_season,
-            home_advantage_elo=home_adv,
-            use_football_data=False,
-        )
-    except IngestionAborted as exc:
-        db.rollback()
-        print(f"Aborted live euro cup sync for {name}: {exc}")
-        return {"status": "aborted", "message": str(exc)}
-
-    comp = db.query(Competition).filter(Competition.name == name).first()
-    tourney = None
-    if comp:
-        tourney = db.query(Tournament).filter(
-            Tournament.competition_id == comp.id,
-            Tournament.season_name == season_str,
-        ).first()
-
-    retired = 0
-    if tourney:
-        retired = retire_european_draw_placeholders(db, tourney.id)
-        for fixture in db.query(Fixture).filter(Fixture.tournament_id == tourney.id).all():
-            score(fixture, db)
-        recalculate_standings(db, tourney.id)
-    db.commit()
-    print(
-        f"[{name}] Live API sync created={upsert.created} updated={upsert.updated} "
-        f"retired_placeholders={retired}"
-    )
-    return {
-        "status": "success",
-        "created": upsert.created,
-        "updated": upsert.updated,
-        "retired": retired,
-    }

@@ -98,3 +98,47 @@ def test_preflight_handles_none_tournament_id(db_session):
     guard = PreflightGuard()
     guard.check_fixture_count(db_session, tournament_id=None, fetched_count=0)
 
+
+def test_preflight_ignores_unstamped_draw_rows_in_existing_count(db_session):
+    """Unstamped draw leftovers must not inflate the pre-flight denominator."""
+    comp = Competition(name="UCL Preflight Draw", type="Cup", format_engine="league_phase_knockout")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+
+    now_utc = datetime.now(timezone.utc)
+    unstamped = [
+        Fixture(
+            tournament_id=tourney.id,
+            api_id=None,
+            date_utc=now_utc,
+            stage="League Phase",
+            status="Scheduled",
+        )
+        for _ in range(144)
+    ]
+    stamped = [
+        Fixture(
+            tournament_id=tourney.id,
+            api_id=f"fd_{i}",
+            date_utc=now_utc,
+            stage="League Phase",
+            status="Scheduled",
+        )
+        for i in range(10)
+    ]
+    db_session.add_all(unstamped + stamped)
+    db_session.commit()
+
+    guard = PreflightGuard()
+    guard.check_fixture_count(db_session, tourney.id, fetched_count=10)
+
+    with pytest.raises(IngestionAborted) as exc_info:
+        guard.check_fixture_count(db_session, tourney.id, fetched_count=4)
+    assert "existing count (10" in str(exc_info.value)
+    """check_fixture_count with tournament_id=None must safely pass."""
+    guard = PreflightGuard()
+    guard.check_fixture_count(db_session, tournament_id=None, fetched_count=0)
+

@@ -21,11 +21,14 @@ def db_session():
         session.close()
         Base.metadata.drop_all(bind=engine)
 
-def test_seed_european_cups(db_session):
+def test_seed_european_cups(db_session, monkeypatch):
     """
     Tests that seed_european_cups correctly creates competitions, tournaments, teams, and fixtures
     for UEFA Champions League, Europa League, and Conference League with proper format and structure.
     """
+    monkeypatch.delenv("FOOTBALL_DATA_ORG_KEY", raising=False)
+    monkeypatch.delenv("FOOTBALL_DATA_API_KEY", raising=False)
+    monkeypatch.delenv("FOOTBALL_DATA_KEY", raising=False)
     results = seed_european_cups(db_session)
     assert "UEFA Champions League" in results
     assert "UEFA Europa League" in results

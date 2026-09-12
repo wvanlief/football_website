@@ -126,7 +126,7 @@ def merge_team_into(db: Session, source: Team, target: Team) -> None:
     db.flush()
 
 
-def merge_club_aliases(db: Session) -> list[str]:
+def merge_club_aliases(db: Session, commit: bool = True) -> list[str]:
     """Merge known draw-name duplicates onto canonical club rows. Returns log lines."""
     logs = []
     for alias, canonical in CLUB_ALIASES.items():
@@ -139,7 +139,10 @@ def merge_club_aliases(db: Session) -> list[str]:
             logs.append(f"Skipped '{alias}': canonical '{canonical}' not in DB")
         elif not source:
             logs.append(f"No duplicate named '{alias}'")
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return logs
 
 

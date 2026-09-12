@@ -1,3 +1,4 @@
+import re
 from typing import Optional, Dict
 
 # 3-Letter ISO Country Code Mapping for National Teams
@@ -126,9 +127,13 @@ TEAM_NAME_ALIASES = {
     "Club Brugge": "Club Brugge KV",
     "Bayern Munich": "Bayern München",
     "Paris Saint-Germain": "Paris Saint Germain",
-    "Atlético Madrid": "Atletico Madrid",
-    "Atletico Madrid": "Atletico Madrid",
-    "Bodø/Glimt": "Bodo/Glimt",
+    "Atletico Madrid": "Atlético Madrid",
+    "Atletico de Madrid": "Atlético Madrid",
+    "Atlético de Madrid": "Atlético Madrid",
+    "Club Atlético de Madrid": "Atlético Madrid",
+    "Bodo/Glimt": "Bodø/Glimt",
+    "ŠK Slovan Bratislava": "Slovan Bratislava",
+    "SK Slovan Bratislava": "Slovan Bratislava",
     "Inter Milan": "Inter",
     "Young Boys": "BSC Young Boys",
     "FC Salzburg": "Red Bull Salzburg",
@@ -136,6 +141,17 @@ TEAM_NAME_ALIASES = {
     "Red Star Belgrade": "FK Crvena Zvezda",
     "Sparta Prague": "Sparta Praha",
     "Brest": "Stade Brestois 29",
+    "Como 1907": "Como",
+    "Man United": "Manchester United",
+    "Manchester United FC": "Manchester United",
+    "PSV": "PSV Eindhoven",
+    "Bayern": "Bayern München",
+    "Shaktar": "Shakhtar Donetsk",
+    "Shakhtar": "Shakhtar Donetsk",
+    "Atleti": "Atlético Madrid",
+    "Porto": "FC Porto",
+    "Braga": "SC Braga",
+    "Arsenal FC": "Arsenal",
 }
 
 
@@ -175,6 +191,20 @@ class NameNormalizer:
             return ""
         name = name.strip()
         return TEAM_NAME_ALIASES.get(name, name)
+
+    def lookup_key(self, name: str) -> str:
+        """Comparable club key: aliases, trailing years, and FC/SC prefixes stripped."""
+        n = self.normalize(name)
+        n = re.sub(r"\s+\d{4}$", "", n).strip().lower()
+        for prefix in ("fc ", "sc ", "ac ", "as ", "fk ", "sk ", "rb ", "rc ", "us "):
+            if n.startswith(prefix):
+                n = n[len(prefix):]
+                break
+        for suffix in (" fc", " cf", " sc", " afc", " kv"):
+            if n.endswith(suffix):
+                n = n[: -len(suffix)]
+                break
+        return " ".join(n.split())
 
     def match_names(self, db_name: str, api_name: str) -> bool:
         """

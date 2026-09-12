@@ -123,3 +123,92 @@ def test_odds_date_deduplication(db_session):
     # Verify only 1 FixtureOdds entry exists
     odds_entries = db_session.query(FixtureOdds).filter_by(fixture_id=fixture.id).all()
     assert len(odds_entries) == 1
+
+
+def test_upsert_stamps_unique_pairing_without_changing_teams(db_session):
+    """A unique home/away row is stamped even when the kickoff is outside the ±12h window."""
+    comp = Competition(name="UCL Overlay Match", type="Cup", format_engine="league_phase_knockout")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+
+    home = Team(name="Liverpool", team_type="Club")
+    away = Team(name="Atlético Madrid", team_type="Club")
+    db_session.add_all([home, away])
+    db_session.flush()
+
+    original = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=home.id,
+        away_team_id=away.id,
+        date_utc=datetime(2026, 9, 17, 18, 45, tzinfo=timezone.utc),
+        stage="League Phase",
+        status="Scheduled",
+        watchability_score=88.0,
+    )
+    db_session.add(original)
+    db_session.commit()
+
+    upserter = FixtureUpserter()
+    fixture, created = upserter.upsert_fixture(
+        db_session,
+        tourney,
+        {
+            "api_id": "fd_9002",
+            "home_team": home,
+            "away_team": away,
+            "date_utc": datetime(2026, 9, 9, 19, 0, tzinfo=timezone.utc),
+            "stage": "League Phase",
+            "matchday_number": 1,
+            "status": "Scheduled",
+        },
+        competition=comp,
+    )
+    db_session.commit()
+
+    assert created is False
+    assert fixture.id == original.id
+    assert fixture.api_id == "fd_9002"
+    assert fixture.home_team_id == home.id
+    assert fixture.away_team_id == away.id
+    stored = fixture.date_utc
+    if stored.tzinfo is None:
+        stored = stored.replace(tzinfo=timezone.utc)
+    assert stored == datetime(2026, 9, 9, 19, 0, tzinfo=timezone.utc)
+    assert fixture.watchability_score == 88.0
+    assert fixture.matchday_number == 1
+    assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() == 1
+
+    """Re-running fixture upserts on the same day skips duplicate FixtureOdds creation."""
+    comp = Competition(name="Serie A Test", type="League", format_engine="league")
+    db_session.add(comp)
+    db_session.flush()
+
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.commit()
+
+    upserter = FixtureUpserter()
+    now_utc = datetime.now(timezone.utc)
+
+    payload = {
+        "api_id": "api_3001",
+        "home_team_name": "Juventus",
+        "away_team_name": "Inter Milan",
+        "date_utc": now_utc,
+        "stage": "Regular Season",
+        "status": "Scheduled"
+    }
+
+    fixture, _ = upserter.upsert_fixture(db_session, tourney, payload)
+    db_session.commit()
+
+    # Re-run upsert on same day
+    upserter.upsert_fixture(db_session, tourney, payload)
+    db_session.commit()
+
+    # Verify only 1 FixtureOdds entry exists
+    odds_entries = db_session.query(FixtureOdds).filter_by(fixture_id=fixture.id).all()
+    assert len(odds_entries) == 1

@@ -1,4 +1,3 @@
-import os
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
@@ -8,7 +7,12 @@ from backend.database import Team, Fixture, Tournament, Competition, FixtureOdds
 from backend.services.ingestion import NameNormalizer
 from backend.services.odds import calculate_default_odds
 from backend.services.lifecycle import finish_fixture
-from backend.services.providers.api_football import parse_match_status
+from backend.services.providers.football_data import (
+    COMPETITION_CODE_MAP,
+    FootballDataProvider,
+    apply_matches_to_existing_fixtures,
+    get_football_data_org_key,
+)
 import backend.services.elo as elo_service
 
 
@@ -165,7 +169,8 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
     """
     Unified competition adapter for data sync (results and live scores).
     Decoupled from UI format engines (format_engine field: 'league', 'cup', 'group_knockout', etc.).
-    Uses competition's api_league_id to dynamically query external APIs.
+    Football-Data.org is the live results source for mapped competitions; World Cup
+    keeps the games-format static feed.
 
     Optional fetch callables are injected for tests; production resolves them from
     ``backend.services.updater`` at call time so ``@patch`` still works.
@@ -174,24 +179,21 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
         self,
         fetch_json=None,
         fetch_json_with_retry=None,
-        call_football_api=None,
     ):
         self._fetch_json = fetch_json
         self._fetch_json_with_retry = fetch_json_with_retry
-        self._call_football_api = call_football_api
 
     def _providers(self):
         import backend.services.updater as updater_module
         return (
             self._fetch_json or updater_module.fetch_json,
             self._fetch_json_with_retry or updater_module.fetch_json_with_retry,
-            self._call_football_api or updater_module.call_football_api,
         )
 
     def sync_results(self, db: Session, tourney: Tournament) -> tuple[int, int]:
         """
-        Syncs fixture results from API-Football for a tournament.
-        Creates new fixtures and updates existing ones with scores and status.
+        Syncs fixture results from Football-Data.org when mapped, otherwise the
+        games-format World Cup feed. Never invokes an API-Football client.
         Returns (fixtures_created, fixtures_updated).
         """
         comp = tourney.competition
@@ -203,6 +205,50 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
         fixtures_created = 0
         fixtures_updated_results = 0
 
+        try:
+            api_season = int(tourney.season_name.split("/")[0])
+        except (ValueError, AttributeError):
+            api_season = DEFAULT_SEASON_FALLBACK
+            season_val = getattr(tourney, "season_name", None)
+            print(f"Warning: Failed to parse api_season from tourney.season_name='{season_val}'. Defaulting to {DEFAULT_SEASON_FALLBACK}.")
+
+        fetch_json, fetch_json_with_retry = self._providers()
+        res = None
+
+        fd_key = get_football_data_org_key()
+        fd_code = COMPETITION_CODE_MAP.get(comp.name)
+        is_world_cup_feed = "World Cup" in (comp.name or "")
+        if fd_key and fd_code and not is_world_cup_feed:
+            print(f"Fetching Football-Data.org matches for comp='{comp.name}' (code={fd_code}, season={api_season})...")
+            try:
+                if self._fetch_json_with_retry:
+                    url = f"https://api.football-data.org/v4/competitions/{fd_code}/matches?season={api_season}"
+                    fd_res = fetch_json_with_retry(
+                        url,
+                        headers={"X-Auth-Token": fd_key, "User-Agent": "Mozilla/5.0"},
+                        use_cache=False,
+                        provider="football_data_org",
+                    )
+                    matches = fd_res.get("matches", []) if isinstance(fd_res, dict) else []
+                else:
+                    matches = FootballDataProvider().fetch_fixtures(
+                        comp.name,
+                        api_season,
+                        use_cache=False,
+                    )
+                if matches:
+                    updated, finished = apply_matches_to_existing_fixtures(
+                        db, matches, tournament_id=tourney.id
+                    )
+                    try:
+                        elo_service.sync_ratings_for_competition(db, comp, now_time)
+                    except Exception as e:
+                        print(f"Warning: Failed to sync Elo ratings: {e}")
+                    db.commit()
+                    return 0, updated + finished
+            except Exception as e:
+                print(f"Error fetching Football-Data.org results for '{comp.name}': {e}")
+
         league_id = comp.api_league_id
         if not league_id:
             league_id = LEAGUE_MAPPING.get(comp.name)
@@ -213,24 +259,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
             print(f"Skipping sync_results for competition '{comp.name}': no api_league_id configured.")
             return 0, 0
 
-        try:
-            api_season = int(tourney.season_name.split("/")[0])
-        except (ValueError, AttributeError):
-            api_season = DEFAULT_SEASON_FALLBACK
-            season_val = getattr(tourney, "season_name", None)
-            print(f"Warning: Failed to parse api_season from tourney.season_name='{season_val}'. Defaulting to {DEFAULT_SEASON_FALLBACK}.")
-
-            
-        print(f"Fetching fixtures from API-Football for comp='{comp.name}' (league={league_id}, season={api_season})...")
-
-        fetch_json, _fetch_retry, call_football_api = self._providers()
-        res = None
-        try:
-            res = call_football_api("fixtures", {"league": league_id, "season": api_season})
-        except Exception as e:
-            print(f"Error calling football API for comp '{comp.name}': {e}")
-
-        # Fallback / mock response hook for testing environments
+        # Games-format feed (World Cup static JSON and injected-mock path)
         if not res or not isinstance(res, dict) or "response" not in res or not res.get("response"):
             try:
                 raw_games = fetch_json("https://api.football-data.org/v4/games")
@@ -337,7 +366,8 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                 away_team = db.query(Team).filter(Team.name == a_norm_name).first()
 
             stage = round_str if round_str else "Regular Season"
-            status = parse_match_status(f_info.get("status", {}).get("short", ""))
+            status_short = (f_info.get("status") or {}).get("short", "")
+            status = "Finished" if status_short in ("FT", "AET", "PEN", "FINISHED") else "Scheduled"
                 
             feed_home_score = goals.get("home")
             feed_away_score = goals.get("away")
@@ -416,9 +446,9 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
 
     def sync_live_scores(self, db: Session, tourney: Tournament) -> tuple[int, int]:
         """
-        Syncs live match scores for a tournament from multiple data sources.
-        Attempts Football-Data.org API first, then falls back to games-format
-        and API-Football retry hooks. Returns (fixtures_updated_live, fixtures_finished).
+        Syncs live or delayed scores from Football-Data.org when a key is present,
+        otherwise the games-format World Cup feed. Never invokes an API-Football client.
+        Returns (fixtures_updated_live, fixtures_finished).
         """
         comp = tourney.competition
         if not comp:
@@ -427,7 +457,7 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
         normalizer = NameNormalizer()
         fixtures_updated = 0
         fixtures_finished = 0
-        fetch_json, fetch_json_with_retry, call_football_api = self._providers()
+        fetch_json, fetch_json_with_retry = self._providers()
 
         def _apply_games_feed(games_list) -> tuple[int, int]:
             db_tourney_fixtures, db_teams_map = _unfinished_fixtures(db, tourney.id)
@@ -469,41 +499,27 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
                     updated += 1
             return updated, finished
 
-        # 1. Football-Data.org matches endpoint when a key is present
-        api_key = os.getenv("FOOTBALL_DATA_API_KEY") or os.getenv("FOOTBALL_DATA_ORG_KEY")
+        # 1. Football-Data.org matches when a key is present
+        api_key = get_football_data_org_key()
         if api_key:
-            url = "https://api.football-data.org/v4/matches"
-            headers = {"X-Auth-Token": api_key}
+            yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             try:
-                res = fetch_json_with_retry(url, headers=headers, use_cache=False, provider="football_data_org")
-                if isinstance(res, dict) and "matches" in res and res["matches"]:
-                    db_tourney_fixtures, db_teams_map = _unfinished_fixtures(db, tourney.id)
-                    for m in res["matches"]:
-                        matching_fixture = find_fixture_by_teams(
-                            db_tourney_fixtures,
-                            m.get("homeTeam", {}).get("name"),
-                            m.get("awayTeam", {}).get("name"),
-                            normalizer,
-                            db_teams_map,
-                        )
-                        if not matching_fixture:
-                            continue
-                        api_status = m.get("status")
-                        score_info = m.get("score", {}).get("fullTime", {})
-                        feed_home_score = score_info.get("home")
-                        feed_away_score = score_info.get("away")
-                        if api_status in ("FINISHED", "FT", "AET", "PEN"):
-                            finish_fixture(matching_fixture, feed_home_score, feed_away_score, db, update_standings=False)
-                            fixtures_finished += 1
-                        elif api_status in ("IN_PLAY", "PAUSED", "LIVE", "1H", "2H", "HT", "ET"):
-                            matching_fixture.status = "Live"
-                            matching_fixture.home_score = feed_home_score
-                            matching_fixture.away_score = feed_away_score
-                            fixtures_updated += 1
-                        else:
-                            matching_fixture.status = "Scheduled"
-                            matching_fixture.home_score = None
-                            matching_fixture.away_score = None
+                if self._fetch_json_with_retry:
+                    url = f"https://api.football-data.org/v4/matches?dateFrom={yesterday}&dateTo={today}"
+                    res = fetch_json_with_retry(
+                        url,
+                        headers={"X-Auth-Token": api_key, "User-Agent": "Mozilla/5.0"},
+                        use_cache=False,
+                        provider="football_data_org",
+                    )
+                    matches = res.get("matches", []) if isinstance(res, dict) else []
+                else:
+                    matches = FootballDataProvider().fetch_matches(yesterday, today)
+                if matches:
+                    fixtures_updated, fixtures_finished = apply_matches_to_existing_fixtures(
+                        db, matches, tournament_id=tourney.id
+                    )
                     db.commit()
                     return fixtures_updated, fixtures_finished
             except Exception as e:
@@ -519,40 +535,6 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
         except Exception:
             pass
 
-        # 3. API-Football-shaped retry hook
-        try:
-            res_retry = call_football_api("fixtures", {})
-            if isinstance(res_retry, dict) and "response" in res_retry:
-                db_tourney_fixtures, db_teams_map = _unfinished_fixtures(db, tourney.id)
-                for item in res_retry["response"]:
-                    f_info = item.get("fixture", {})
-                    t_info = item.get("teams", {})
-                    goals = item.get("goals", {})
-                    status_short = f_info.get("status", {}).get("short", "")
-                    h_name = normalizer.normalize(t_info.get("home", {}).get("name", ""))
-                    a_name = normalizer.normalize(t_info.get("away", {}).get("name", ""))
-                    matching_fixture = find_fixture_by_teams(
-                        db_tourney_fixtures, h_name, a_name, normalizer, db_teams_map,
-                    )
-                    if not matching_fixture:
-                        continue
-                    feed_h = goals.get("home")
-                    feed_a = goals.get("away")
-                    status = parse_match_status(status_short, default="Scheduled")
-                    if status == "Finished":
-                        finish_fixture(matching_fixture, feed_h, feed_a, db, update_standings=False)
-                        fixtures_finished += 1
-                    else:
-                        matching_fixture.status = status
-                    if status == "Live":
-                        matching_fixture.home_score = feed_h
-                        matching_fixture.away_score = feed_a
-                        fixtures_updated += 1
-                db.commit()
-                return fixtures_updated, fixtures_finished
-        except Exception:
-            pass
-
         return fixtures_updated, fixtures_finished
 
 
@@ -561,7 +543,6 @@ def get_format_adapter(
     competition_name: str = "",
     fetch_json=None,
     fetch_json_with_retry=None,
-    call_football_api=None,
 ) -> BaseFormatAdapter:
     """
     Factory method returning the unified CompetitionSyncAdapter for data ingestion.
@@ -571,5 +552,4 @@ def get_format_adapter(
     return CompetitionSyncAdapter(
         fetch_json=fetch_json,
         fetch_json_with_retry=fetch_json_with_retry,
-        call_football_api=call_football_api,
     )

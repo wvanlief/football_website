@@ -9,7 +9,13 @@ def test_normalize_aliases():
     assert norm.normalize("United States") == "USA"
     assert norm.normalize("Bosnia & Herzegovina") == "Bosnia and Herzegovina"
     assert norm.normalize("Curacao") == "Curaçao"
-    assert norm.normalize("  Spain  ") == "Spain"
+    assert norm.normalize("Como 1907") == "Como"
+    assert norm.normalize("Man United") == "Manchester United"
+    assert norm.normalize("PSV") == "PSV Eindhoven"
+    assert norm.lookup_key("Como 1907") == "como"
+    assert norm.lookup_key("FC Porto") == "porto"
+    assert norm.lookup_key("Porto") == "porto"
+
 
 def test_get_country_code():
     norm = NameNormalizer()
@@ -36,3 +42,5 @@ def test_match_names():
     # Negative matches
     assert norm.match_names("Arsenal", "Chelsea") is False
     assert norm.match_names("", "Spain") is False
+    assert norm.match_names("Atlético Madrid", "Atlético de Madrid") is True
+    assert norm.match_names("Slovan Bratislava", "ŠK Slovan Bratislava") is True

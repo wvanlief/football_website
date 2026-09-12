@@ -15,7 +15,7 @@ def test_resolve_creates_new_team(db_session):
     )
 
     assert team is not None
-    assert team.name == "Arsenal FC"
+    assert team.name == "Arsenal"
     assert team.elo == 1850
 
     # Verify ExternalTeamMapping created
@@ -89,3 +89,57 @@ def test_resolve_idempotency(db_session):
         external_id="133602"
     ).all()
     assert len(mappings) == 1
+
+
+def test_resolve_does_not_duplicate_como_1907(db_session):
+    """TheSportsDB / Football-Data short names must reuse ClubElo clubs, not mint 1500 stubs."""
+    como = Team(name="Como", team_type="Club", elo=1760, elo_source="clubelo")
+    db_session.add(como)
+    db_session.commit()
+
+    resolver = TeamResolver()
+    resolved = resolver.resolve(
+        db=db_session,
+        provider_name="thesportsdb",
+        raw_name="Como 1907",
+        external_id=999001,
+        team_type="Club",
+    )
+
+    assert resolved.id == como.id
+    assert resolved.elo == 1760
+    assert db_session.query(Team).filter(Team.name == "Como 1907").first() is None
+
+
+def test_resolve_does_not_collapse_inter_miami_into_inter(db_session):
+    inter = Team(name="Inter", team_type="Club", elo=1888, elo_source="clubelo")
+    miami = Team(name="Inter Miami", team_type="Club", elo=1520, elo_source="clubelo")
+    db_session.add_all([inter, miami])
+    db_session.commit()
+
+    resolver = TeamResolver()
+    resolved = resolver.resolve(
+        db=db_session,
+        provider_name="thesportsdb",
+        raw_name="Inter Miami",
+        external_id=1617,
+        team_type="Club",
+    )
+    assert resolved.id == miami.id
+
+
+def test_lookup_key_matches_fc_porto(db_session):
+    porto = Team(name="FC Porto", team_type="Club", elo=1805, elo_source="clubelo")
+    db_session.add(porto)
+    db_session.commit()
+
+    resolver = TeamResolver()
+    resolved = resolver.resolve(
+        db=db_session,
+        provider_name="european_draw",
+        raw_name="Porto",
+        team_type="Club",
+        default_elo=1700,
+    )
+    assert resolved.id == porto.id
+    assert resolved.elo == 1805

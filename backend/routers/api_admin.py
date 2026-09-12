@@ -3,7 +3,11 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status, Backgroun
 from sqlalchemy.orm import Session
 
 from backend.database import get_db, SessionLocal
-from backend.services.updater import update_results_and_odds, update_live_scores
+from backend.services.updater import (
+    backfill_football_data_results,
+    update_live_scores,
+    update_results_and_odds,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -41,18 +45,34 @@ def trigger_update(
     background_tasks: BackgroundTasks,
     async_task: bool = Query(False, alias="async"),
     background: bool = Query(False),
+    date_from: str = Query(None, description="Backfill start date YYYY-MM-DD"),
+    date_to: str = Query(None, description="Backfill end date YYYY-MM-DD"),
     db: Session = Depends(get_db)
 ):
     """
     Secured endpoint to trigger database updates (scores, odds, ELOs, simulation predictions).
     Pass ?async=true or ?background=true to run asynchronously in background.
+    Pass ?date_from=&date_to= for a Football-Data.org results-only backfill (no odds refresh).
     """
+    if bool(date_from) != bool(date_to):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="date_from and date_to must be used together.",
+        )
+    if date_from and (async_task or background):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Date-range backfill cannot run as a background task.",
+        )
     if async_task or background:
         background_tasks.add_task(_bg_update_results)
         return {"status": "processing", "message": "Batch update task dispatched in background."}
 
     try:
-        result = update_results_and_odds(db)
+        if date_from:
+            result = backfill_football_data_results(db, date_from, date_to)
+        else:
+            result = update_results_and_odds(db)
         if result.get("status") == "error":
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

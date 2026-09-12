@@ -1,12 +1,36 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy.orm import Session, joinedload, aliased
+from sqlalchemy import and_, or_
 from backend.database import Fixture, Team, Tournament
 
 def get_active_tournament_ids(db: Session) -> list[int]:
     """Returns a list of IDs for all tournaments with status 'Active'."""
     tournaments = db.query(Tournament).filter(Tournament.status == "Active").all()
     return [t.id for t in tournaments]
+
+
+def _scheduled_unstamped_clause(db: Session, target_ids: list[int]):
+    """Omit scheduled draw leftovers once a tournament has at least one stamped fixture."""
+    stamped_ids = [
+        row[0]
+        for row in db.query(Fixture.tournament_id)
+        .filter(
+            Fixture.tournament_id.in_(target_ids),
+            Fixture.api_id.isnot(None),
+            Fixture.api_id != "",
+        )
+        .distinct()
+        .all()
+    ]
+    if not stamped_ids:
+        return True
+    return ~and_(
+        Fixture.tournament_id.in_(stamped_ids),
+        Fixture.status == "Scheduled",
+        or_(Fixture.api_id.is_(None), Fixture.api_id == ""),
+    )
+
 
 def get_eligible_fixtures(
     db: Session,
@@ -43,6 +67,8 @@ def get_eligible_fixtures(
     if not target_ids:
         return []
 
+    hide_unstamped = _scheduled_unstamped_clause(db, target_ids)
+
     # 1. Rolling window query
     fixtures = (
         db.query(Fixture)
@@ -50,7 +76,8 @@ def get_eligible_fixtures(
         .filter(
             Fixture.tournament_id.in_(target_ids),
             Fixture.date_utc >= window_start,
-            Fixture.date_utc <= window_end
+            Fixture.date_utc <= window_end,
+            hide_unstamped,
         )
         .order_by(Fixture.date_utc.asc())
         .all()
@@ -63,7 +90,8 @@ def get_eligible_fixtures(
             .options(joinedload(Fixture.home_team), joinedload(Fixture.away_team))
             .filter(
                 Fixture.tournament_id.in_(target_ids),
-                Fixture.date_utc >= now_naive
+                Fixture.date_utc >= now_naive,
+                hide_unstamped,
             )
             .order_by(Fixture.date_utc.asc())
             .limit(100)
