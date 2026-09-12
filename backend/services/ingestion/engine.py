@@ -6,7 +6,6 @@ from backend.services.ingestion.preflight import PreflightGuard, IngestionAborte
 from backend.services.ingestion.team_resolver import TeamResolver
 from backend.services.ingestion.fixture_upserter import FixtureUpserter, UpsertResult
 from backend.services.providers.football_data import FootballDataProvider
-from backend.services.providers.api_football import ApiFootballProvider
 
 
 class IngestionEngine:
@@ -25,11 +24,13 @@ class IngestionEngine:
         team_resolver: Optional[TeamResolver] = None,
         fixture_upserter: Optional[FixtureUpserter] = None,
         fd_provider: Optional[FootballDataProvider] = None,
-        api_football_provider: Optional[ApiFootballProvider] = None,
+        api_football_provider: Optional[Any] = None,
     ):
         self.preflight = preflight_guard or PreflightGuard()
         self.team_resolver = team_resolver or TeamResolver()
         self.upserter = fixture_upserter or FixtureUpserter(team_resolver=self.team_resolver)
+        from backend.services.providers.api_football import ApiFootballProvider
+
         self.fd_provider = fd_provider or FootballDataProvider()
         self.api_football_provider = api_football_provider or ApiFootballProvider()
 
@@ -44,7 +45,8 @@ class IngestionEngine:
         api_season: int = 2026,
         badge: Optional[str] = None,
         home_advantage_elo: int = 100,
-        odds_api_sport_key: Optional[str] = None
+        odds_api_sport_key: Optional[str] = None,
+        use_football_data: bool = True,
     ) -> UpsertResult:
         """
         Seeds or updates a competition using the multi-provider fallback chain.
@@ -91,12 +93,13 @@ class IngestionEngine:
         normalized_fixtures = []
 
         # Attempt Primary: Football-Data.org
-        fd_fixtures = self.fd_provider.fetch_fixtures(competition_name, api_season)
-        if fd_fixtures:
-            for item in fd_fixtures:
-                norm_item = self.fd_provider.normalize_fixture_payload(db, item, tourney.id, competition_type)
-                if norm_item:
-                    normalized_fixtures.append(norm_item)
+        if use_football_data:
+            fd_fixtures = self.fd_provider.fetch_fixtures(competition_name, api_season)
+            if fd_fixtures:
+                for item in fd_fixtures:
+                    norm_item = self.fd_provider.normalize_fixture_payload(db, item, tourney.id, competition_type)
+                    if norm_item:
+                        normalized_fixtures.append(norm_item)
 
         # Attempt Secondary: API-Football (if primary yielded no fixtures)
         if not normalized_fixtures and api_league_id:
@@ -150,7 +153,8 @@ def seed_competition(
     api_season: int = 2026,
     badge: Optional[str] = None,
     home_advantage_elo: int = 100,
-    odds_api_sport_key: Optional[str] = None
+    odds_api_sport_key: Optional[str] = None,
+    use_football_data: bool = True,
 ) -> UpsertResult:
     """Public convenience function for seeding a competition."""
     engine = IngestionEngine()
@@ -164,5 +168,6 @@ def seed_competition(
         api_season=api_season,
         badge=badge,
         home_advantage_elo=home_advantage_elo,
-        odds_api_sport_key=odds_api_sport_key
+        odds_api_sport_key=odds_api_sport_key,
+        use_football_data=use_football_data,
     )

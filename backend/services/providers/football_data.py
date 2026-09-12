@@ -43,6 +43,8 @@ STATUS_MAP = {
 STAGE_MAP = {
     "REGULAR_SEASON": "Regular Season",
     "GROUP_STAGE": "Group Stage",
+    "LEAGUE_STAGE": "League Phase",
+    "LEAGUE_PHASE": "League Phase",
     "ROUND_OF_16": "Round of 16",
     "QUARTER_FINALS": "Quarter-final",
     "SEMI_FINALS": "Semi-final",

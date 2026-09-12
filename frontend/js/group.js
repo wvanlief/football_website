@@ -704,9 +704,17 @@ document.addEventListener('DOMContentLoaded', () => {
             fixtureMap[home] = {};
         });
 
+        // Every one-legged fixture occupies both (home, away) and (away, home)
+        // so it is visible on the home club's row and in the away club's column.
         fixtures.forEach(f => {
-            if (f.home_team && f.away_team && fixtureMap[f.home_team.name]) {
-                fixtureMap[f.home_team.name][f.away_team.name] = f;
+            if (!f.home_team || !f.away_team) return;
+            const homeName = f.home_team.name;
+            const awayName = f.away_team.name;
+            if (fixtureMap[homeName]) {
+                fixtureMap[homeName][awayName] = { match: f, venue: 'H' };
+            }
+            if (fixtureMap[awayName] && !fixtureMap[awayName][homeName]) {
+                fixtureMap[awayName][homeName] = { match: f, venue: 'A' };
             }
         });
 
@@ -730,7 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cornerTh.style.borderBottom = '1px solid rgba(255, 255, 255, 0.1)';
         cornerTh.style.borderRight = '1px solid rgba(255, 255, 255, 0.1)';
         cornerTh.style.padding = '0.4rem 0.5rem';
-        cornerTh.innerHTML = `<span style="font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase;">H \\ A</span>`;
+        cornerTh.innerHTML = `<span style="font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase;">vs</span>`;
         headerTr.appendChild(cornerTh);
 
         teams.forEach(team => {
@@ -783,12 +791,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     td.style.background = 'rgba(255, 255, 255, 0.03)';
                     td.innerHTML = `<div style="width: 100%; height: 100%; color: rgba(255,255,255,0.15); font-size: 1.1rem;"><i class="fa-solid fa-ban"></i></div>`;
                 } else {
-                    const match = fixtureMap[homeTeam] ? fixtureMap[homeTeam][awayTeam] : null;
+                    const cell = fixtureMap[homeTeam] ? fixtureMap[homeTeam][awayTeam] : null;
+                    const match = cell ? cell.match : null;
+                    const isAway = cell && cell.venue === 'A';
                     if (match) {
                         td.className = 'matrix-cell clickable-matrix-cell';
                         td.style.cursor = 'pointer';
                         td.style.fontWeight = '600';
-                        td.title = `${homeTeam} vs ${awayTeam}`;
+                        td.title = isAway ? `${homeTeam} @ ${awayTeam}` : `${homeTeam} vs ${awayTeam}`;
                         
                         const watchScore = match.watchability ? match.watchability.overall : match.watchability_score;
                         let watchClass = getRatingClass(watchScore);
@@ -802,7 +812,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         if (match.status === 'Finished') {
-                            td.innerHTML = `<span style="color: var(--text-primary); font-size: 0.85rem;">${match.score}</span>`;
+                            let scoreText = match.score || '';
+                            if (isAway && scoreText.includes('-')) {
+                                const parts = scoreText.split('-').map(s => s.trim());
+                                if (parts.length === 2) scoreText = `${parts[1]} - ${parts[0]}`;
+                            }
+                            td.innerHTML = `<span style="color: var(--text-primary); font-size: 0.85rem;">${isAway ? '@ ' : ''}${scoreText}</span>`;
                         } else {
                             let displayDate = 'TBD';
                             if (match.date) {
@@ -814,7 +829,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     displayDate = match.formatted_date_short || 'TBD';
                                 }
                             }
-                            td.innerHTML = `<span style="color: var(--text-secondary); font-size: 0.75rem;">${displayDate}</span>`;
+                            td.innerHTML = `<span style="color: var(--text-secondary); font-size: 0.75rem;">${isAway ? '@ ' : ''}${displayDate}</span>`;
                         }
 
                         td.addEventListener('click', () => {
@@ -829,7 +844,11 @@ document.addEventListener('DOMContentLoaded', () => {
             tbody.appendChild(tr);
         });
         table.appendChild(tbody);
+        const legend = document.createElement('p');
+        legend.style.cssText = 'margin: 0.75rem 0 0; padding: 0 0.5rem 0.75rem; font-size: 0.75rem; color: var(--text-secondary);';
+        legend.textContent = 'Each fixture appears twice: on the home club’s row and in the away club’s column. @ marks the away side.';
         matrixContainer.appendChild(table);
+        matrixContainer.appendChild(legend);
     }
 
     function createMatchCard(match, showRank = false, rank = 1) {

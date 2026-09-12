@@ -127,12 +127,19 @@ class ApiFootballProvider:
         matchday_number = None
         stage = "Regular Season"
         if round_str:
-            if "Regular Season" in round_str:
+            round_lower = round_str.lower()
+            if "regular season" in round_lower:
                 try:
                     matchday_number = int(round_str.split("-")[-1].strip())
                 except ValueError:
                     pass
-            elif "Group" in round_str:
+            elif "league stage" in round_lower or "league phase" in round_lower:
+                stage = "League Phase"
+                try:
+                    matchday_number = int(round_str.split("-")[-1].strip())
+                except ValueError:
+                    pass
+            elif "group" in round_lower:
                 stage = "Group Stage"
             else:
                 stage = round_str

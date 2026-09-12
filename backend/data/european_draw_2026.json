@@ -8,74 +8,9 @@
     "home_advantage_elo": 80,
     "teams": [
       {
-        "name": "Real Madrid",
-        "country": "ESP",
-        "elo": 1980
-      },
-      {
-        "name": "Manchester City",
-        "country": "ENG",
-        "elo": 2010
-      },
-      {
-        "name": "Bayern Munich",
-        "country": "GER",
-        "elo": 1940
-      },
-      {
-        "name": "Paris Saint-Germain",
-        "country": "FRA",
-        "elo": 1890
-      },
-      {
-        "name": "Liverpool",
-        "country": "ENG",
-        "elo": 1960
-      },
-      {
-        "name": "Inter Milan",
-        "country": "ITA",
-        "elo": 1920
-      },
-      {
-        "name": "Borussia Dortmund",
-        "country": "GER",
-        "elo": 1860
-      },
-      {
-        "name": "RB Leipzig",
-        "country": "GER",
-        "elo": 1830
-      },
-      {
-        "name": "Barcelona",
-        "country": "ESP",
-        "elo": 1940
-      },
-      {
-        "name": "Bayer Leverkusen",
-        "country": "GER",
-        "elo": 1910
-      },
-      {
-        "name": "Atletico Madrid",
-        "country": "ESP",
-        "elo": 1870
-      },
-      {
-        "name": "Atalanta",
-        "country": "ITA",
-        "elo": 1850
-      },
-      {
-        "name": "Juventus",
-        "country": "ITA",
-        "elo": 1840
-      },
-      {
-        "name": "Benfica",
-        "country": "POR",
-        "elo": 1800
+        "name": "AEK Athens",
+        "country": null,
+        "elo": 1700
       },
       {
         "name": "Arsenal",
@@ -83,19 +18,49 @@
         "elo": 1950
       },
       {
+        "name": "Aston Villa",
+        "country": "ENG",
+        "elo": 1820
+      },
+      {
+        "name": "Atlético Madrid",
+        "country": null,
+        "elo": 1700
+      },
+      {
+        "name": "Barcelona",
+        "country": "ESP",
+        "elo": 1940
+      },
+      {
+        "name": "Bayern Munich",
+        "country": "GER",
+        "elo": 1940
+      },
+      {
+        "name": "Bodø/Glimt",
+        "country": null,
+        "elo": 1700
+      },
+      {
+        "name": "Borussia Dortmund",
+        "country": "GER",
+        "elo": 1860
+      },
+      {
         "name": "Club Brugge",
         "country": "BEL",
         "elo": 1710
       },
       {
-        "name": "Shakhtar Donetsk",
-        "country": "UKR",
-        "elo": 1690
+        "name": "Como",
+        "country": null,
+        "elo": 1700
       },
       {
-        "name": "AC Milan",
-        "country": "ITA",
-        "elo": 1830
+        "name": "Fenerbahçe",
+        "country": null,
+        "elo": 1700
       },
       {
         "name": "Feyenoord",
@@ -103,23 +68,23 @@
         "elo": 1740
       },
       {
-        "name": "Sporting CP",
-        "country": "POR",
-        "elo": 1850
+        "name": "Galatasaray",
+        "country": null,
+        "elo": 1700
       },
       {
-        "name": "PSV Eindhoven",
-        "country": "NED",
-        "elo": 1790
+        "name": "Inter Milan",
+        "country": "ITA",
+        "elo": 1920
       },
       {
-        "name": "Dinamo Zagreb",
-        "country": "CRO",
-        "elo": 1670
+        "name": "LASK",
+        "country": null,
+        "elo": 1700
       },
       {
-        "name": "FC Salzburg",
-        "country": "AUT",
+        "name": "Lens",
+        "country": null,
         "elo": 1700
       },
       {
@@ -128,19 +93,74 @@
         "elo": 1780
       },
       {
-        "name": "Crvena Zvezda",
-        "country": "SRB",
-        "elo": 1650
+        "name": "Liverpool",
+        "country": "ENG",
+        "elo": 1960
       },
       {
-        "name": "Young Boys",
-        "country": "SUI",
-        "elo": 1640
+        "name": "Manchester City",
+        "country": "ENG",
+        "elo": 2010
       },
       {
-        "name": "Celtic",
-        "country": "SCO",
-        "elo": 1710
+        "name": "Manchester United",
+        "country": null,
+        "elo": 1700
+      },
+      {
+        "name": "Napoli",
+        "country": null,
+        "elo": 1700
+      },
+      {
+        "name": "PSV Eindhoven",
+        "country": "NED",
+        "elo": 1790
+      },
+      {
+        "name": "Paris Saint-Germain",
+        "country": "FRA",
+        "elo": 1890
+      },
+      {
+        "name": "Porto",
+        "country": null,
+        "elo": 1700
+      },
+      {
+        "name": "RB Leipzig",
+        "country": "GER",
+        "elo": 1830
+      },
+      {
+        "name": "Real Betis",
+        "country": null,
+        "elo": 1700
+      },
+      {
+        "name": "Real Madrid",
+        "country": "ESP",
+        "elo": 1980
+      },
+      {
+        "name": "Roma",
+        "country": null,
+        "elo": 1700
+      },
+      {
+        "name": "Sabah",
+        "country": null,
+        "elo": 1700
+      },
+      {
+        "name": "Shakhtar Donetsk",
+        "country": "UKR",
+        "elo": 1690
+      },
+      {
+        "name": "Slavia Prague",
+        "country": null,
+        "elo": 1700
       },
       {
         "name": "Slovan Bratislava",
@@ -148,29 +168,9 @@
         "elo": 1580
       },
       {
-        "name": "Monaco",
-        "country": "FRA",
-        "elo": 1800
-      },
-      {
-        "name": "Sparta Prague",
-        "country": "CZE",
-        "elo": 1680
-      },
-      {
-        "name": "Aston Villa",
-        "country": "ENG",
-        "elo": 1820
-      },
-      {
-        "name": "Bologna",
-        "country": "ITA",
-        "elo": 1750
-      },
-      {
-        "name": "Girona",
-        "country": "ESP",
-        "elo": 1760
+        "name": "Sporting CP",
+        "country": "POR",
+        "elo": 1850
       },
       {
         "name": "VfB Stuttgart",
@@ -178,1165 +178,1165 @@
         "elo": 1790
       },
       {
-        "name": "Sturm Graz",
-        "country": "AUT",
-        "elo": 1620
+        "name": "Viking",
+        "country": null,
+        "elo": 1700
       },
       {
-        "name": "Brest",
-        "country": "FRA",
-        "elo": 1720
+        "name": "Villarreal",
+        "country": null,
+        "elo": 1700
       }
     ],
     "fixtures": [
       {
-        "home": "Young Boys",
-        "away": "Aston Villa",
-        "date_utc": "2026-09-17T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 1
-      },
-      {
-        "home": "Juventus",
-        "away": "PSV Eindhoven",
-        "date_utc": "2026-09-17T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 1
-      },
-      {
-        "home": "Sporting CP",
-        "away": "Lille",
-        "date_utc": "2026-09-17T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 1
-      },
-      {
-        "home": "Bayern Munich",
-        "away": "Dinamo Zagreb",
-        "date_utc": "2026-09-17T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 1
-      },
-      {
-        "home": "Real Madrid",
-        "away": "VfB Stuttgart",
-        "date_utc": "2026-09-17T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 1
-      },
-      {
-        "home": "AC Milan",
-        "away": "Liverpool",
-        "date_utc": "2026-09-17T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 1
-      },
-      {
-        "home": "Bologna",
-        "away": "Shakhtar Donetsk",
-        "date_utc": "2026-09-18T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 1
-      },
-      {
-        "home": "Sparta Prague",
-        "away": "FC Salzburg",
-        "date_utc": "2026-09-18T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 1
-      },
-      {
-        "home": "Manchester City",
-        "away": "Inter Milan",
-        "date_utc": "2026-09-18T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 1
-      },
-      {
-        "home": "Paris Saint-Germain",
-        "away": "Girona",
-        "date_utc": "2026-09-18T21:00:00Z",
+        "home": "AEK Athens",
+        "away": "LASK",
+        "date_utc": "2026-09-08T16:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 1
       },
       {
         "home": "Club Brugge",
-        "away": "Borussia Dortmund",
-        "date_utc": "2026-09-18T21:00:00Z",
+        "away": "Aston Villa",
+        "date_utc": "2026-09-08T16:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 1
       },
       {
-        "home": "Celtic",
-        "away": "Slovan Bratislava",
-        "date_utc": "2026-09-18T21:00:00Z",
+        "home": "Borussia Dortmund",
+        "away": "Villarreal",
+        "date_utc": "2026-09-08T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 1
       },
       {
-        "home": "Feyenoord",
-        "away": "Bayer Leverkusen",
-        "date_utc": "2026-09-19T18:45:00Z",
+        "home": "Porto",
+        "away": "Manchester City",
+        "date_utc": "2026-09-08T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 1
       },
       {
-        "home": "Crvena Zvezda",
-        "away": "Benfica",
-        "date_utc": "2026-09-19T18:45:00Z",
+        "home": "Lille",
+        "away": "Real Betis",
+        "date_utc": "2026-09-08T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 1
       },
       {
-        "home": "Monaco",
-        "away": "Barcelona",
-        "date_utc": "2026-09-19T21:00:00Z",
+        "home": "Real Madrid",
+        "away": "Inter Milan",
+        "date_utc": "2026-09-08T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 1
       },
       {
-        "home": "Brest",
-        "away": "Sturm Graz",
-        "date_utc": "2026-09-19T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 1
-      },
-      {
-        "home": "Atalanta",
-        "away": "Arsenal",
-        "date_utc": "2026-09-19T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 1
-      },
-      {
-        "home": "Atletico Madrid",
-        "away": "RB Leipzig",
-        "date_utc": "2026-09-19T21:00:00Z",
+        "home": "Barcelona",
+        "away": "Feyenoord",
+        "date_utc": "2026-09-09T16:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 1
       },
       {
         "home": "VfB Stuttgart",
-        "away": "Sparta Prague",
-        "date_utc": "2026-10-01T18:45:00Z",
+        "away": "Viking",
+        "date_utc": "2026-09-09T16:45:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 1
+      },
+      {
+        "home": "Liverpool",
+        "away": "Atlético Madrid",
+        "date_utc": "2026-09-09T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 1
+      },
+      {
+        "home": "Paris Saint-Germain",
+        "away": "Slovan Bratislava",
+        "date_utc": "2026-09-09T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 1
+      },
+      {
+        "home": "Sporting CP",
+        "away": "Galatasaray",
+        "date_utc": "2026-09-09T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 1
+      },
+      {
+        "home": "Napoli",
+        "away": "Arsenal",
+        "date_utc": "2026-09-09T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 1
+      },
+      {
+        "home": "Fenerbahçe",
+        "away": "Roma",
+        "date_utc": "2026-09-10T16:45:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 1
+      },
+      {
+        "home": "PSV Eindhoven",
+        "away": "Shakhtar Donetsk",
+        "date_utc": "2026-09-10T16:45:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 1
+      },
+      {
+        "home": "Como",
+        "away": "RB Leipzig",
+        "date_utc": "2026-09-10T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 1
+      },
+      {
+        "home": "Bayern Munich",
+        "away": "Bodø/Glimt",
+        "date_utc": "2026-09-10T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 1
+      },
+      {
+        "home": "Manchester United",
+        "away": "Sabah",
+        "date_utc": "2026-09-10T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 1
+      },
+      {
+        "home": "Slavia Prague",
+        "away": "Lens",
+        "date_utc": "2026-09-10T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 1
+      },
+      {
+        "home": "Lens",
+        "away": "Sporting CP",
+        "date_utc": "2026-10-13T16:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 2
       },
       {
-        "home": "FC Salzburg",
-        "away": "Brest",
-        "date_utc": "2026-10-01T18:45:00Z",
+        "home": "Sabah",
+        "away": "Slavia Prague",
+        "date_utc": "2026-10-13T16:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 2
       },
       {
-        "home": "Slovan Bratislava",
-        "away": "Manchester City",
-        "date_utc": "2026-10-01T21:00:00Z",
+        "home": "Arsenal",
+        "away": "Lille",
+        "date_utc": "2026-10-13T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 2
       },
       {
-        "home": "Borussia Dortmund",
-        "away": "Celtic",
-        "date_utc": "2026-10-01T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 2
-      },
-      {
-        "home": "Barcelona",
-        "away": "Young Boys",
-        "date_utc": "2026-10-01T21:00:00Z",
+        "home": "Atlético Madrid",
+        "away": "Manchester United",
+        "date_utc": "2026-10-13T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 2
       },
       {
         "home": "Inter Milan",
-        "away": "Crvena Zvezda",
-        "date_utc": "2026-10-01T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 2
-      },
-      {
-        "home": "Bayer Leverkusen",
-        "away": "AC Milan",
-        "date_utc": "2026-10-01T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 2
-      },
-      {
-        "home": "Arsenal",
-        "away": "Paris Saint-Germain",
-        "date_utc": "2026-10-01T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 2
-      },
-      {
-        "home": "PSV Eindhoven",
-        "away": "Sporting CP",
-        "date_utc": "2026-10-01T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 2
-      },
-      {
-        "home": "Girona",
-        "away": "Feyenoord",
-        "date_utc": "2026-10-02T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 2
-      },
-      {
-        "home": "Shakhtar Donetsk",
-        "away": "Atalanta",
-        "date_utc": "2026-10-02T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 2
-      },
-      {
-        "home": "Aston Villa",
-        "away": "Bayern Munich",
-        "date_utc": "2026-10-02T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 2
-      },
-      {
-        "home": "Sturm Graz",
         "away": "Club Brugge",
-        "date_utc": "2026-10-02T21:00:00Z",
+        "date_utc": "2026-10-13T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 2
       },
       {
-        "home": "Liverpool",
-        "away": "Bologna",
-        "date_utc": "2026-10-02T21:00:00Z",
+        "home": "Galatasaray",
+        "away": "Barcelona",
+        "date_utc": "2026-10-13T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 2
       },
       {
         "home": "RB Leipzig",
-        "away": "Juventus",
-        "date_utc": "2026-10-02T21:00:00Z",
+        "away": "PSV Eindhoven",
+        "date_utc": "2026-10-13T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 2
       },
       {
-        "home": "Benfica",
-        "away": "Atletico Madrid",
-        "date_utc": "2026-10-02T21:00:00Z",
+        "home": "Viking",
+        "away": "Bayern Munich",
+        "date_utc": "2026-10-13T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 2
       },
       {
-        "home": "Dinamo Zagreb",
-        "away": "Monaco",
-        "date_utc": "2026-10-02T21:00:00Z",
+        "home": "Villarreal",
+        "away": "Napoli",
+        "date_utc": "2026-10-13T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 2
       },
       {
-        "home": "Lille",
+        "home": "Feyenoord",
+        "away": "Como",
+        "date_utc": "2026-10-14T16:45:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 2
+      },
+      {
+        "home": "LASK",
+        "away": "Liverpool",
+        "date_utc": "2026-10-14T16:45:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 2
+      },
+      {
+        "home": "Roma",
         "away": "Real Madrid",
-        "date_utc": "2026-10-02T21:00:00Z",
+        "date_utc": "2026-10-14T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 2
-      },
-      {
-        "home": "Monaco",
-        "away": "Crvena Zvezda",
-        "date_utc": "2026-10-22T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 3
-      },
-      {
-        "home": "AC Milan",
-        "away": "Club Brugge",
-        "date_utc": "2026-10-22T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 3
       },
       {
         "home": "Aston Villa",
-        "away": "Bologna",
-        "date_utc": "2026-10-22T21:00:00Z",
+        "away": "Fenerbahçe",
+        "date_utc": "2026-10-14T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
-        "matchday": 3
+        "matchday": 2
       },
       {
-        "home": "Girona",
-        "away": "Slovan Bratislava",
-        "date_utc": "2026-10-22T21:00:00Z",
+        "home": "Shakhtar Donetsk",
+        "away": "AEK Athens",
+        "date_utc": "2026-10-14T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
-        "matchday": 3
+        "matchday": 2
       },
       {
-        "home": "Sturm Graz",
-        "away": "Sporting CP",
-        "date_utc": "2026-10-22T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 3
-      },
-      {
-        "home": "Paris Saint-Germain",
-        "away": "PSV Eindhoven",
-        "date_utc": "2026-10-22T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 3
-      },
-      {
-        "home": "Real Madrid",
+        "home": "Bodø/Glimt",
         "away": "Borussia Dortmund",
-        "date_utc": "2026-10-22T21:00:00Z",
+        "date_utc": "2026-10-14T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
-        "matchday": 3
+        "matchday": 2
       },
       {
-        "home": "Arsenal",
-        "away": "Shakhtar Donetsk",
-        "date_utc": "2026-10-22T21:00:00Z",
+        "home": "Manchester City",
+        "away": "Paris Saint-Germain",
+        "date_utc": "2026-10-14T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
-        "matchday": 3
+        "matchday": 2
       },
       {
-        "home": "Juventus",
+        "home": "Real Betis",
+        "away": "Porto",
+        "date_utc": "2026-10-14T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 2
+      },
+      {
+        "home": "Slovan Bratislava",
         "away": "VfB Stuttgart",
-        "date_utc": "2026-10-22T21:00:00Z",
+        "date_utc": "2026-10-14T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 2
+      },
+      {
+        "home": "Fenerbahçe",
+        "away": "Slavia Prague",
+        "date_utc": "2026-10-20T16:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 3
       },
       {
-        "home": "Brest",
-        "away": "Bayer Leverkusen",
-        "date_utc": "2026-10-23T18:45:00Z",
+        "home": "Sabah",
+        "away": "Borussia Dortmund",
+        "date_utc": "2026-10-20T16:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 3
       },
       {
-        "home": "Atalanta",
-        "away": "Celtic",
-        "date_utc": "2026-10-23T18:45:00Z",
+        "home": "Roma",
+        "away": "Slovan Bratislava",
+        "date_utc": "2026-10-20T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 3
       },
       {
-        "home": "Young Boys",
-        "away": "Inter Milan",
-        "date_utc": "2026-10-23T21:00:00Z",
+        "home": "Porto",
+        "away": "PSV Eindhoven",
+        "date_utc": "2026-10-20T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 3
       },
       {
-        "home": "Barcelona",
-        "away": "Bayern Munich",
-        "date_utc": "2026-10-23T21:00:00Z",
+        "home": "Liverpool",
+        "away": "Villarreal",
+        "date_utc": "2026-10-20T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 3
       },
       {
         "home": "Manchester City",
-        "away": "Sparta Prague",
-        "date_utc": "2026-10-23T21:00:00Z",
+        "away": "AEK Athens",
+        "date_utc": "2026-10-20T19:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 3
-      },
-      {
-        "home": "RB Leipzig",
-        "away": "Liverpool",
-        "date_utc": "2026-10-23T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 3
-      },
-      {
-        "home": "Atletico Madrid",
-        "away": "Lille",
-        "date_utc": "2026-10-23T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 3
-      },
-      {
-        "home": "Benfica",
-        "away": "Feyenoord",
-        "date_utc": "2026-10-23T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 3
-      },
-      {
-        "home": "FC Salzburg",
-        "away": "Dinamo Zagreb",
-        "date_utc": "2026-10-23T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 3
-      },
-      {
-        "home": "Slovan Bratislava",
-        "away": "Dinamo Zagreb",
-        "date_utc": "2026-11-05T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 4
-      },
-      {
-        "home": "PSV Eindhoven",
-        "away": "Girona",
-        "date_utc": "2026-11-05T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 4
-      },
-      {
-        "home": "Sporting CP",
-        "away": "Manchester City",
-        "date_utc": "2026-11-05T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 4
-      },
-      {
-        "home": "Bologna",
-        "away": "Monaco",
-        "date_utc": "2026-11-05T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 4
-      },
-      {
-        "home": "Borussia Dortmund",
-        "away": "Sturm Graz",
-        "date_utc": "2026-11-05T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 4
-      },
-      {
-        "home": "Liverpool",
-        "away": "Bayer Leverkusen",
-        "date_utc": "2026-11-05T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 4
-      },
-      {
-        "home": "Real Madrid",
-        "away": "AC Milan",
-        "date_utc": "2026-11-05T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 4
-      },
-      {
-        "home": "Celtic",
-        "away": "RB Leipzig",
-        "date_utc": "2026-11-05T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 4
-      },
-      {
-        "home": "Lille",
-        "away": "Juventus",
-        "date_utc": "2026-11-05T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 4
-      },
-      {
-        "home": "Club Brugge",
-        "away": "Aston Villa",
-        "date_utc": "2026-11-06T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 4
-      },
-      {
-        "home": "Shakhtar Donetsk",
-        "away": "Young Boys",
-        "date_utc": "2026-11-06T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 4
-      },
-      {
-        "home": "Sparta Prague",
-        "away": "Brest",
-        "date_utc": "2026-11-06T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 4
-      },
-      {
-        "home": "VfB Stuttgart",
-        "away": "Atalanta",
-        "date_utc": "2026-11-06T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 4
-      },
-      {
-        "home": "Inter Milan",
-        "away": "Arsenal",
-        "date_utc": "2026-11-06T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 4
       },
       {
         "home": "Paris Saint-Germain",
-        "away": "Atletico Madrid",
-        "date_utc": "2026-11-06T21:00:00Z",
+        "away": "Barcelona",
+        "date_utc": "2026-10-20T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 3
+      },
+      {
+        "home": "Napoli",
+        "away": "Bodø/Glimt",
+        "date_utc": "2026-10-20T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 3
+      },
+      {
+        "home": "VfB Stuttgart",
+        "away": "Atlético Madrid",
+        "date_utc": "2026-10-20T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 3
+      },
+      {
+        "home": "Como",
+        "away": "Manchester United",
+        "date_utc": "2026-10-21T16:45:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 3
+      },
+      {
+        "home": "Lille",
+        "away": "Galatasaray",
+        "date_utc": "2026-10-21T16:45:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 3
+      },
+      {
+        "home": "Aston Villa",
+        "away": "Viking",
+        "date_utc": "2026-10-21T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 3
+      },
+      {
+        "home": "Club Brugge",
+        "away": "Lens",
+        "date_utc": "2026-10-21T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 3
+      },
+      {
+        "home": "Bayern Munich",
+        "away": "Arsenal",
+        "date_utc": "2026-10-21T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 3
+      },
+      {
+        "home": "Inter Milan",
+        "away": "Shakhtar Donetsk",
+        "date_utc": "2026-10-21T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 3
+      },
+      {
+        "home": "Real Madrid",
+        "away": "RB Leipzig",
+        "date_utc": "2026-10-21T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 3
+      },
+      {
+        "home": "Real Betis",
+        "away": "Feyenoord",
+        "date_utc": "2026-10-21T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 3
+      },
+      {
+        "home": "Sporting CP",
+        "away": "LASK",
+        "date_utc": "2026-10-21T19:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 3
+      },
+      {
+        "home": "Shakhtar Donetsk",
+        "away": "Sporting CP",
+        "date_utc": "2026-11-03T17:45:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 4
+      },
+      {
+        "home": "Galatasaray",
+        "away": "VfB Stuttgart",
+        "date_utc": "2026-11-03T17:45:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 4
+      },
+      {
+        "home": "Atlético Madrid",
+        "away": "Bayern Munich",
+        "date_utc": "2026-11-03T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 4
+      },
+      {
+        "home": "Barcelona",
+        "away": "Aston Villa",
+        "date_utc": "2026-11-03T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 4
       },
       {
         "home": "Feyenoord",
-        "away": "FC Salzburg",
-        "date_utc": "2026-11-06T21:00:00Z",
+        "away": "Inter Milan",
+        "date_utc": "2026-11-03T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 4
       },
       {
-        "home": "Crvena Zvezda",
-        "away": "Barcelona",
-        "date_utc": "2026-11-06T21:00:00Z",
+        "home": "Bodø/Glimt",
+        "away": "Lille",
+        "date_utc": "2026-11-03T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 4
       },
       {
-        "home": "Bayern Munich",
-        "away": "Benfica",
-        "date_utc": "2026-11-06T21:15:00Z",
+        "home": "LASK",
+        "away": "Slovan Bratislava",
+        "date_utc": "2026-11-03T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 4
       },
       {
-        "home": "Slovan Bratislava",
-        "away": "AC Milan",
-        "date_utc": "2026-11-26T18:45:00Z",
+        "home": "Manchester United",
+        "away": "Roma",
+        "date_utc": "2026-11-03T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
-        "matchday": 5
+        "matchday": 4
       },
       {
-        "home": "Sparta Prague",
-        "away": "Atletico Madrid",
-        "date_utc": "2026-11-26T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 5
-      },
-      {
-        "home": "Sporting CP",
-        "away": "Arsenal",
-        "date_utc": "2026-11-26T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 5
-      },
-      {
-        "home": "Young Boys",
-        "away": "Atalanta",
-        "date_utc": "2026-11-26T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 5
-      },
-      {
-        "home": "Bayern Munich",
+        "home": "Villarreal",
         "away": "Paris Saint-Germain",
-        "date_utc": "2026-11-26T21:00:00Z",
+        "date_utc": "2026-11-03T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 4
+      },
+      {
+        "home": "AEK Athens",
+        "away": "Real Madrid",
+        "date_utc": "2026-11-04T17:45:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 4
+      },
+      {
+        "home": "Fenerbahçe",
+        "away": "Liverpool",
+        "date_utc": "2026-11-04T17:45:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 4
+      },
+      {
+        "home": "Borussia Dortmund",
+        "away": "Real Betis",
+        "date_utc": "2026-11-04T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 4
+      },
+      {
+        "home": "Porto",
+        "away": "Napoli",
+        "date_utc": "2026-11-04T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 4
+      },
+      {
+        "home": "PSV Eindhoven",
+        "away": "Club Brugge",
+        "date_utc": "2026-11-04T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 4
+      },
+      {
+        "home": "RB Leipzig",
+        "away": "Manchester City",
+        "date_utc": "2026-11-04T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 4
+      },
+      {
+        "home": "Lens",
+        "away": "Como",
+        "date_utc": "2026-11-04T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 4
+      },
+      {
+        "home": "Slavia Prague",
+        "away": "Arsenal",
+        "date_utc": "2026-11-04T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 4
+      },
+      {
+        "home": "Viking",
+        "away": "Sabah",
+        "date_utc": "2026-11-04T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 4
+      },
+      {
+        "home": "Bodø/Glimt",
+        "away": "LASK",
+        "date_utc": "2026-11-24T17:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 5
       },
       {
-        "home": "Barcelona",
-        "away": "Brest",
-        "date_utc": "2026-11-26T21:00:00Z",
+        "home": "Galatasaray",
+        "away": "Aston Villa",
+        "date_utc": "2026-11-24T17:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 5
       },
       {
-        "home": "Inter Milan",
-        "away": "RB Leipzig",
-        "date_utc": "2026-11-26T21:00:00Z",
+        "home": "Arsenal",
+        "away": "Borussia Dortmund",
+        "date_utc": "2026-11-24T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 5
+      },
+      {
+        "home": "Como",
+        "away": "AEK Athens",
+        "date_utc": "2026-11-24T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 5
+      },
+      {
+        "home": "Feyenoord",
+        "away": "Porto",
+        "date_utc": "2026-11-24T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 5
       },
       {
         "home": "Manchester City",
-        "away": "Feyenoord",
-        "date_utc": "2026-11-26T21:00:00Z",
+        "away": "Napoli",
+        "date_utc": "2026-11-24T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 5
-      },
-      {
-        "home": "Bayer Leverkusen",
-        "away": "FC Salzburg",
-        "date_utc": "2026-11-26T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 5
-      },
-      {
-        "home": "Sturm Graz",
-        "away": "Girona",
-        "date_utc": "2026-11-27T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 5
-      },
-      {
-        "home": "Crvena Zvezda",
-        "away": "VfB Stuttgart",
-        "date_utc": "2026-11-27T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 5
-      },
-      {
-        "home": "Monaco",
-        "away": "Benfica",
-        "date_utc": "2026-11-27T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 5
-      },
-      {
-        "home": "Aston Villa",
-        "away": "Juventus",
-        "date_utc": "2026-11-27T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 5
-      },
-      {
-        "home": "Bologna",
-        "away": "Lille",
-        "date_utc": "2026-11-27T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 5
-      },
-      {
-        "home": "Liverpool",
-        "away": "Real Madrid",
-        "date_utc": "2026-11-27T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 5
-      },
-      {
-        "home": "Celtic",
-        "away": "Club Brugge",
-        "date_utc": "2026-11-27T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 5
-      },
-      {
-        "home": "Dinamo Zagreb",
-        "away": "Borussia Dortmund",
-        "date_utc": "2026-11-27T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 5
-      },
-      {
-        "home": "PSV Eindhoven",
-        "away": "Shakhtar Donetsk",
-        "date_utc": "2026-11-27T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 5
-      },
-      {
-        "home": "Girona",
-        "away": "Liverpool",
-        "date_utc": "2026-12-10T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 6
-      },
-      {
-        "home": "Dinamo Zagreb",
-        "away": "Celtic",
-        "date_utc": "2026-12-10T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 6
-      },
-      {
-        "home": "Brest",
-        "away": "PSV Eindhoven",
-        "date_utc": "2026-12-10T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 6
       },
       {
         "home": "RB Leipzig",
-        "away": "Aston Villa",
-        "date_utc": "2026-12-10T21:00:00Z",
+        "away": "Lens",
+        "date_utc": "2026-11-24T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
-        "matchday": 6
+        "matchday": 5
       },
       {
-        "home": "Atalanta",
-        "away": "Real Madrid",
-        "date_utc": "2026-12-10T21:00:00Z",
+        "home": "Real Madrid",
+        "away": "PSV Eindhoven",
+        "date_utc": "2026-11-24T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
-        "matchday": 6
+        "matchday": 5
       },
       {
-        "home": "Bayer Leverkusen",
-        "away": "Inter Milan",
-        "date_utc": "2026-12-10T21:00:00Z",
+        "home": "Slovan Bratislava",
+        "away": "Real Betis",
+        "date_utc": "2026-11-24T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
-        "matchday": 6
+        "matchday": 5
+      },
+      {
+        "home": "Sabah",
+        "away": "Barcelona",
+        "date_utc": "2026-11-25T17:45:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 5
+      },
+      {
+        "home": "Slavia Prague",
+        "away": "Villarreal",
+        "date_utc": "2026-11-25T17:45:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 5
+      },
+      {
+        "home": "Atlético Madrid",
+        "away": "Viking",
+        "date_utc": "2026-11-25T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 5
       },
       {
         "home": "Club Brugge",
-        "away": "Sporting CP",
-        "date_utc": "2026-12-10T21:00:00Z",
+        "away": "Liverpool",
+        "date_utc": "2026-11-25T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
-        "matchday": 6
+        "matchday": 5
+      },
+      {
+        "home": "Inter Milan",
+        "away": "VfB Stuttgart",
+        "date_utc": "2026-11-25T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 5
       },
       {
         "home": "Shakhtar Donetsk",
-        "away": "Bayern Munich",
-        "date_utc": "2026-12-10T21:00:00Z",
+        "away": "Fenerbahçe",
+        "date_utc": "2026-11-25T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
-        "matchday": 6
-      },
-      {
-        "home": "FC Salzburg",
-        "away": "Paris Saint-Germain",
-        "date_utc": "2026-12-10T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 6
-      },
-      {
-        "home": "Atletico Madrid",
-        "away": "Slovan Bratislava",
-        "date_utc": "2026-12-11T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 6
+        "matchday": 5
       },
       {
         "home": "Lille",
-        "away": "Sturm Graz",
-        "date_utc": "2026-12-11T18:45:00Z",
+        "away": "Bayern Munich",
+        "date_utc": "2026-11-25T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 5
+      },
+      {
+        "home": "Paris Saint-Germain",
+        "away": "Roma",
+        "date_utc": "2026-11-25T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 5
+      },
+      {
+        "home": "Sporting CP",
+        "away": "Manchester United",
+        "date_utc": "2026-11-25T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 5
+      },
+      {
+        "home": "Viking",
+        "away": "Feyenoord",
+        "date_utc": "2026-12-08T17:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 6
       },
       {
-        "home": "VfB Stuttgart",
-        "away": "Young Boys",
-        "date_utc": "2026-12-11T21:00:00Z",
+        "home": "Villarreal",
+        "away": "Sabah",
+        "date_utc": "2026-12-08T17:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 6
       },
       {
-        "home": "Borussia Dortmund",
-        "away": "Barcelona",
-        "date_utc": "2026-12-11T21:00:00Z",
+        "home": "AEK Athens",
+        "away": "Galatasaray",
+        "date_utc": "2026-12-08T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 6
       },
       {
-        "home": "AC Milan",
-        "away": "Crvena Zvezda",
-        "date_utc": "2026-12-11T21:00:00Z",
+        "home": "Roma",
+        "away": "Sporting CP",
+        "date_utc": "2026-12-08T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 6
       },
       {
-        "home": "Benfica",
-        "away": "Bologna",
-        "date_utc": "2026-12-11T21:00:00Z",
+        "home": "Aston Villa",
+        "away": "Paris Saint-Germain",
+        "date_utc": "2026-12-08T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 6
+      },
+      {
+        "home": "Barcelona",
+        "away": "Manchester City",
+        "date_utc": "2026-12-08T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 6
+      },
+      {
+        "home": "Bayern Munich",
+        "away": "Slavia Prague",
+        "date_utc": "2026-12-08T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 6
+      },
+      {
+        "home": "Manchester United",
+        "away": "RB Leipzig",
+        "date_utc": "2026-12-08T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 6
+      },
+      {
+        "home": "Napoli",
+        "away": "Club Brugge",
+        "date_utc": "2026-12-08T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 6
+      },
+      {
+        "home": "Real Betis",
+        "away": "Como",
+        "date_utc": "2026-12-09T17:45:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 6
+      },
+      {
+        "home": "Slovan Bratislava",
+        "away": "Shakhtar Donetsk",
+        "date_utc": "2026-12-09T17:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 6
       },
       {
         "home": "Arsenal",
-        "away": "Monaco",
-        "date_utc": "2026-12-11T21:00:00Z",
+        "away": "Real Madrid",
+        "date_utc": "2026-12-09T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 6
       },
       {
-        "home": "Juventus",
-        "away": "Manchester City",
-        "date_utc": "2026-12-11T21:00:00Z",
+        "home": "Borussia Dortmund",
+        "away": "Inter Milan",
+        "date_utc": "2026-12-09T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 6
       },
       {
-        "home": "Feyenoord",
-        "away": "Sparta Prague",
-        "date_utc": "2026-12-11T21:00:00Z",
+        "home": "LASK",
+        "away": "Fenerbahçe",
+        "date_utc": "2026-12-09T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 6
-      },
-      {
-        "home": "Monaco",
-        "away": "Aston Villa",
-        "date_utc": "2027-01-21T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 7
-      },
-      {
-        "home": "Atalanta",
-        "away": "Sturm Graz",
-        "date_utc": "2027-01-21T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 7
-      },
-      {
-        "home": "Bologna",
-        "away": "Borussia Dortmund",
-        "date_utc": "2027-01-21T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 7
-      },
-      {
-        "home": "Slovan Bratislava",
-        "away": "VfB Stuttgart",
-        "date_utc": "2027-01-21T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 7
       },
       {
         "home": "Liverpool",
+        "away": "Porto",
+        "date_utc": "2026-12-09T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 6
+      },
+      {
+        "home": "PSV Eindhoven",
+        "away": "Atlético Madrid",
+        "date_utc": "2026-12-09T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 6
+      },
+      {
+        "home": "Lens",
+        "away": "Bodø/Glimt",
+        "date_utc": "2026-12-09T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 6
+      },
+      {
+        "home": "VfB Stuttgart",
         "away": "Lille",
-        "date_utc": "2027-01-21T21:00:00Z",
+        "date_utc": "2026-12-09T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 6
+      },
+      {
+        "home": "Bodø/Glimt",
+        "away": "Atlético Madrid",
+        "date_utc": "2027-01-19T17:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 7
       },
       {
-        "home": "Atletico Madrid",
-        "away": "Bayer Leverkusen",
-        "date_utc": "2027-01-21T21:00:00Z",
+        "home": "Galatasaray",
+        "away": "Feyenoord",
+        "date_utc": "2027-01-19T17:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 7
       },
       {
-        "home": "Benfica",
-        "away": "Barcelona",
-        "date_utc": "2027-01-21T21:00:00Z",
+        "home": "AEK Athens",
+        "away": "Roma",
+        "date_utc": "2027-01-19T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 7
       },
       {
-        "home": "Club Brugge",
-        "away": "Juventus",
-        "date_utc": "2027-01-21T21:00:00Z",
+        "home": "Aston Villa",
+        "away": "Borussia Dortmund",
+        "date_utc": "2027-01-19T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 7
       },
       {
-        "home": "Crvena Zvezda",
-        "away": "PSV Eindhoven",
-        "date_utc": "2027-01-21T21:00:00Z",
+        "home": "Inter Milan",
+        "away": "Liverpool",
+        "date_utc": "2027-01-19T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 7
       },
       {
-        "home": "RB Leipzig",
-        "away": "Sporting CP",
-        "date_utc": "2027-01-22T18:45:00Z",
+        "home": "Porto",
+        "away": "Slavia Prague",
+        "date_utc": "2027-01-19T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 7
       },
       {
-        "home": "Shakhtar Donetsk",
-        "away": "Brest",
-        "date_utc": "2027-01-22T18:45:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 7
-      },
-      {
-        "home": "Sparta Prague",
-        "away": "Inter Milan",
-        "date_utc": "2027-01-22T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 7
-      },
-      {
-        "home": "Paris Saint-Germain",
-        "away": "Manchester City",
-        "date_utc": "2027-01-22T21:00:00Z",
+        "home": "Lille",
+        "away": "Slovan Bratislava",
+        "date_utc": "2027-01-19T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 7
       },
       {
         "home": "Real Madrid",
-        "away": "FC Salzburg",
-        "date_utc": "2027-01-22T21:00:00Z",
+        "away": "LASK",
+        "date_utc": "2027-01-19T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 7
       },
       {
-        "home": "AC Milan",
-        "away": "Girona",
-        "date_utc": "2027-01-22T21:00:00Z",
+        "home": "VfB Stuttgart",
+        "away": "Club Brugge",
+        "date_utc": "2027-01-19T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 7
       },
       {
-        "home": "Arsenal",
-        "away": "Dinamo Zagreb",
-        "date_utc": "2027-01-22T21:00:00Z",
+        "home": "Fenerbahçe",
+        "away": "Villarreal",
+        "date_utc": "2027-01-20T17:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 7
       },
       {
-        "home": "Celtic",
-        "away": "Young Boys",
-        "date_utc": "2027-01-22T21:00:00Z",
+        "home": "Sabah",
+        "away": "Napoli",
+        "date_utc": "2027-01-20T17:45:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 7
       },
       {
-        "home": "Feyenoord",
+        "home": "Como",
+        "away": "Paris Saint-Germain",
+        "date_utc": "2027-01-20T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 7
+      },
+      {
+        "home": "Manchester United",
         "away": "Bayern Munich",
-        "date_utc": "2027-01-22T21:00:00Z",
+        "date_utc": "2027-01-20T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 7
+      },
+      {
+        "home": "RB Leipzig",
+        "away": "Shakhtar Donetsk",
+        "date_utc": "2027-01-20T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 7
+      },
+      {
+        "home": "Lens",
+        "away": "Manchester City",
+        "date_utc": "2027-01-20T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 7
+      },
+      {
+        "home": "Real Betis",
+        "away": "Arsenal",
+        "date_utc": "2027-01-20T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 7
       },
       {
         "home": "Sporting CP",
-        "away": "Bologna",
-        "date_utc": "2027-01-29T21:00:00Z",
+        "away": "Barcelona",
+        "date_utc": "2027-01-20T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 7
+      },
+      {
+        "home": "Viking",
+        "away": "PSV Eindhoven",
+        "date_utc": "2027-01-20T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 7
+      },
+      {
+        "home": "Arsenal",
+        "away": "Sabah",
+        "date_utc": "2027-01-27T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 8
       },
       {
-        "home": "Young Boys",
-        "away": "Crvena Zvezda",
-        "date_utc": "2027-01-29T21:00:00Z",
+        "home": "Roma",
+        "away": "Lille",
+        "date_utc": "2027-01-27T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 8
       },
       {
-        "home": "Aston Villa",
-        "away": "Celtic",
-        "date_utc": "2027-01-29T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 8
-      },
-      {
-        "home": "Girona",
-        "away": "Arsenal",
-        "date_utc": "2027-01-29T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 8
-      },
-      {
-        "home": "Brest",
-        "away": "Real Madrid",
-        "date_utc": "2027-01-29T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 8
-      },
-      {
-        "home": "Sturm Graz",
-        "away": "RB Leipzig",
-        "date_utc": "2027-01-29T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 8
-      },
-      {
-        "home": "VfB Stuttgart",
-        "away": "Paris Saint-Germain",
-        "date_utc": "2027-01-29T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 8
-      },
-      {
-        "home": "Bayern Munich",
-        "away": "Slovan Bratislava",
-        "date_utc": "2027-01-29T21:00:00Z",
+        "home": "Atlético Madrid",
+        "away": "Fenerbahçe",
+        "date_utc": "2027-01-27T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 8
       },
       {
         "home": "Borussia Dortmund",
-        "away": "Shakhtar Donetsk",
-        "date_utc": "2027-01-29T21:00:00Z",
+        "away": "AEK Athens",
+        "date_utc": "2027-01-27T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 8
+      },
+      {
+        "home": "Club Brugge",
+        "away": "Bodø/Glimt",
+        "date_utc": "2027-01-27T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 8
+      },
+      {
+        "home": "Bayern Munich",
+        "away": "Real Betis",
+        "date_utc": "2027-01-27T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 8
       },
       {
         "home": "Barcelona",
-        "away": "Atalanta",
-        "date_utc": "2027-01-29T21:00:00Z",
+        "away": "Como",
+        "date_utc": "2027-01-27T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 8
       },
       {
-        "home": "Inter Milan",
-        "away": "Monaco",
-        "date_utc": "2027-01-29T21:00:00Z",
+        "home": "Shakhtar Donetsk",
+        "away": "Real Madrid",
+        "date_utc": "2027-01-27T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 8
+      },
+      {
+        "home": "Feyenoord",
+        "away": "RB Leipzig",
+        "date_utc": "2027-01-27T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 8
+      },
+      {
+        "home": "LASK",
+        "away": "Porto",
+        "date_utc": "2027-01-27T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 8
+      },
+      {
+        "home": "Liverpool",
+        "away": "Lens",
+        "date_utc": "2027-01-27T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 8
       },
       {
         "home": "Manchester City",
-        "away": "Club Brugge",
-        "date_utc": "2027-01-29T21:00:00Z",
+        "away": "Sporting CP",
+        "date_utc": "2027-01-27T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 8
       },
       {
-        "home": "Bayer Leverkusen",
-        "away": "Sparta Prague",
-        "date_utc": "2027-01-29T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 8
-      },
-      {
-        "home": "Juventus",
-        "away": "Benfica",
-        "date_utc": "2027-01-29T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 8
-      },
-      {
-        "home": "Dinamo Zagreb",
-        "away": "AC Milan",
-        "date_utc": "2027-01-29T21:00:00Z",
-        "stage": "League Phase",
-        "leg_number": 1,
-        "matchday": 8
-      },
-      {
-        "home": "Lille",
-        "away": "Feyenoord",
-        "date_utc": "2027-01-29T21:00:00Z",
+        "home": "Paris Saint-Germain",
+        "away": "Galatasaray",
+        "date_utc": "2027-01-27T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 8
       },
       {
         "home": "PSV Eindhoven",
-        "away": "Liverpool",
-        "date_utc": "2027-01-29T21:00:00Z",
+        "away": "VfB Stuttgart",
+        "date_utc": "2027-01-27T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 8
       },
       {
-        "home": "FC Salzburg",
-        "away": "Atletico Madrid",
-        "date_utc": "2027-01-29T21:00:00Z",
+        "home": "Slavia Prague",
+        "away": "Aston Villa",
+        "date_utc": "2027-01-27T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 8
+      },
+      {
+        "home": "Napoli",
+        "away": "Viking",
+        "date_utc": "2027-01-27T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 8
+      },
+      {
+        "home": "Villarreal",
+        "away": "Manchester United",
+        "date_utc": "2027-01-27T20:00:00Z",
+        "stage": "League Phase",
+        "leg_number": 1,
+        "matchday": 8
+      },
+      {
+        "home": "Slovan Bratislava",
+        "away": "Inter Milan",
+        "date_utc": "2027-01-27T20:00:00Z",
         "stage": "League Phase",
         "leg_number": 1,
         "matchday": 8

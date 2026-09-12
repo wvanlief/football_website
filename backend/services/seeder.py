@@ -32,6 +32,8 @@ from backend.services.ingestion import (
     COUNTRY_ISO_MAP,
     TeamResolver,
     FixtureUpserter,
+    IngestionEngine,
+    IngestionAborted,
 )
 from backend.services.odds import update_odds_from_api
 from backend.services.elo import fetch_current_elo_ratings, record_elo_history, elo_to_form
@@ -453,6 +455,8 @@ def _seed_european_cups(db: Session, target_league_id: Optional[int] = None) -> 
                 _link_tournament_team(db, tourney.id, db_team.id)
             db.flush()
 
+            retire_european_draw_placeholders(db, tourney.id)
+
             payloads = []
             for f_info in comp_data.get("fixtures", []):
                 h_name = normalizer.normalize(f_info["home"])
@@ -522,6 +526,11 @@ def _seed_all(db: Session) -> SeedResult:
                     ).first()
                     if tourney:
                         f_count = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).count()
+                        if f_count > 0 and league_id in EURO_CUP_LEAGUE_IDS:
+                            print(f"Refreshing {name} ({season_str}) from live API (placeholder draw must not block league-phase dates).")
+                            live = sync_european_cup_from_api(db, league_id)
+                            results[name] = f"Refreshed from API ({live})"
+                            continue
                         if f_count > 0:
                             print(f"Skipping {name} ({season_str}): already seeded with {f_count} fixtures.")
                             results[name] = f"Already seeded ({f_count} fixtures)"
@@ -579,19 +588,24 @@ def _seed_named_competition(db: Session, config: dict) -> SeedResult:
 
 
 def _seed_single(db: Session, league_id: int, fetch_squads: bool = False) -> SeedResult:
-    if league_id in (2, 3, 848) and _EURO_DRAW_JSON.exists():
+    if league_id in EURO_CUP_LEAGUE_IDS and _EURO_DRAW_JSON.exists():
         euro_res = seed_european_cups(db, target_league_id=league_id)
         api_key = os.getenv("FOOTBALL_API_KEY") or os.getenv("API_FOOTBALL_KEY")
+        live = None
         if api_key:
             try:
                 fetch_and_seed_teams(db, api_league_id=league_id, api_season=2026, fetch_squads=fetch_squads)
             except Exception as exc:
                 print(f"Warning: Failed to fetch API teams for euro cup {league_id}: {exc}")
+            live = sync_european_cup_from_api(db, league_id)
+        details = euro_res if isinstance(euro_res, dict) else {}
+        if live:
+            details = {**details, "live_api_sync": live}
         return SeedResult(
             status="success",
             message=f"European cup (league_id={league_id}) seeded successfully.",
             league_id=league_id,
-            details=euro_res if isinstance(euro_res, dict) else {},
+            details=details,
         )
 
     if league_id in DEFAULT_LEAGUES_BY_ID:
@@ -871,3 +885,80 @@ DEFAULT_LEAGUES_TO_SEED = [
 ]
 
 DEFAULT_LEAGUES_BY_ID = {item[3]: item for item in DEFAULT_LEAGUES_TO_SEED}
+EURO_CUP_LEAGUE_IDS = (2, 3, 848)
+
+
+def retire_european_draw_placeholders(db: Session, tournament_id: int) -> int:
+    """Remove scheduled draw-seeded fixtures that were never mapped to a live API id."""
+    stale = (
+        db.query(Fixture)
+        .filter(
+            Fixture.tournament_id == tournament_id,
+            Fixture.api_id.is_(None),
+            Fixture.status == "Scheduled",
+        )
+        .all()
+    )
+    count = len(stale)
+    for fixture in stale:
+        db.delete(fixture)
+    if count:
+        db.flush()
+    return count
+
+
+def sync_european_cup_from_api(db: Session, league_id: int) -> dict:
+    """
+    Overlay live API-Football fixtures onto a UEFA cup tournament.
+
+    The static european_draw_2026.json file is a bootstrap only; it used last
+    season's mid-September matchday pattern and invented pairings. League-phase
+    dates must come from the live provider.
+    """
+    if league_id not in DEFAULT_LEAGUES_BY_ID:
+        return {"status": "error", "message": f"Unknown euro cup league_id={league_id}"}
+
+    name, comp_type, format_eng, _lid, season_str, api_season, _releg, home_adv = DEFAULT_LEAGUES_BY_ID[league_id]
+    engine = IngestionEngine()
+    try:
+        upsert = engine.seed_competition(
+            db,
+            competition_name=name,
+            competition_type=comp_type,
+            format_engine=format_eng,
+            season=season_str,
+            api_league_id=league_id,
+            api_season=api_season,
+            home_advantage_elo=home_adv,
+            use_football_data=False,
+        )
+    except IngestionAborted as exc:
+        db.rollback()
+        print(f"Aborted live euro cup sync for {name}: {exc}")
+        return {"status": "aborted", "message": str(exc)}
+
+    comp = db.query(Competition).filter(Competition.name == name).first()
+    tourney = None
+    if comp:
+        tourney = db.query(Tournament).filter(
+            Tournament.competition_id == comp.id,
+            Tournament.season_name == season_str,
+        ).first()
+
+    retired = 0
+    if tourney:
+        retired = retire_european_draw_placeholders(db, tourney.id)
+        for fixture in db.query(Fixture).filter(Fixture.tournament_id == tourney.id).all():
+            score(fixture, db)
+        recalculate_standings(db, tourney.id)
+    db.commit()
+    print(
+        f"[{name}] Live API sync created={upsert.created} updated={upsert.updated} "
+        f"retired_placeholders={retired}"
+    )
+    return {
+        "status": "success",
+        "created": upsert.created,
+        "updated": upsert.updated,
+        "retired": retired,
+    }

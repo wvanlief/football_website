@@ -42,6 +42,31 @@ def test_normalize_fixture_payload_finished():
     assert normalized["home_score"] == 2
     assert normalized["away_score"] == 1
     assert normalized["matchday_number"] == 3
+    assert normalized["stage"] == "Regular Season"
+
+
+def test_normalize_fixture_payload_ucl_league_stage():
+    provider = ApiFootballProvider(api_key="test-key")
+    raw_payload = {
+        "fixture": {
+            "id": 140001,
+            "date": "2026-09-09T19:00:00Z",
+            "status": {"short": "NS"}
+        },
+        "teams": {
+            "home": {"id": 40, "name": "Liverpool"},
+            "away": {"id": 530, "name": "Atletico Madrid"}
+        },
+        "goals": {"home": None, "away": None},
+        "league": {"round": "League Stage - 1"}
+    }
+
+    normalized = provider.normalize_fixture_payload(raw_payload)
+
+    assert normalized["stage"] == "League Phase"
+    assert normalized["matchday_number"] == 1
+    assert normalized["status"] == "Scheduled"
+    assert normalized["home_team_name"] == "Liverpool"
 
 
 def test_normalize_fixture_payload_live():
