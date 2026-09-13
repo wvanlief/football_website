@@ -12,14 +12,14 @@ Overhaul the findfootball.games multi-competition navigation and match dashboard
 
 ## Notes
 
-- **Domain**: Frontend Architecture & UI Components (`frontend/index.html`, `frontend/js/navigation.js`, `frontend/js/app.js`, `frontend/css/styles.css`).
+- **Domain**: Frontend Architecture & UI Components (`frontend/index.html`, `frontend/js/navigation.js`, `frontend/js/app.js`, `frontend/css/base.css` and the other view sheets).
 - **Relevant Skills**: `/prototype`, `/codebase-design`.
 - **Standing Preferences**: Zero horizontal side-scrolling tech, preserve Watchability Index as core home feed default, clean responsive dark aesthetics.
 
 ## Decisions so far
 
-- [Validated Layout Prototype](file:///c:/Users/user/PycharmProjects/football_website/frontend/js/prototype-ui.js) — Settled and validated interactive prototype for Hamburger Drawer + Inline Geographic Waterfall + 3 Match Columns + Docked Right Side Inspector Panel.
-- [Stylesheet Backup](file:///c:/Users/user/PycharmProjects/football_website/frontend/css/styles-backup-pre-overhaul.css) — Created safety backup of pre-overhaul styles (`frontend/css/styles-backup-pre-overhaul.css`).
+- Validated layout prototype (file deleted: `frontend/js/prototype-ui.js`) — Settled and validated interactive prototype for Hamburger Drawer + Inline Geographic Waterfall + 3 Match Columns + Docked Right Side Inspector Panel.
+- Stylesheet backup (file deleted: `frontend/css/styles-backup-pre-overhaul.css`) — Safety backup of pre-overhaul styles; removed with the other dead frontend assets.
 - **Sleek Rectangular Cards (~65px Height)** — 3-column internal grid with single-line `ellipsis` overflow truncation, 22px crests, 0.15/0.25 watermark opacity, and hidden card footers.
 
 ## Open Frontier Tickets

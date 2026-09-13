@@ -72,11 +72,10 @@ Reads `/api/countries/{name}`.
 
 These exist in the repo or as URLs but are not separate products:
 
-- `frontend/css/styles.css` — `@import` shim, not a view
 - `/group/A` … `/group/L` — aliases of Standings when the competition has groups
 - `/country/…` — alias of `/team/…`
 - Admin JSON (`/api/admin/seed-all`, `/update`, …) — not linked in the UI
-- Dead prototype scripts and backup stylesheets were removed in the architecture epic; they are not shadow routes
+- Dead prototype scripts, backup stylesheets, and the unused `styles.css` `@import` shim were removed; they are not shadow routes
 
 ## Issue #28
 
