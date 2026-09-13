@@ -22,12 +22,13 @@
 - **Twice-Weekly Heavy Enrichment**: Heavy fixture enrichment (narrative scoring, ELO calculations, competitiveness) runs twice a week (Monday/Friday). Score updates read existing pre-computed fields.
 
 ## Multi-Source Fixture Ingestion
-- **Priority Fallback Chain**: Match fixtures are ingested in order `Football-Data.org` → `openfootball` → `TheSportsDB`. If a provider returns an error, timeout, empty payload, or has no mapping for the competition, the engine fails over to the next. Odds remain on The Odds API. Live scores remain on Football-Data.org.
+- **Priority Fallback Chain**: Match fixtures are ingested in order `Football-Data.org` → `openfootball` → `TheSportsDB`. If a provider returns an error, timeout, empty payload, or has no mapping for the competition, the engine fails over to the next. Odds remain on The Odds API. Live scores remain on Football-Data.org. API-Football is not a live provider.
 - **TheSportsDB coverage**: Tertiary source for cups the other two miss on the free plan / published datasets — notably **UEFA Europa League** and **UEFA Conference League**.
+- **Opaque identifiers**: `Team.api_id` is a denormalized local badge-cache key (`/static/badges/{api_id}.png`), not a live API-Football team id. `Competition.api_league_id` is an opaque catalog identifier (UCL remains `2` for admin seed).
 
 ## Global API Sync & Quota Management
-- **Single-Call Daily Sync**: Yesterday and today’s scores update via one Football-Data.org matches query (`GET /v4/matches?dateFrom=YESTERDAY&dateTo=TODAY`). Individual per-league looping is disabled.
-- **Live Score Polling**: 15-minute polling during active match windows uses Football-Data.org matches for in-window live or delayed scores.
+- **Single-Call Daily Sync**: Yesterday and today’s scores update via one Football-Data.org matches query (`GET /v4/matches?dateFrom=YESTERDAY&dateTo=TODAY`). Individual per-league looping is disabled. There is no API-Football `/fixtures?date=` call.
+- **Live Score Polling**: 15-minute polling during active match windows uses Football-Data.org matches for in-window live or delayed scores. There is no API-Football `/fixtures?live=all` call.
 
 ## Watchability Gating & Regional Baselines
 - **Regional ELO Baselines**: CONMEBOL clubs (~1600) and MLS (~1500) use regional baselines until custom in-house ELO engine is implemented.
