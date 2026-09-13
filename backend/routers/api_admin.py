@@ -150,7 +150,7 @@ def trigger_seed_all(confirm: bool = False, db: Session = Depends(get_db)):
 
 @router.post("/seed-one", dependencies=[Depends(verify_admin_token)])
 def trigger_seed_one(
-    league_id: int = Query(..., description="API-Football league ID or competition identifier to seed"),
+    league_id: int = Query(..., description="Catalog competition identifier (Competition.api_league_id) to seed"),
     confirm: bool = Query(False, description="Confirmation flag required to prevent accidental quota usage"),
     fetch_squads: bool = Query(False, description="Whether to fetch full squad rosters (consumes extra API calls)"),
     db: Session = Depends(get_db)

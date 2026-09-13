@@ -1,4 +1,4 @@
-"""Merge draw-seeded duplicate clubs onto canonical API-Football teams."""
+"""Merge draw-seeded duplicate clubs onto canonical catalog teams."""
 from __future__ import annotations
 
 import json

@@ -55,8 +55,8 @@ def main():
     parser.add_argument("command", nargs="?", default="seed-wc", 
                         choices=["seed-wc", "fetch-teams", "review-elo-matches", "apply-elo-matches", "seed-competition", "seed-one", "cache-badges", "merge-club-aliases"],
                         help="Seeding command to run")
-    parser.add_argument("--league", type=int, help="API-Football league ID")
-    parser.add_argument("--season", type=int, help="API-Football season year")
+    parser.add_argument("--league", type=int, help="Catalog competition identifier (Competition.api_league_id)")
+    parser.add_argument("--season", type=int, help="Season year for team seeding")
     parser.add_argument("--comp-name", type=str, help="Competition name (for seed-competition)")
     parser.add_argument("--comp-type", type=str, default="League", help="Competition type (League/Cup/International)")
     parser.add_argument("--format-engine", type=str, default="league", help="Competition format engine")
@@ -83,7 +83,7 @@ def main():
         elif args.command == "apply-elo-matches":
             apply_elo_matches(db, file_path=args.file)
         elif args.command == "merge-club-aliases":
-            print("Merging draw-name duplicate clubs onto API-Football canonical teams...")
+            print("Merging draw-name duplicate clubs onto canonical catalog teams...")
             for line in merge_club_aliases(db):
                 print(f"  {line}")
             print("Applying ClubElo to canonical clubs...")

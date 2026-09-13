@@ -65,7 +65,7 @@ class FixtureUpserter:
         Returns tuple of (Fixture, is_created: bool).
         """
         comp = competition or (tournament.competition if tournament else None)
-        provider_name = fixture_payload.get("provider_name", "api_football")
+        provider_name = fixture_payload.get("provider_name", "football_data")
         
         # 1. Resolve Home & Away teams if raw data provided
         home_team = fixture_payload.get("home_team")

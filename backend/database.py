@@ -64,7 +64,7 @@ class Team(Base):
     country_code = Column(String, nullable=True)
     team_type = Column(String, default="National")    # "National" | "Club"
     elo_source = Column(String, default="eloratings") # "eloratings" | "clubelo" | "manual"
-    api_id = Column(Integer, nullable=True, unique=True, index=True) # API-Football team ID
+    api_id = Column(Integer, nullable=True, unique=True, index=True)  # opaque local badge-cache key
     logo_url = Column(String, nullable=True) # Custom or cached logo URL
     
     # ELO & Form cache (stored on team for fast lookup)
