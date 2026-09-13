@@ -137,16 +137,23 @@ document.addEventListener('DOMContentLoaded', () => {
             currentMonth = now.getMonth();
         }
         
-        // Dynamic alignment: default calendar to the first match's month/year if no matches in current month
+        // Align the landing month with viewer-TZ civil dates, not the host timezone.
         let hasMatchInCurrentView = cachedMatches.some(m => {
-            const d = new Date(m.date);
-            return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+            const parsed = parseFixtureDate(m.date);
+            if (!parsed) {
+                return false;
+            }
+            const [year, month] = ymdInTimeZone(parsed, resolvedTimezone).split('-').map(Number);
+            return year === currentYear && (month - 1) === currentMonth;
         });
         
         if (!hasMatchInCurrentView && cachedMatches.length > 0) {
-            const firstMatchDate = new Date(cachedMatches[0].date);
-            currentYear = firstMatchDate.getFullYear();
-            currentMonth = firstMatchDate.getMonth();
+            const parsed = parseFixtureDate(cachedMatches[0].date);
+            if (parsed) {
+                const [year, month] = ymdInTimeZone(parsed, resolvedTimezone).split('-').map(Number);
+                currentYear = year;
+                currentMonth = month - 1;
+            }
         }
     }
 
@@ -225,7 +232,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const matchesByDateKey = {};
         cachedMatches.forEach(match => {
             try {
-                const dateObj = new Date(match.date);
+                const dateObj = parseFixtureDate(match.date);
+                if (!dateObj) {
+                    return;
+                }
                 const formatter = new Intl.DateTimeFormat('en-US', {
                     timeZone: resolvedTimezone,
                     year: 'numeric',

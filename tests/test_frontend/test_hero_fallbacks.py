@@ -51,5 +51,5 @@ def test_hero_assets_are_served_without_fallbacks(client):
     home = client.get("/")
     assert home.status_code == 200
     assert "hero-match-spotlight" in home.text
-    assert "app.js?v=1.1.0" in home.text
+    assert "app.js?v=1.1.1" in home.text
     assert "hero.css?v=1.1.0" in home.text
