@@ -47,6 +47,8 @@ class IngestionEngine:
         self,
         competition_name: str,
         api_season: int,
+        db: Optional[Session] = None,
+        competition: Optional[Competition] = None,
     ) -> Tuple[List[dict], Optional[object], str]:
         fd_fixtures = self.fd_provider.fetch_fixtures(competition_name, api_season) or []
         fd_skipped = getattr(self.fd_provider, "last_request_skipped", False) is True
@@ -59,11 +61,22 @@ class IngestionEngine:
             self._fixture_request_skipped = False
             return fd_fixtures, self.fd_provider, "Football-Data.org"
 
-        print(
-            f"Ingestion: Football-Data.org returned no fixtures for {competition_name}; "
-            f"trying openfootball."
-        )
-        of_fixtures = self.openfootball_provider.fetch_fixtures(competition_name, api_season) or []
+        skip_openfootball = competition_name in {
+            "UEFA Europa League",
+            "UEFA Conference League",
+        }
+        if skip_openfootball:
+            print(
+                f"Ingestion: Football-Data.org returned no fixtures for {competition_name}; "
+                f"skipping openfootball (no 2026/27 European-cup dataset)."
+            )
+            of_fixtures: List[dict] = []
+        else:
+            print(
+                f"Ingestion: Football-Data.org returned no fixtures for {competition_name}; "
+                f"trying openfootball."
+            )
+            of_fixtures = self.openfootball_provider.fetch_fixtures(competition_name, api_season) or []
         if of_fixtures:
             print(
                 f"Ingestion: using openfootball for {competition_name} "
@@ -75,7 +88,9 @@ class IngestionEngine:
             f"Ingestion: openfootball returned no fixtures for {competition_name}; "
             f"trying TheSportsDB."
         )
-        tsdb_fixtures = self.tsdb_provider.fetch_fixtures(competition_name, api_season) or []
+        tsdb_fixtures = self.tsdb_provider.fetch_fixtures(
+            competition_name, api_season, db=db, competition=competition
+        ) or []
         if tsdb_fixtures:
             print(
                 f"Ingestion: using TheSportsDB for {competition_name} "
@@ -147,7 +162,7 @@ class IngestionEngine:
 
         # 3. Provider Fallback Chain: Football-Data.org -> openfootball -> TheSportsDB
         raw_fixtures, provider, source_name = self._collect_raw_fixtures(
-            competition_name, api_season
+            competition_name, api_season, db=db, competition=comp
         )
 
         # 4. Run Pre-flight Safety Guard before team/fixture mutation
@@ -156,8 +171,11 @@ class IngestionEngine:
         normalized_fixtures = []
         if provider:
             for item in raw_fixtures:
+                extra = {}
+                if provider is self.tsdb_provider:
+                    extra["competition_name"] = competition_name
                 norm_item = provider.normalize_fixture_payload(
-                    db, item, tourney.id, competition_type
+                    db, item, tourney.id, competition_type, **extra
                 )
                 if norm_item:
                     normalized_fixtures.append(norm_item)
@@ -225,6 +243,67 @@ class IngestionEngine:
         db.flush()
         print(
             f"Overlay: Football-Data.org stamped/inserted "
+            f"{result.created} created / {result.updated} updated "
+            f"fixtures for {competition.name}."
+        )
+        return result
+
+    def overlay_from_thesportsdb(
+        self,
+        db: Session,
+        tournament: Tournament,
+        competition: Competition,
+        api_season: int,
+    ) -> UpsertResult:
+        """Additive TheSportsDB overlay. Never falls back to openfootball or DELETE."""
+        self.preflight.assert_no_deletes("overlay_from_thesportsdb")
+        raw_fixtures = self.tsdb_provider.fetch_fixtures(
+            competition.name, api_season, db=db, competition=competition
+        ) or []
+        if not raw_fixtures:
+            print(
+                f"Overlay: TheSportsDB returned no fixtures for {competition.name}."
+            )
+            return UpsertResult(
+                status="skipped",
+                message="TheSportsDB returned no fixtures",
+            )
+
+        self.preflight.check_fixture_count(db, tournament.id, len(raw_fixtures))
+
+        normalized_fixtures = []
+        for item in raw_fixtures:
+            norm_item = self.tsdb_provider.normalize_fixture_payload(
+                db,
+                item,
+                tournament.id,
+                competition.type or "Cup",
+                competition_name=competition.name,
+            )
+            if not norm_item:
+                continue
+            if not norm_item.get("home_team") or not norm_item.get("away_team"):
+                continue
+            normalized_fixtures.append(norm_item)
+
+        if not normalized_fixtures:
+            print(
+                f"Overlay: TheSportsDB returned no ingestible fixtures for {competition.name}."
+            )
+            return UpsertResult(
+                status="skipped",
+                message="TheSportsDB returned no ingestible fixtures",
+            )
+
+        self.preflight.assert_no_deletes("overlay_from_thesportsdb")
+        result = self.upserter.upsert_fixtures(
+            db, tournament, normalized_fixtures, competition=competition
+        )
+        merge_club_aliases(db, commit=False)
+        self._score_tournament_fixtures(db, tournament.id)
+        db.flush()
+        print(
+            f"Overlay: TheSportsDB stamped/inserted "
             f"{result.created} created / {result.updated} updated "
             f"fixtures for {competition.name}."
         )

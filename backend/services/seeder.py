@@ -360,6 +360,42 @@ def _overlay_ucl_from_football_data(db: Session, tourney, comp):
     )
 
 
+def _overlay_euro_cup_from_thesportsdb(db: Session, tourney, comp):
+    """Stamp Europa / Conference pairings from TheSportsDB after Football-Data.org is empty."""
+    from backend.services.ingestion.engine import IngestionEngine, UpsertResult
+
+    api_season = 2026
+    try:
+        api_season = int(tourney.season_name.split("/")[0])
+    except (ValueError, AttributeError):
+        pass
+
+    engine = IngestionEngine()
+    fd_overlay = engine.overlay_from_football_data(
+        db,
+        tournament=tourney,
+        competition=comp,
+        api_season=api_season,
+    )
+    if fd_overlay.created or fd_overlay.updated:
+        return fd_overlay
+
+    tsdb_overlay = engine.overlay_from_thesportsdb(
+        db,
+        tournament=tourney,
+        competition=comp,
+        api_season=api_season,
+    )
+    if tsdb_overlay.created or tsdb_overlay.updated:
+        return tsdb_overlay
+    if fd_overlay.status == "skipped" and tsdb_overlay.status == "skipped":
+        return UpsertResult(
+            status="skipped",
+            message=tsdb_overlay.message or fd_overlay.message,
+        )
+    return tsdb_overlay
+
+
 def _seed_european_cups(db: Session, target_league_id: Optional[int] = None) -> SeedResult:
     if not _EURO_DRAW_JSON.exists():
         print(f"Error: {_EURO_DRAW_JSON} not found.")
@@ -448,6 +484,10 @@ def _seed_european_cups(db: Session, target_league_id: Optional[int] = None) -> 
                 overlay = _overlay_ucl_from_football_data(db, tourney, comp)
                 created_total += overlay.created
                 updated_total += overlay.updated
+            elif api_league_id in (3, 848):
+                overlay = _overlay_euro_cup_from_thesportsdb(db, tourney, comp)
+                created_total += overlay.created
+                updated_total += overlay.updated
 
             fixtures = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).all()
             for fixture in fixtures:
@@ -479,9 +519,14 @@ def _seed_european_cups(db: Session, target_league_id: Optional[int] = None) -> 
 def _live_seedable_competitions() -> set[str]:
     from backend.services.providers.football_data import COMPETITION_CODE_MAP
     from backend.services.providers.openfootball import OPENFOOTBALL_DATASETS
-    from backend.services.providers.thesportsdb import LEAGUE_ID_MAP
+    from backend.services.providers.thesportsdb import LEAGUE_ID_MAP, SEARCH_RESOLVED_COMPETITIONS
 
-    names = set(COMPETITION_CODE_MAP) | set(OPENFOOTBALL_DATASETS) | set(LEAGUE_ID_MAP)
+    names = (
+        set(COMPETITION_CODE_MAP)
+        | set(OPENFOOTBALL_DATASETS)
+        | set(LEAGUE_ID_MAP)
+        | set(SEARCH_RESOLVED_COMPETITIONS)
+    )
     names.discard("FIFA World Cup")
     names.discard("European Championship")
     return names

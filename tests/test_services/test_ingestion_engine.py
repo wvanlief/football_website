@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import pytest
 
 from backend.database import Competition, Tournament, Fixture, Team, ExternalTeamMapping
-from backend.crud.mapping import get_team_by_external_id
+from backend.crud.mapping import get_external_id_for_competition, get_team_by_external_id
 from backend.services.ingestion.engine import IngestionEngine, seed_competition
 from backend.services.ingestion.preflight import IngestionAborted
 
@@ -63,6 +63,50 @@ def _of_http(matches=None):
             return {"name": "community", "matches": list(matches or [])}
         return {}
     return _fetch
+
+
+TSDB_UECL_EVENT = {
+    "idEvent": "3000001",
+    "idLeague": "5071",
+    "strLeague": "UEFA Europa Conference League",
+    "strHomeTeam": "Fiorentina",
+    "strAwayTeam": "Real Betis",
+    "idHomeTeam": "133832",
+    "idAwayTeam": "133739",
+    "intRound": "1",
+    "intHomeScore": None,
+    "intAwayScore": None,
+    "strTimestamp": "2026-10-01T19:00:00",
+    "dateEvent": "2026-10-01",
+    "strTime": "19:00:00",
+    "strPostponed": "no",
+    "strStatus": "Not Started",
+}
+
+TSDB_EURO_SEARCH = {
+    "countries": [
+        {"idLeague": "4481", "strLeague": "UEFA Europa League", "strSport": "Soccer"},
+        {
+            "idLeague": "5071",
+            "strLeague": "UEFA Europa Conference League",
+            "strLeagueAlternate": "UEFA Conference League",
+            "strSport": "Soccer",
+        },
+    ]
+}
+
+
+def _tsdb_http(events=None, search=None):
+    def side_effect(url, *args, **kwargs):
+        if "search_all_leagues.php" in url or "all_leagues.php" in url:
+            return search if search is not None else TSDB_EURO_SEARCH
+        if "eventsseason.php" in url:
+            if isinstance(events, dict):
+                return events
+            return {"events": events}
+        return {}
+
+    return side_effect
 
 
 @patch("backend.services.providers.openfootball.fetch_json_with_retry")
@@ -167,26 +211,7 @@ def test_empty_fd_and_openfootball_falls_back_to_thesportsdb_for_conference_leag
     """Conference League has no FD free-plan or openfootball dataset; TheSportsDB is tertiary."""
     mock_fd_http.side_effect = _fd_http(matches=[])
     mock_of_http.side_effect = _of_http(matches=[])
-    mock_tsdb_http.return_value = {
-        "events": [
-            {
-                "idEvent": "3000001",
-                "idLeague": "5071",
-                "strHomeTeam": "Fiorentina",
-                "strAwayTeam": "Real Betis",
-                "idHomeTeam": "133832",
-                "idAwayTeam": "133739",
-                "intRound": "1",
-                "intHomeScore": None,
-                "intAwayScore": None,
-                "strTimestamp": "2026-10-01T19:00:00",
-                "dateEvent": "2026-10-01",
-                "strTime": "19:00:00",
-                "strPostponed": "no",
-                "strStatus": "Not Started",
-            }
-        ]
-    }
+    mock_tsdb_http.side_effect = _tsdb_http(events=[TSDB_UECL_EVENT])
 
     result = seed_competition(
         db=db_session,
@@ -207,11 +232,13 @@ def test_empty_fd_and_openfootball_falls_back_to_thesportsdb_for_conference_leag
     assert fixture.home_team.name == "Fiorentina"
     assert fixture.away_team.name == "Real Betis"
     assert fixture.watchability_score and fixture.watchability_score > 0
-    mock_tsdb_http.assert_called()
-    url = mock_tsdb_http.call_args[0][0]
-    assert "eventsseason.php" in url
-    assert "id=5071" in url
-    assert "s=2026-2027" in url
+    assert get_external_id_for_competition(db_session, tourney.competition_id, "thesportsdb") == "5071"
+    mock_of_http.assert_not_called()
+    tsdb_urls = [call.args[0] for call in mock_tsdb_http.call_args_list]
+    assert any("search_all_leagues.php" in url for url in tsdb_urls)
+    season_url = next(url for url in tsdb_urls if "eventsseason.php" in url)
+    assert "id=5071" in season_url
+    assert "s=2026-2027" in season_url
 
 
 @patch("backend.services.providers.openfootball.fetch_json_with_retry")

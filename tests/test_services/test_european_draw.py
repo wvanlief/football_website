@@ -29,6 +29,10 @@ def test_seed_european_cups(db_session, monkeypatch):
     monkeypatch.delenv("FOOTBALL_DATA_ORG_KEY", raising=False)
     monkeypatch.delenv("FOOTBALL_DATA_API_KEY", raising=False)
     monkeypatch.delenv("FOOTBALL_DATA_KEY", raising=False)
+    monkeypatch.setattr(
+        "backend.services.providers.thesportsdb.fetch_json_with_retry",
+        lambda url, *args, **kwargs: {"countries": [], "leagues": [], "events": None},
+    )
     results = seed_european_cups(db_session)
     assert "UEFA Champions League" in results
     assert "UEFA Europa League" in results

@@ -3,10 +3,12 @@ from datetime import datetime, timezone
 
 import pytest
 
-from backend.crud.mapping import get_team_by_external_id
+from backend.crud.mapping import get_external_id_for_competition, get_team_by_external_id
+from backend.database import Competition
 from backend.services.providers.thesportsdb import (
     CALENDAR_YEAR_COMPETITIONS,
     LEAGUE_ID_MAP,
+    SEARCH_RESOLVED_COMPETITIONS,
     TheSportsDBProvider,
     parse_event_datetime,
     parse_event_status,
@@ -36,15 +38,66 @@ TSDB_UEL_EVENT = {
     "strStatus": "FT",
 }
 
+TSDB_UECL_EVENT = {
+    "idEvent": "3000001",
+    "idLeague": "5071",
+    "strLeague": "UEFA Europa Conference League",
+    "strHomeTeam": "Fiorentina",
+    "strAwayTeam": "Real Betis",
+    "idHomeTeam": "133832",
+    "idAwayTeam": "133739",
+    "intRound": "1",
+    "intHomeScore": None,
+    "intAwayScore": None,
+    "strTimestamp": "2026-10-01T19:00:00",
+    "dateEvent": "2026-10-01",
+    "strTime": "19:00:00",
+    "strPostponed": "no",
+    "strStatus": "Not Started",
+}
+
+TSDB_EURO_SEARCH = {
+    "countries": [
+        {
+            "idLeague": "4481",
+            "strLeague": "UEFA Europa League",
+            "strSport": "Soccer",
+        },
+        {
+            "idLeague": "5071",
+            "strLeague": "UEFA Europa Conference League",
+            "strLeagueAlternate": "UEFA Conference League",
+            "strSport": "Soccer",
+        },
+    ]
+}
+
+
+def _tsdb_http(events=None, search=None):
+    """Route mocked TheSportsDB HTTP by endpoint."""
+
+    def side_effect(url, *args, **kwargs):
+        if "search_all_leagues.php" in url or "all_leagues.php" in url:
+            return search if search is not None else TSDB_EURO_SEARCH
+        if "eventsseason.php" in url:
+            if isinstance(events, dict):
+                return events
+            return {"events": events}
+        return {}
+
+    return side_effect
+
 
 def test_league_id_mapping_covers_european_cups():
     provider = TheSportsDBProvider()
-    assert provider.get_league_id("UEFA Europa League") == "4481"
-    assert provider.get_league_id("UEFA Conference League") == "5071"
+    assert provider.get_league_id("UEFA Europa League") is None
+    assert provider.get_league_id("UEFA Conference League") is None
+    assert "UEFA Europa League" not in LEAGUE_ID_MAP
+    assert "UEFA Conference League" not in LEAGUE_ID_MAP
+    assert "UEFA Europa League" in SEARCH_RESOLVED_COMPETITIONS
     assert provider.get_league_id("UEFA Champions League") == "4480"
     assert provider.get_league_id("Premier League") == "4328"
     assert provider.get_league_id("Non Existent League") is None
-    assert LEAGUE_ID_MAP["UEFA Europa League"] == "4481"
 
 
 def test_season_string_split_vs_calendar():
@@ -101,17 +154,18 @@ def test_parse_score():
 
 @patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
 def test_fetch_fixtures_mocked(mock_fetch):
-    mock_fetch.return_value = {"events": [TSDB_UEL_EVENT]}
+    mock_fetch.side_effect = _tsdb_http(events=[TSDB_UEL_EVENT])
     provider = TheSportsDBProvider(api_key="test-key")
     fixtures = provider.fetch_fixtures("UEFA Europa League", 2026)
 
     assert len(fixtures) == 1
     assert fixtures[0]["idEvent"] == "2272310"
-    mock_fetch.assert_called_once()
-    url = mock_fetch.call_args[0][0]
-    assert url.startswith("https://www.thesportsdb.com/api/v1/json/test-key/eventsseason.php?")
-    assert "id=4481" in url
-    assert "s=2026-2027" in url
+    urls = [call.args[0] for call in mock_fetch.call_args_list]
+    assert any("search_all_leagues.php" in url for url in urls)
+    season_url = next(url for url in urls if "eventsseason.php" in url)
+    assert season_url.startswith("https://www.thesportsdb.com/api/v1/json/test-key/eventsseason.php?")
+    assert "id=4481" in season_url
+    assert "s=2026-2027" in season_url
     assert mock_fetch.call_args.kwargs.get("provider") == "thesportsdb"
 
 
@@ -119,7 +173,7 @@ def test_fetch_fixtures_mocked(mock_fetch):
 def test_fetch_fixtures_drops_cross_league_events(mock_fetch):
     foreign = dict(TSDB_UEL_EVENT)
     foreign["idLeague"] = "4480"
-    mock_fetch.return_value = {"events": [TSDB_UEL_EVENT, foreign]}
+    mock_fetch.side_effect = _tsdb_http(events=[TSDB_UEL_EVENT, foreign])
 
     provider = TheSportsDBProvider(api_key="test-key")
     fixtures = provider.fetch_fixtures("UEFA Europa League", 2026)
@@ -137,11 +191,48 @@ def test_fetch_fixtures_unmapped_competition_skips_http(mock_fetch):
 
 @patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
 def test_fetch_fixtures_empty_payload(mock_fetch):
-    mock_fetch.return_value = {"events": None}
+    mock_fetch.side_effect = _tsdb_http(events={"events": None})
     provider = TheSportsDBProvider(api_key="test-key")
     assert provider.fetch_fixtures("UEFA Conference League", 2026) == []
-    url = mock_fetch.call_args[0][0]
-    assert "id=5071" in url
+    urls = [call.args[0] for call in mock_fetch.call_args_list]
+    season_url = next(url for url in urls if "eventsseason.php" in url)
+    assert "id=5071" in season_url
+
+
+@patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
+def test_empty_search_skips_season_events(mock_fetch):
+    mock_fetch.side_effect = _tsdb_http(
+        events=[TSDB_UEL_EVENT],
+        search={"countries": [], "leagues": []},
+    )
+    provider = TheSportsDBProvider(api_key="test-key")
+    assert provider.fetch_fixtures("UEFA Europa League", 2026) == []
+    urls = [call.args[0] for call in mock_fetch.call_args_list]
+    assert any("search_all_leagues.php" in url for url in urls)
+    assert any("all_leagues.php" in url for url in urls)
+    assert not any("eventsseason.php" in url for url in urls)
+
+
+@patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
+def test_search_persists_league_id_on_competition_mapping(mock_fetch, db_session):
+    mock_fetch.side_effect = _tsdb_http(events=[TSDB_UEL_EVENT])
+    comp = Competition(name="UEFA Europa League", type="Cup", format_engine="league_phase_knockout")
+    db_session.add(comp)
+    db_session.flush()
+
+    provider = TheSportsDBProvider(api_key="test-key")
+    fixtures = provider.fetch_fixtures("UEFA Europa League", 2026, db=db_session, competition=comp)
+
+    assert len(fixtures) == 1
+    assert get_external_id_for_competition(db_session, comp.id, "thesportsdb") == "4481"
+
+    mock_fetch.reset_mock()
+    mock_fetch.side_effect = _tsdb_http(events=[TSDB_UEL_EVENT], search={"countries": []})
+    again = provider.fetch_fixtures("UEFA Europa League", 2026, db=db_session, competition=comp)
+    assert len(again) == 1
+    urls = [call.args[0] for call in mock_fetch.call_args_list]
+    assert not any("search_all_leagues.php" in url for url in urls)
+    assert any("eventsseason.php" in url and "id=4481" in url for url in urls)
 
 
 def test_normalize_fixture_payload(db_session):
@@ -157,6 +248,7 @@ def test_normalize_fixture_payload(db_session):
     assert norm["home_score"] == 2
     assert norm["away_score"] == 1
     assert norm["matchday_number"] == 1
+    assert norm["stage"] == "League Phase"
     assert norm["home_team"].name == "Roma"
     assert norm["away_team"].name == "Athletic Club"
     assert norm["home_team"].logo_url == TSDB_UEL_EVENT["strHomeTeamBadge"]

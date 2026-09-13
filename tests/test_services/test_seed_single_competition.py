@@ -281,13 +281,90 @@ def test_ucl_overlay_stamps_inserts_hides_and_skips_api_football_key(
 
 
 @patch("backend.services.seeder.fetch_and_seed_teams")
+@patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
 @patch("backend.services.providers.football_data.FootballDataProvider.fetch_fixtures")
-def test_europa_overlay_is_out_of_scope(mock_fetch_fixtures, mock_fetch_teams, db_session, monkeypatch):
+def test_europa_overlay_stamps_from_thesportsdb_after_empty_football_data(
+    mock_fd_fetch, mock_tsdb_http, mock_fetch_teams, db_session, monkeypatch
+):
     monkeypatch.setenv("FOOTBALL_DATA_ORG_KEY", "fd-test-key")
-    mock_fetch_fixtures.return_value = [{"id": 1}]
+    mock_fd_fetch.return_value = []
+    mock_tsdb_http.side_effect = lambda url, *args, **kwargs: (
+        {
+            "countries": [
+                {"idLeague": "4481", "strLeague": "UEFA Europa League", "strSport": "Soccer"}
+            ]
+        }
+        if "search_all_leagues.php" in url or "all_leagues.php" in url
+        else {
+            "events": [
+                {
+                    "idEvent": "2272400",
+                    "idLeague": "4481",
+                    "strLeague": "UEFA Europa League",
+                    "strHomeTeam": "AZ Alkmaar",
+                    "strAwayTeam": "Elfsborg",
+                    "idHomeTeam": "133800",
+                    "idAwayTeam": "133801",
+                    "intRound": "1",
+                    "intHomeScore": None,
+                    "intAwayScore": None,
+                    "strTimestamp": "2026-09-25T18:45:00",
+                    "dateEvent": "2026-09-25",
+                    "strTime": "18:45:00",
+                    "strPostponed": "no",
+                    "strStatus": "Not Started",
+                }
+            ]
+        }
+        if "eventsseason.php" in url
+        else {}
+    )
+
+    result = seed_single_competition(db_session, league_id=3)
+    assert result["status"] == "success"
+    mock_fd_fetch.assert_called()
+    assert mock_fd_fetch.call_args[0][0] == "UEFA Europa League"
+
+    uel = db_session.query(Competition).filter_by(name="UEFA Europa League").first()
+    tourney = db_session.query(Tournament).filter_by(competition_id=uel.id).first()
+    stamped = (
+        db_session.query(Fixture)
+        .filter(Fixture.tournament_id == tourney.id, Fixture.api_id == "tsdb_2272400")
+        .one()
+    )
+    assert stamped.home_team.name == "AZ Alkmaar"
+    assert stamped.away_team.name == "Elfsborg"
+    from backend.crud.mapping import get_external_id_for_competition
+    assert get_external_id_for_competition(db_session, uel.id, "thesportsdb") == "4481"
+
+    playoff_count = (
+        db_session.query(Fixture)
+        .filter(Fixture.tournament_id == tourney.id, Fixture.stage == "Play-offs")
+        .count()
+    )
+    assert playoff_count > 0
+    tsdb_urls = [call.args[0] for call in mock_tsdb_http.call_args_list]
+    assert any("search_all_leagues.php" in url for url in tsdb_urls)
+    assert any("eventsseason.php" in url and "id=4481" in url for url in tsdb_urls)
+
+
+@patch("backend.services.seeder.fetch_and_seed_teams")
+@patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
+@patch("backend.services.providers.football_data.FootballDataProvider.fetch_fixtures")
+def test_europa_empty_thesportsdb_does_not_invent_fixtures(
+    mock_fd_fetch, mock_tsdb_http, mock_fetch_teams, db_session, monkeypatch
+):
+    monkeypatch.setenv("FOOTBALL_DATA_ORG_KEY", "fd-test-key")
+    mock_fd_fetch.return_value = []
+    mock_tsdb_http.side_effect = lambda url, *args, **kwargs: (
+        {"countries": [{"idLeague": "4481", "strLeague": "UEFA Europa League"}]}
+        if "search_all_leagues.php" in url or "all_leagues.php" in url
+        else {"events": None}
+        if "eventsseason.php" in url
+        else {}
+    )
 
     seed_single_competition(db_session, league_id=3)
-    mock_fetch_fixtures.assert_not_called()
     uel = db_session.query(Competition).filter_by(name="UEFA Europa League").first()
     tourney = db_session.query(Tournament).filter_by(competition_id=uel.id).first()
     stamped = (
@@ -296,3 +373,4 @@ def test_europa_overlay_is_out_of_scope(mock_fetch_fixtures, mock_fetch_teams, d
         .count()
     )
     assert stamped == 0
+    assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() > 0
