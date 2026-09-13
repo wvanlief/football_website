@@ -25,14 +25,14 @@ Stores the unique competition definition (persisting across seasons).
 Stores all team details (both club and national teams).
 * `team_type` (String, default: `"National"`): Differentiates between club and national teams. Allowed values: `"Club"`, `"National"`.
 * `elo_source` (String, default: `"eloratings"`): Source registry for ELO sync. Allowed values: `"clubelo"`, `"eloratings"`, `"manual"`.
-* `api_id` (Integer, unique, Nullable): API-Football team ID mapping.
+* `api_id` (Integer, unique, Nullable): Opaque local badge-cache key (`/static/badges/{api_id}.png`), not a live API-Football team id.
 * **Uniqueness**: The global unique constraint on `Team.name` is replaced with a composite unique constraint `uq_team_name_country` on `(name, country_code)` to allow name reuse across different countries/contexts.
 
 #### `fixtures` (Fixture)
 Stores match schedules, scores, and cached metrics.
 * `matchday_number` (Integer, Nullable): Identifies the game week / matchday number (e.g., `1` through `38` in the Premier League).
 * `api_id` (String, Nullable): External fixture API ID.
-* **Uniqueness**: The global unique constraint on `Fixture.api_id` is replaced with a composite unique constraint `uq_fixture_tournament_api` on `(tournament_id, api_id)` to prevent identifier clashes between legacy World Cup IDs and API-Football IDs.
+* **Uniqueness**: The global unique constraint on `Fixture.api_id` is replaced with a composite unique constraint `uq_fixture_tournament_api` on `(tournament_id, api_id)` to prevent identifier clashes between legacy World Cup IDs and prefixed Football-Data.org match ids.
 
 #### `tournament_teams` (TournamentTeam)
 Associates a team with a specific tournament edition.
@@ -79,7 +79,7 @@ To fetch and seed teams (e.g. Premier League, league=39, season=2026):
 ```bash
 python -m backend.ingestor fetch-teams --league=39 --season=2026
 ```
-This fetches teams from API-Football, inserts them as `"Club"` entities, and seeds up to 3 spotlight players (1 Goalkeeper, 1 Midfielder, 1 Forward) from active squads.
+This fetches teams from Football-Data.org (then openfootball), inserts them as `"Club"` entities, and stores crests without the API-Sports CDN. Squad spotlight ingestion from API-Football is retired.
 
 ### Step 3.2: Verify and Import ELO Mappings (ClubElo)
 Since ClubElo uses distinct team spellings, ELO integration uses a fuzzy-matched verification flow.
@@ -132,8 +132,8 @@ The background updates are managed by [updater.py](file:///c:/Users/user/Pycharm
 ### 4.1 Update Tasks Overview
 1. **Full Update** (`python -m backend.services.updater`):
    * Runs less frequently (e.g., hourly or twice daily).
-   * Loops through all active tournaments and fetches full fixture schedules and results.
-   * Domestic leagues sync using API-Football (`/fixtures`).
+   * Updates yesterday and today via one Football-Data.org matches query (`GET /v4/matches?dateFrom=&dateTo=`).
+   * Does not call API-Football (`v3.football.api-sports.io`).
    * Fetches latest betting odds using The Odds API.
    * Synchronizes team ELO ratings.
 2. **Live Score Update** (`python -m backend.services.updater --live`):
@@ -147,8 +147,7 @@ The background updates are managed by [updater.py](file:///c:/Users/user/Pycharm
 Make sure the following variables are defined in the environment or local `.env` file:
 ```env
 THE_ODDS_API_KEY=your_odds_api_key
-API_FOOTBALL_KEY=your_api_football_key
-FOOTBALL_DATA_API_KEY=your_football_data_api_key
+FOOTBALL_DATA_ORG_KEY=your_football_data_org_key
 ```
 
 ### 4.3 ELO Gating Optimization

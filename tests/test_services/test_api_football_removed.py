@@ -20,6 +20,7 @@ FORBIDDEN_IMPORT_ROOTS = {
     "backend.services.providers.api_football",
     "api_football",
 }
+FORBIDDEN_CLIENT_SUBSTRING = "backend.services.providers.api_football"
 
 
 def _imported_names(source: str) -> set[str]:
@@ -40,6 +41,27 @@ def _imported_names(source: str) -> set[str]:
     return names
 
 
+def _production_python_files() -> list[Path]:
+    return [
+        path
+        for path in BACKEND_ROOT.rglob("*.py")
+        if "__pycache__" not in path.parts
+    ]
+
+
+def _assert_module_has_no_api_football_client(path: Path) -> None:
+    source = path.read_text(encoding="utf-8")
+    imported = _imported_names(source)
+    collision = imported & FORBIDDEN_IMPORT_ROOTS
+    rel = path.relative_to(REPO_ROOT)
+    assert not collision, f"{rel} imports {sorted(collision)}"
+    assert "call_football_api" not in imported
+    assert "ApiFootballProvider" not in imported
+    assert FORBIDDEN_CLIENT_SUBSTRING not in source, (
+        f"{rel} still references {FORBIDDEN_CLIENT_SUBSTRING}"
+    )
+
+
 def test_api_football_http_client_module_is_removed():
     assert not (BACKEND_ROOT / "services" / "providers" / "api_football.py").exists()
     with pytest.raises(ModuleNotFoundError):
@@ -49,12 +71,10 @@ def test_api_football_http_client_module_is_removed():
 def test_updater_seeder_engine_do_not_import_api_football_client():
     """Fails if updater, seeder, or the ingestion engine import the removed client."""
     for path in PRODUCTION_MODULES:
-        source = path.read_text(encoding="utf-8")
-        imported = _imported_names(source)
-        collision = imported & FORBIDDEN_IMPORT_ROOTS
-        assert not collision, f"{path.relative_to(REPO_ROOT)} imports {sorted(collision)}"
-        assert "call_football_api" not in imported
-        assert "ApiFootballProvider" not in imported
+        assert path.is_file(), f"missing production module {path.relative_to(REPO_ROOT)}"
+        _assert_module_has_no_api_football_client(path)
+    for path in _production_python_files():
+        _assert_module_has_no_api_football_client(path)
 
 
 def test_rate_limiter_has_no_api_football_quota():
@@ -63,7 +83,7 @@ def test_rate_limiter_has_no_api_football_quota():
 
 def test_runtime_python_has_no_api_sports_v3_host():
     hits = []
-    for path in BACKEND_ROOT.rglob("*.py"):
+    for path in _production_python_files():
         text = path.read_text(encoding="utf-8")
         if "v3.football.api-sports.io" in text:
             hits.append(str(path.relative_to(REPO_ROOT)))
@@ -71,5 +91,7 @@ def test_runtime_python_has_no_api_sports_v3_host():
 
 
 def test_team_and_competition_opaque_ids_remain():
-    assert Team.api_id is not None
-    assert Competition.api_league_id is not None
+    assert "api_id" in Team.__table__.columns
+    assert "api_league_id" in Competition.__table__.columns
+    assert Team.__table__.columns["api_id"].name == "api_id"
+    assert Competition.__table__.columns["api_league_id"].name == "api_league_id"

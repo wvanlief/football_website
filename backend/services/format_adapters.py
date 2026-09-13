@@ -74,30 +74,6 @@ def parse_match_date(date_str: str, stadium_id: str) -> datetime:
             return datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc)
 
 
-def map_api_football_round_to_type_key(round_str: str) -> str:
-    """
-    Maps API-Football round strings (e.g., 'Round of 16', 'Quarter-finals') to internal stage keys.
-    """
-    if not round_str:
-        return "group"
-    r = round_str.lower()
-    if "group" in r:
-        return "group"
-    elif "32" in r:
-        return "round_of_32"
-    elif "16" in r:
-        return "round_of_16"
-    elif "quarter" in r:
-        return "quarter"
-    elif "semi" in r:
-        return "semi"
-    elif "third" in r or "3rd" in r:
-        return "third"
-    elif "final" in r:
-        return "final"
-    return "group"
-
-
 def find_fixture_by_teams(
     fixtures: list[Fixture],
     home_name: str,
