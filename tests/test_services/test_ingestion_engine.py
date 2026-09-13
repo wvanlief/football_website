@@ -335,3 +335,35 @@ def test_seeding_mapped_league_leaves_uncovered_competitions(mock_fd_http, mock_
         ).all()
         assert len(leftover_fixtures) == 1
         assert leftover_fixtures[0].api_id == f"{name}-keep"
+
+
+@patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
+def test_thesportsdb_overlay_stamps_sparse_payload_without_abort(mock_tsdb_http, db_session):
+    """Additive overlay INSERT/UPDATE even when TheSportsDB returns far fewer events."""
+    mock_tsdb_http.side_effect = _tsdb_http(events=[TSDB_UECL_EVENT])
+    comp = Competition(
+        name="UEFA Conference League",
+        type="Cup",
+        format_engine="league_phase_knockout",
+        api_league_id=848,
+    )
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+    now_utc = datetime.now(timezone.utc)
+    for i in range(10):
+        db_session.add(Fixture(
+            tournament_id=tourney.id,
+            api_id=f"tsdb_old_{i}",
+            date_utc=now_utc,
+            stage="League Phase",
+            status="Scheduled",
+        ))
+    db_session.commit()
+
+    result = IngestionEngine().overlay_from_thesportsdb(db_session, tourney, comp, 2026)
+    assert result.created == 1
+    assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() == 11
+    assert db_session.query(Fixture).filter_by(api_id="tsdb_3000001").one().home_team.name == "Fiorentina"

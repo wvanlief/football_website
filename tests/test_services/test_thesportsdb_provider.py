@@ -235,6 +235,41 @@ def test_search_persists_league_id_on_competition_mapping(mock_fetch, db_session
     assert any("eventsseason.php" in url and "id=4481" in url for url in urls)
 
 
+@patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
+def test_search_skips_non_soccer_and_prefers_exact_name(mock_fetch):
+    mock_fetch.side_effect = _tsdb_http(
+        events=[TSDB_UEL_EVENT],
+        search={
+            "countries": [
+                {
+                    "idLeague": "9999",
+                    "strLeague": "UEFA Europa League",
+                    "strSport": "Basketball",
+                },
+                {
+                    "idLeague": "1111",
+                    "strLeague": "Europa League",
+                    "strSport": "Soccer",
+                },
+                {
+                    "idLeague": "4481",
+                    "strLeague": "UEFA Europa League",
+                    "strSport": "Soccer",
+                },
+            ]
+        },
+    )
+    provider = TheSportsDBProvider(api_key="test-key")
+    fixtures = provider.fetch_fixtures("UEFA Europa League", 2026)
+    assert len(fixtures) == 1
+    season_url = next(
+        call.args[0] for call in mock_fetch.call_args_list if "eventsseason.php" in call.args[0]
+    )
+    assert "id=4481" in season_url
+    assert "id=9999" not in season_url
+    assert "id=1111" not in season_url
+
+
 def test_normalize_fixture_payload(db_session):
     provider = TheSportsDBProvider()
     norm = provider.normalize_fixture_payload(

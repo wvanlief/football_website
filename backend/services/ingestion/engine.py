@@ -269,7 +269,8 @@ class IngestionEngine:
                 message="TheSportsDB returned no fixtures",
             )
 
-        self.preflight.check_fixture_count(db, tournament.id, len(raw_fixtures))
+        # Additive overlay must INSERT/UPDATE a subset; never abort (or DELETE)
+        # because TheSportsDB returned fewer events than already-stamped rows.
 
         normalized_fixtures = []
         for item in raw_fixtures:

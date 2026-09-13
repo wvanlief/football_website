@@ -374,3 +374,70 @@ def test_europa_empty_thesportsdb_does_not_invent_fixtures(
     )
     assert stamped == 0
     assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() > 0
+
+
+@patch("backend.services.seeder.fetch_and_seed_teams")
+@patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
+@patch("backend.services.providers.football_data.FootballDataProvider.fetch_fixtures")
+def test_conference_overlay_stamps_from_thesportsdb_after_empty_football_data(
+    mock_fd_fetch, mock_tsdb_http, mock_fetch_teams, db_session, monkeypatch
+):
+    monkeypatch.setenv("FOOTBALL_DATA_ORG_KEY", "fd-test-key")
+    mock_fd_fetch.return_value = []
+    mock_tsdb_http.side_effect = lambda url, *args, **kwargs: (
+        {
+            "countries": [
+                {
+                    "idLeague": "5071",
+                    "strLeague": "UEFA Europa Conference League",
+                    "strLeagueAlternate": "UEFA Conference League",
+                    "strSport": "Soccer",
+                }
+            ]
+        }
+        if "search_all_leagues.php" in url or "all_leagues.php" in url
+        else {
+            "events": [
+                {
+                    "idEvent": "3000001",
+                    "idLeague": "5071",
+                    "strLeague": "UEFA Europa Conference League",
+                    "strHomeTeam": "Fiorentina",
+                    "strAwayTeam": "Real Betis",
+                    "idHomeTeam": "133832",
+                    "idAwayTeam": "133739",
+                    "intRound": "1",
+                    "intHomeScore": None,
+                    "intAwayScore": None,
+                    "strTimestamp": "2026-10-01T19:00:00",
+                    "dateEvent": "2026-10-01",
+                    "strTime": "19:00:00",
+                    "strPostponed": "no",
+                    "strStatus": "Not Started",
+                }
+            ]
+        }
+        if "eventsseason.php" in url
+        else {}
+    )
+
+    result = seed_single_competition(db_session, league_id=848)
+    assert result["status"] == "success"
+    uecl = db_session.query(Competition).filter_by(name="UEFA Conference League").first()
+    tourney = db_session.query(Tournament).filter_by(competition_id=uecl.id).first()
+    stamped = (
+        db_session.query(Fixture)
+        .filter(Fixture.tournament_id == tourney.id, Fixture.api_id == "tsdb_3000001")
+        .one()
+    )
+    assert stamped.home_team.name == "Fiorentina"
+    from backend.crud.mapping import get_external_id_for_competition
+    assert get_external_id_for_competition(db_session, uecl.id, "thesportsdb") == "5071"
+    leftover = (
+        db_session.query(Fixture)
+        .filter(Fixture.tournament_id == tourney.id, Fixture.api_id.is_(None))
+        .count()
+    )
+    assert leftover > 0
+    tsdb_urls = [call.args[0] for call in mock_tsdb_http.call_args_list]
+    assert any("eventsseason.php" in url and "id=5071" in url for url in tsdb_urls)

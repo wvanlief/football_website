@@ -186,17 +186,35 @@ def _candidate_names(item: dict) -> Iterable[str]:
         yield part.strip()
 
 
+def _is_soccer_league(item: dict) -> bool:
+    sport = str(item.get("strSport") or "").strip().lower()
+    return sport in {"", "soccer", "football"}
+
+
+def league_match_kind(competition_name: str, item: dict) -> Optional[str]:
+    """'exact' or 'alias' when a soccer league row is the requested competition."""
+    if not isinstance(item, dict) or not _is_soccer_league(item):
+        return None
+    wanted = _alnum_name(competition_name)
+    if not wanted:
+        return None
+    aliases = {
+        _alnum_name(alias)
+        for alias in LEAGUE_SEARCH_ALIASES.get(competition_name, set())
+    }
+    aliases.discard("")
+    aliases.discard(wanted)
+    names = [_alnum_name(name) for name in _candidate_names(item)]
+    if wanted in names:
+        return "exact"
+    if any(name in aliases for name in names if name):
+        return "alias"
+    return None
+
+
 def match_league_record(competition_name: str, item: dict) -> bool:
     """True when a TheSportsDB league row is the requested competition."""
-    wanted = _alnum_name(competition_name)
-    aliases = {_alnum_name(competition_name)}
-    aliases.update(_alnum_name(alias) for alias in LEAGUE_SEARCH_ALIASES.get(competition_name, set()))
-    aliases.discard("")
-    for name in _candidate_names(item):
-        normalized = _alnum_name(name)
-        if normalized and (normalized == wanted or normalized in aliases):
-            return True
-    return False
+    return league_match_kind(competition_name, item) is not None
 
 
 class TheSportsDBProvider:
@@ -232,6 +250,7 @@ class TheSportsDBProvider:
             ("all_leagues.php", None),
         ]
         try:
+            alias_id: Optional[str] = None
             for endpoint, params in queries:
                 res = self.call_api(endpoint, params)
                 if not isinstance(res, dict):
@@ -240,16 +259,18 @@ class TheSportsDBProvider:
                 if not isinstance(rows, list):
                     continue
                 for item in rows:
-                    if not isinstance(item, dict):
+                    kind = league_match_kind(competition_name, item)
+                    league_id = item.get("idLeague") if isinstance(item, dict) else None
+                    if not kind or not league_id:
                         continue
-                    if match_league_record(competition_name, item):
-                        league_id = item.get("idLeague")
-                        if league_id:
-                            return str(league_id)
+                    if kind == "exact":
+                        return str(league_id)
+                    if alias_id is None:
+                        alias_id = str(league_id)
+            return alias_id
         except Exception as exc:
             print(f"TheSportsDB API error searching leagues for {competition_name}: {exc}")
             return None
-        return None
 
     def resolve_league_id(
         self,
