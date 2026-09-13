@@ -74,10 +74,14 @@ def _eval_get_flag_url(target, size="w40"):
             {"name": "Legacy", "logo_url": "https://media.api-sports.io/football/teams/7.png", "api_id": 7},
             "/static/badges/7.png",
         ),
+        (
+            {"name": "Mixed Case Legacy", "logo_url": "https://MEDIA.Api-Sports.IO/football/teams/8.png", "api_id": 8},
+            "/static/badges/8.png",
+        ),
         (None, "/static/badges/default.png"),
     ],
 )
 def test_get_flag_url_does_not_rewrite_to_api_sports(target, expected):
     url = _eval_get_flag_url(target)
     assert url == expected
-    assert API_SPORTS_MEDIA not in url
+    assert API_SPORTS_MEDIA not in url.lower()

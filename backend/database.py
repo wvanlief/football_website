@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -16,6 +18,7 @@ if DATABASE_URL.startswith("sqlite"):
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+BADGES_DIR = Path(__file__).resolve().parent / "static" / "badges"
 
 class Competition(Base):
     __tablename__ = "competitions"
@@ -74,12 +77,17 @@ class Team(Base):
     @property
     def badge_url(self) -> str:
         stored = self.logo_url or ""
-        if stored and "media.api-sports.io" not in stored:
+        uses_api_sports = "media.api-sports.io" in stored.lower()
+        if stored and not uses_api_sports:
             if stored.startswith("http") or stored.startswith("/"):
                 return stored
-        if self.api_id:
+        if (
+            self.team_type != "National"
+            and self.api_id
+            and (BADGES_DIR / f"{self.api_id}.png").is_file()
+        ):
             return f"/static/badges/{self.api_id}.png"
-        if stored and "media.api-sports.io" not in stored:
+        if stored and not uses_api_sports:
             return stored
         if self.country_code and len(self.country_code) == 2:
             return f"https://flagcdn.com/w80/{self.country_code.lower()}.png"

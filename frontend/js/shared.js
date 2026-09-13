@@ -50,7 +50,7 @@ function getFlagUrl(target, size = 'w40') {
         teamName = target;
     }
 
-    if (url && url.includes('media.api-sports.io')) {
+    if (url && url.toLowerCase().includes('media.api-sports.io')) {
         url = null;
     }
     if (url && url.startsWith('http')) {

@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+import backend.database as database
 from backend.database import Team
 
 GROUP_JS = Path("frontend/js/group.js").read_text(encoding="utf-8")
@@ -63,10 +64,10 @@ def test_served_shared_js_keeps_local_badge_paths(client):
         ),
         (
             Team(name="Cached Club", api_id=99, team_type="Club"),
-            "/static/badges/99.png",
+            "/static/badges/default.png",
         ),
         (
-            Team(name="England", country_code="GB", team_type="National"),
+            Team(name="England", country_code="GB", team_type="National", api_id=99),
             "https://flagcdn.com/w80/gb.png",
         ),
         (
@@ -79,11 +80,24 @@ def test_served_shared_js_keeps_local_badge_paths(client):
                 api_id=7,
                 logo_url="https://media.api-sports.io/football/teams/7.png",
             ),
-            "/static/badges/7.png",
+            "/static/badges/default.png",
         ),
     ],
 )
 def test_team_badge_url_never_uses_api_sports_cdn(team, expected):
     assert team.badge_url == expected
     assert API_SPORTS_CREST_CDN not in team.badge_url
-    assert "media.api-sports.io" not in team.badge_url
+    assert "media.api-sports.io" not in team.badge_url.lower()
+
+
+def test_team_badge_url_filters_api_sports_case_insensitively(monkeypatch, tmp_path):
+    monkeypatch.setattr(database, "BADGES_DIR", tmp_path)
+    (tmp_path / "7.png").write_bytes(b"cached badge")
+    team = Team(
+        name="Mixed-case legacy CDN Club",
+        api_id=7,
+        team_type="Club",
+        logo_url="https://MEDIA.Api-Sports.IO/football/teams/7.png",
+    )
+
+    assert team.badge_url == "/static/badges/7.png"
