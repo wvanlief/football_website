@@ -392,3 +392,17 @@ def test_eligible_hides_scheduled_unstamped_once_tournament_is_stamped(db_sessio
     assert stamped.id in ids
     assert finished_unstamped.id in ids
     assert draw_row.id not in ids
+
+    recommended = crud_fixture.get_recommended_fixtures(
+        db_session, tournament_id=tourney.id, min_score=0.0, include_past=True
+    )
+    rec_ids = {f.id for f in recommended}
+    assert stamped.id in rec_ids
+    assert finished_unstamped.id in rec_ids
+    assert draw_row.id not in rec_ids
+    assert not any(
+        f.home_team and f.away_team
+        and f.home_team.name == "BSC Young Boys"
+        and f.away_team.name == "Aston Villa"
+        for f in recommended
+    )

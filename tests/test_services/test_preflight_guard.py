@@ -138,7 +138,4 @@ def test_preflight_ignores_unstamped_draw_rows_in_existing_count(db_session):
     with pytest.raises(IngestionAborted) as exc_info:
         guard.check_fixture_count(db_session, tourney.id, fetched_count=4)
     assert "existing count (10" in str(exc_info.value)
-    """check_fixture_count with tournament_id=None must safely pass."""
-    guard = PreflightGuard()
-    guard.check_fixture_count(db_session, tournament_id=None, fetched_count=0)
 

@@ -4,6 +4,10 @@ from sqlalchemy.orm import Session, joinedload, aliased
 from sqlalchemy import and_, or_
 from backend.database import Fixture, Team, Tournament
 
+
+def _has_provider_fixture_id(api_id) -> bool:
+    return api_id is not None and str(api_id).strip() != ""
+
 def get_active_tournament_ids(db: Session) -> list[int]:
     """Returns a list of IDs for all tournaments with status 'Active'."""
     tournaments = db.query(Tournament).filter(Tournament.status == "Active").all()
@@ -12,17 +16,15 @@ def get_active_tournament_ids(db: Session) -> list[int]:
 
 def _scheduled_unstamped_clause(db: Session, target_ids: list[int]):
     """Omit scheduled draw leftovers once a tournament has at least one stamped fixture."""
-    stamped_ids = [
-        row[0]
-        for row in db.query(Fixture.tournament_id)
-        .filter(
-            Fixture.tournament_id.in_(target_ids),
-            Fixture.api_id.isnot(None),
-            Fixture.api_id != "",
-        )
-        .distinct()
+    if not target_ids:
+        return True
+    stamped_ids = {
+        tournament_id
+        for tournament_id, api_id in db.query(Fixture.tournament_id, Fixture.api_id)
+        .filter(Fixture.tournament_id.in_(target_ids))
         .all()
-    ]
+        if _has_provider_fixture_id(api_id)
+    }
     if not stamped_ids:
         return True
     return ~and_(
@@ -148,15 +150,19 @@ def get_recommended_fixtures(
         base_q = base_q.filter(Fixture.date_utc >= now_utc)
 
     if tournament_id is not None:
+        target_ids = [tournament_id]
         base_q = base_q.filter(Fixture.tournament_id == tournament_id)
     else:
-        active_ids = get_active_tournament_ids(db)
-        if not active_ids:
-            active_ids = [t.id for t in db.query(Tournament.id).all()]
-        if active_ids:
-            base_q = base_q.filter(Fixture.tournament_id.in_(active_ids))
+        target_ids = get_active_tournament_ids(db)
+        if not target_ids:
+            target_ids = [t.id for t in db.query(Tournament.id).all()]
+        if target_ids:
+            base_q = base_q.filter(Fixture.tournament_id.in_(target_ids))
         else:
             return []
+
+    if target_ids:
+        base_q = base_q.filter(_scheduled_unstamped_clause(db, target_ids))
 
     # 1. Query fixtures meeting the Recommended threshold (>= 65.0 / Top 20%)
     fixtures = (

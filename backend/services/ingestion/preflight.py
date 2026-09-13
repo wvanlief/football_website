@@ -30,15 +30,13 @@ class PreflightGuard:
         if tournament_id is None:
             return
 
-        existing_count = (
-            db.query(Fixture)
-            .filter(
-                Fixture.tournament_id == tournament_id,
-                Fixture.api_id.isnot(None),
-                Fixture.api_id != "",
-            )
-            .count()
-        )
+        api_ids = [
+            row[0]
+            for row in db.query(Fixture.api_id)
+            .filter(Fixture.tournament_id == tournament_id)
+            .all()
+        ]
+        existing_count = sum(1 for api_id in api_ids if has_provider_fixture_id(api_id))
 
         if existing_count == 0:
             return

@@ -216,6 +216,7 @@ class IngestionEngine:
                 continue
             normalized_fixtures.append(norm_item)
 
+        self.preflight.assert_no_deletes("overlay_from_football_data")
         result = self.upserter.upsert_fixtures(
             db, tournament, normalized_fixtures, competition=competition
         )
