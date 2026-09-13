@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tournamentId = localStorage.getItem('findfootball-tournament-id') || '';
             const res = await fetch(`/api/fixtures/calendar?tz=${encodeURIComponent(resolvedTimezone)}${tournamentId ? `&tournament_id=${tournamentId}` : ''}`);
             if (!res.ok) throw new Error("Failed to fetch calendar fixtures");
-            cachedMatches = await res.json();
+            cachedMatches = (await res.json()).map((match) => localizeFixtureDisplay(match, resolvedTimezone));
             
             // Set initial month/year based on current system date or tournament start
             initCurrentMonthYear();

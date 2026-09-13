@@ -123,16 +123,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function getFormattedDateString(timezone, offsetDays = 0) {
-        const d = new Date();
-        if (offsetDays !== 0) {
-            d.setDate(d.getDate() + offsetDays);
-        }
+        const ymd = addCalendarDays(ymdInTimeZone(new Date(), timezone), offsetDays);
+        const [year, month, day] = ymd.split('-').map(Number);
+        const utcNoon = new Date(Date.UTC(year, month - 1, day, 12));
         return new Intl.DateTimeFormat('en-US', {
-            timeZone: timezone,
+            timeZone: 'UTC',
             month: 'long',
             day: 'numeric',
             year: 'numeric'
-        }).format(d);
+        }).format(utcNoon);
     }
 
     // Fetch and Load Fixtures
@@ -145,22 +144,16 @@ document.addEventListener('DOMContentLoaded', () => {
         let scheduledFixtures = [];
 
         let now = new Date();
-        let todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
-        
-        let tomorrowDate = new Date(now);
-        tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-        let tomorrowStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(tomorrowDate);
+        let todayStr = ymdInTimeZone(now, userTz);
+        let tomorrowStr = addCalendarDays(todayStr, 1);
+        let maxDateStr = addCalendarDays(todayStr, 8);
 
-        let maxDate = new Date(now);
-        maxDate.setDate(maxDate.getDate() + 8);
-        let maxDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(maxDate);
-
-        (fixturesList || []).forEach(fdata => {
+        (fixturesList || []).forEach(raw => {
+            const fdata = localizeFixtureDisplay(raw, userTz);
             let matchDateStr = todayStr;
             if (fdata.date) {
                 try {
-                    let d = new Date(fdata.date);
-                    matchDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: userTz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+                    matchDateStr = ymdInTimeZone(new Date(fdata.date), userTz);
                 } catch(e) {}
             }
 
@@ -258,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        const cacheKey = 'findfootball-cached-fixtures-v5';
+        const cacheKey = 'findfootball-cached-fixtures-v6';
         const cachedSession = sessionStorage.getItem(cacheKey);
 
         if (cachedSession) {
@@ -458,12 +451,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!mount) return;
 
         const todayList = sortByWatchability(todayFixtures).slice(0, 3);
-        let weekList = sortByWatchability(weekFixtures).slice(0, 2);
-        if (weekList.length < 2 && tomorrowFixtures && tomorrowFixtures.length > 0) {
-            const used = new Set(weekList);
-            const extras = sortByWatchability(tomorrowFixtures).filter((match) => !used.has(match));
-            weekList = [...weekList, ...extras].slice(0, 2);
-        }
+        const weekPool = [];
+        const seenWeekIds = new Set();
+        [...(tomorrowFixtures || []), ...(weekFixtures || [])].forEach((match) => {
+            const key = match && match.id != null ? match.id : match;
+            if (seenWeekIds.has(key)) return;
+            seenWeekIds.add(key);
+            weekPool.push(match);
+        });
+        let weekList = sortByWatchability(weekPool).slice(0, 2);
 
         const isOffseason = !!(activeFixtures && activeFixtures.is_offseason);
         const nextUpcoming = earliestUpcoming(tomorrowFixtures, weekFixtures);

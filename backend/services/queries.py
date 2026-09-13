@@ -15,7 +15,12 @@ from backend.database import Fixture, PlayerContract, Tournament, TournamentTeam
 import backend.crud.fixture as crud_fixture
 import backend.crud.player as crud_player
 import backend.crud.team as crud_team
-from backend.services.enrichment import enrich_fixture, get_timezone, group_enriched_fixtures
+from backend.services.enrichment import (
+    enrich_fixture,
+    get_timezone,
+    group_enriched_fixtures,
+    localize_fixture_display,
+)
 from backend.services.knockout import resolve_placeholder_name
 from backend.services.simulation import get_probabilities
 from backend.services.standings import (
@@ -126,6 +131,7 @@ def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None
                 sorted_f = sorted(future_cached, key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
                 recs = sorted_f[:min_count]
             recs.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
+            recs = [localize_fixture_display(f, target_tz) for f in recs]
             _RECOMMENDED_CACHE[cache_key] = (now, recs)
             return recs
 
