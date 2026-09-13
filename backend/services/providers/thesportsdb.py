@@ -2,13 +2,19 @@
 from __future__ import annotations
 
 import os
+import re
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Set
+from typing import Dict, Iterable, List, Optional, Set
 from urllib.parse import urlencode
 
 from sqlalchemy.orm import Session
 
 from backend.utils import fetch_json_with_retry
+from backend.crud.mapping import (
+    get_external_id_for_competition,
+    link_competition_external_id,
+)
+from backend.database import Competition
 from backend.services.ingestion.normalizer import NameNormalizer
 from backend.services.ingestion.team_resolver import TeamResolver
 
@@ -16,9 +22,37 @@ PROVIDER_NAME = "thesportsdb"
 BASE_URL = "https://www.thesportsdb.com/api/v1/json"
 FREE_API_KEY = "123"
 
-# Canonical competition names → TheSportsDB idLeague.
-# Europa League (4481) and Conference League (5071) are the cups Football-Data.org
-# free plan and openfootball 2026/27 datasets do not cover.
+# UEFA cups not on the Football-Data.org free plan. League ids must be resolved
+# via search and stored on ExternalCompetitionMapping — never folklore constants.
+SEARCH_RESOLVED_COMPETITIONS: Set[str] = {
+    "UEFA Europa League",
+    "UEFA Conference League",
+}
+
+UEFA_LEAGUE_PHASE_COMPETITIONS: Set[str] = {
+    "UEFA Champions League",
+    "UEFA Europa League",
+    "UEFA Conference League",
+}
+
+LEAGUE_SEARCH_ALIASES: Dict[str, Set[str]] = {
+    "UEFA Europa League": {
+        "uefaeuropa league",
+        "uefaeuropaleague",
+        "europaleague",
+        "uefaeuropa",
+    },
+    "UEFA Conference League": {
+        "uefaconferenceleague",
+        "uefaeuropaconferenceleague",
+        "europaconferenceleague",
+        "conferenceleague",
+        "uefaeuropa conferenceleague",
+    },
+}
+
+# Canonical competition names → TheSportsDB idLeague for domestic coverage.
+# Do not add Europa / Conference folklore ids here.
 LEAGUE_ID_MAP: Dict[str, str] = {
     "Premier League": "4328",
     "EFL Championship": "4329",
@@ -35,7 +69,6 @@ LEAGUE_ID_MAP: Dict[str, str] = {
     "Brasileirão Série A": "4351",
     "FIFA World Cup": "4429",
     "UEFA Champions League": "4480",
-    "UEFA Europa League": "4481",
     "FA Cup": "4482",
     "Copa del Rey": "4483",
     "Coupe de France": "4484",
@@ -52,7 +85,6 @@ LEAGUE_ID_MAP: Dict[str, str] = {
     "Copa Sudamericana": "4724",
     "Copa do Brasil": "4725",
     "KNVB Beker": "4902",
-    "UEFA Conference League": "5071",
 }
 
 CALENDAR_YEAR_COMPETITIONS: Set[str] = {
@@ -141,6 +173,50 @@ def season_string(competition_name: str, season: int) -> str:
     return f"{season}-{season + 1}"
 
 
+def _alnum_name(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    return re.sub(r"[^a-z0-9]", "", str(value).lower())
+
+
+def _candidate_names(item: dict) -> Iterable[str]:
+    yield item.get("strLeague") or ""
+    alternate = item.get("strLeagueAlternate") or ""
+    for part in str(alternate).split(","):
+        yield part.strip()
+
+
+def _is_soccer_league(item: dict) -> bool:
+    sport = str(item.get("strSport") or "").strip().lower()
+    return sport in {"", "soccer", "football"}
+
+
+def league_match_kind(competition_name: str, item: dict) -> Optional[str]:
+    """'exact' or 'alias' when a soccer league row is the requested competition."""
+    if not isinstance(item, dict) or not _is_soccer_league(item):
+        return None
+    wanted = _alnum_name(competition_name)
+    if not wanted:
+        return None
+    aliases = {
+        _alnum_name(alias)
+        for alias in LEAGUE_SEARCH_ALIASES.get(competition_name, set())
+    }
+    aliases.discard("")
+    aliases.discard(wanted)
+    names = [_alnum_name(name) for name in _candidate_names(item)]
+    if wanted in names:
+        return "exact"
+    if any(name in aliases for name in names if name):
+        return "alias"
+    return None
+
+
+def match_league_record(competition_name: str, item: dict) -> bool:
+    """True when a TheSportsDB league row is the requested competition."""
+    return league_match_kind(competition_name, item) is not None
+
+
 class TheSportsDBProvider:
     """
     Provider client for TheSportsDB (v1 JSON API).
@@ -154,6 +230,8 @@ class TheSportsDBProvider:
         self.team_resolver = team_resolver or TeamResolver(self.normalizer)
 
     def get_league_id(self, competition_name: str) -> Optional[str]:
+        if competition_name in SEARCH_RESOLVED_COMPETITIONS:
+            return None
         return LEAGUE_ID_MAP.get(competition_name)
 
     def call_api(self, endpoint: str, params: Optional[dict] = None) -> dict:
@@ -165,10 +243,67 @@ class TheSportsDBProvider:
             provider=PROVIDER_NAME,
         )
 
-    def fetch_fixtures(self, competition_name: str, season: int) -> List[dict]:
-        league_id = self.get_league_id(competition_name)
+    def search_league_id(self, competition_name: str) -> Optional[str]:
+        """Resolve idLeague from TheSportsDB search endpoints. No folklore fallback."""
+        queries = [
+            ("search_all_leagues.php", {"c": "Europe", "s": "Soccer"}),
+            ("all_leagues.php", None),
+        ]
+        try:
+            alias_id: Optional[str] = None
+            for endpoint, params in queries:
+                res = self.call_api(endpoint, params)
+                if not isinstance(res, dict):
+                    continue
+                rows = res.get("countries") or res.get("leagues") or []
+                if not isinstance(rows, list):
+                    continue
+                for item in rows:
+                    kind = league_match_kind(competition_name, item)
+                    league_id = item.get("idLeague") if isinstance(item, dict) else None
+                    if not kind or not league_id:
+                        continue
+                    if kind == "exact":
+                        return str(league_id)
+                    if alias_id is None:
+                        alias_id = str(league_id)
+            return alias_id
+        except Exception as exc:
+            print(f"TheSportsDB API error searching leagues for {competition_name}: {exc}")
+            return None
+
+    def resolve_league_id(
+        self,
+        competition_name: str,
+        db: Optional[Session] = None,
+        competition: Optional[Competition] = None,
+    ) -> Optional[str]:
+        """Mapping first, then search. Persist newly found ids. No folklore for euro cups."""
+        if db is not None and competition is not None and competition.id is not None:
+            stored = get_external_id_for_competition(db, competition.id, PROVIDER_NAME)
+            if stored:
+                return str(stored)
+
+        if competition_name in SEARCH_RESOLVED_COMPETITIONS:
+            league_id = self.search_league_id(competition_name)
+        else:
+            league_id = LEAGUE_ID_MAP.get(competition_name)
+
+        if league_id and db is not None and competition is not None and competition.id is not None:
+            link_competition_external_id(db, competition.id, PROVIDER_NAME, league_id)
+
+        return league_id
+
+    def fetch_fixtures(
+        self,
+        competition_name: str,
+        season: int,
+        db: Optional[Session] = None,
+        competition: Optional[Competition] = None,
+    ) -> List[dict]:
+        league_id = self.resolve_league_id(competition_name, db=db, competition=competition)
         if not league_id:
-            print(f"TheSportsDB: Competition '{competition_name}' is not in the league ID map.")
+            print(f"TheSportsDB: could not resolve league id for '{competition_name}'.")
             return []
 
         season_s = season_string(competition_name, season)
@@ -187,8 +322,14 @@ class TheSportsDBProvider:
             print(f"TheSportsDB API error fetching fixtures for {competition_name}: {exc}")
             return []
 
-    def fetch_teams(self, competition_name: str, season: int) -> List[dict]:
-        league_id = self.get_league_id(competition_name)
+    def fetch_teams(
+        self,
+        competition_name: str,
+        season: int,
+        db: Optional[Session] = None,
+        competition: Optional[Competition] = None,
+    ) -> List[dict]:
+        league_id = self.resolve_league_id(competition_name, db=db, competition=competition)
         if not league_id:
             return []
         try:
@@ -206,6 +347,7 @@ class TheSportsDBProvider:
         item: dict,
         tournament_id: int,
         competition_type: str = "League",
+        competition_name: Optional[str] = None,
     ) -> Optional[dict]:
         date_utc = parse_event_datetime(item)
         if not date_utc:
@@ -234,10 +376,15 @@ class TheSportsDBProvider:
             logo_url=item.get("strAwayTeamBadge"),
         )
 
+        league_label = competition_name or item.get("strLeague") or ""
+        is_league_phase = league_label in UEFA_LEAGUE_PHASE_COMPETITIONS
         raw_round = parse_score(item.get("intRound"))
         if raw_round is not None and raw_round >= 400:
             stage = "Qualifying"
             matchday = None
+        elif is_league_phase and (raw_round is None or 1 <= raw_round <= 50):
+            stage = "League Phase"
+            matchday = raw_round
         elif raw_round is not None and 1 <= raw_round <= 50:
             stage = "Regular Season"
             matchday = raw_round

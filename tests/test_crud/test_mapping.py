@@ -3,6 +3,7 @@ from backend.crud.mapping import (
     get_team_by_external_id,
     link_team_external_id,
     get_competition_by_external_id,
+    get_external_id_for_competition,
     link_competition_external_id
 )
 
@@ -38,3 +39,4 @@ def test_competition_external_mapping_crud(db_session):
     assert found_comp is not None
     assert found_comp.id == comp.id
     assert found_comp.name == "Premier League Test"
+    assert get_external_id_for_competition(db_session, comp.id, "football_data") == "PL"

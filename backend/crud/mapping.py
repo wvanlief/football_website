@@ -44,6 +44,16 @@ def get_competition_by_external_id(db: Session, provider_name: str, external_id:
         return mapping.competition
     return None
 
+def get_external_id_for_competition(
+    db: Session, competition_id: int, provider_name: str
+) -> Optional[str]:
+    """Return the stored external id for a competition on a given provider."""
+    mapping = db.query(ExternalCompetitionMapping).filter(
+        ExternalCompetitionMapping.competition_id == competition_id,
+        ExternalCompetitionMapping.provider_name == provider_name,
+    ).first()
+    return mapping.external_id if mapping else None
+
 def link_competition_external_id(db: Session, competition_id: int, provider_name: str, external_id: Union[str, int]) -> ExternalCompetitionMapping:
     """Links or updates an external provider ID for an internal competition."""
     ext_id_str = str(external_id)
