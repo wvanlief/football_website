@@ -13,6 +13,11 @@ def test_fabricated_hero_fallback_arrays_are_gone():
     assert "odds: { home: 2.35" not in APP_JS
 
 
+def test_hero_week_pool_includes_tomorrow():
+    assert "[...(tomorrowFixtures || []), ...(weekFixtures || [])]" in APP_JS
+    assert "weekList.length < 2 && tomorrowFixtures" not in APP_JS
+
+
 def test_hero_spotlight_renders_offseason_and_next_match_notices():
     assert "data-hero-empty" in APP_JS
     assert "No Matches Today" in APP_JS
@@ -36,6 +41,8 @@ def test_hero_assets_are_served_without_fallbacks(client):
     assert js.status_code == 200
     assert "HERO_FALLBACK_TODAY" not in js.text
     assert "data-hero-empty" in js.text
+    assert "weekPool" in js.text
+    assert "localizeFixtureDisplay" in js.text
 
     css = client.get("/css/hero.css")
     assert css.status_code == 200
@@ -44,5 +51,5 @@ def test_hero_assets_are_served_without_fallbacks(client):
     home = client.get("/")
     assert home.status_code == 200
     assert "hero-match-spotlight" in home.text
-    assert "app.js?v=1.0.9" in home.text
+    assert "app.js?v=1.1.0" in home.text
     assert "hero.css?v=1.1.0" in home.text

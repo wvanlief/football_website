@@ -15,7 +15,12 @@ from backend.database import Fixture, PlayerContract, Tournament, TournamentTeam
 import backend.crud.fixture as crud_fixture
 import backend.crud.player as crud_player
 import backend.crud.team as crud_team
-from backend.services.enrichment import enrich_fixture, get_timezone, group_enriched_fixtures
+from backend.services.enrichment import (
+    enrich_fixture,
+    get_timezone,
+    group_enriched_fixtures,
+    localize_fixture_display,
+)
 from backend.services.knockout import resolve_placeholder_name
 from backend.services.simulation import get_probabilities
 from backend.services.standings import (
@@ -126,6 +131,7 @@ def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None
                 sorted_f = sorted(future_cached, key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
                 recs = sorted_f[:min_count]
             recs.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
+            recs = [localize_fixture_display(f, target_tz) for f in recs]
             _RECOMMENDED_CACHE[cache_key] = (now, recs)
             return recs
 
@@ -443,6 +449,8 @@ def get_calendar_fixtures(db: Session, tz_str: str, tournament_id: int = None, s
         dt = f.date_utc
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+        else:
+            dt = dt.astimezone(ZoneInfo("UTC"))
         dt_tz = dt.astimezone(target_tz)
 
         group_letter = team_group_map.get((f.tournament_id, f.home_team_id))
@@ -458,7 +466,7 @@ def get_calendar_fixtures(db: Session, tz_str: str, tournament_id: int = None, s
                 "name": f.away_team.name if f.away_team else resolve_placeholder_name(db, f.away_team_placeholder, f.tournament_id),
                 "logo_url": f.away_team.badge_url if f.away_team else "/static/badges/default.png"
             },
-            "date": f.date_utc.isoformat(),
+            "date": dt.isoformat(),
             "formatted_time": dt_tz.strftime("%H:%M"),
             "formatted_date": dt_tz.strftime("%B %d, %Y"),
             "formatted_date_short": dt_tz.strftime("%b %d"),

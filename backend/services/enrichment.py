@@ -27,6 +27,56 @@ def get_timezone(tz_str: str) -> ZoneInfo:
         return ZoneInfo("UTC")
 
 
+def parse_fixture_datetime(dt_str: str) -> Optional[datetime]:
+    """Parse an ISO kickoff string, treating naive values as UTC."""
+    if not dt_str:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(dt_str).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def localize_fixture_display(fdata: dict, target_tz: ZoneInfo) -> dict:
+    """Copy a fixture dict and recompute clock/date strings in ``target_tz``.
+
+    Feed cache bakes ``formatted_time`` in UTC. Callers must not print that
+    clock as if it were already local.
+    """
+    out = dict(fdata)
+    watch = fdata.get("watchability")
+    if isinstance(watch, dict):
+        out["watchability"] = dict(watch)
+
+    dt = parse_fixture_datetime(out.get("date"))
+    if dt is None:
+        return out
+
+    dt_tz = dt.astimezone(target_tz)
+    out["date"] = dt_tz.isoformat()
+    out["formatted_time"] = dt_tz.strftime("%H:%M")
+    out["formatted_date"] = dt_tz.strftime("%B %d, %Y")
+    out["formatted_date_short"] = dt_tz.strftime("%b %d")
+    return out
+
+
+def week_spotlight_matches(tomorrow_fixtures: list, week_fixtures: list) -> list:
+    """Rank the Next 7 Days spotlight from tomorrow plus the rest of the week."""
+    seen = set()
+    combined = []
+    for fixture in list(tomorrow_fixtures or []) + list(week_fixtures or []):
+        key = fixture.get("id")
+        if key in seen:
+            continue
+        seen.add(key)
+        combined.append(fixture)
+    combined.sort(key=lambda item: item.get("watchability", {}).get("overall", 0), reverse=True)
+    return combined
+
+
 def enrich_fixture(f: Fixture, db: Session, target_tz: ZoneInfo, team_players_map: dict = None, team_group_map: dict = None) -> dict:
     """
     Enriches a Fixture model into a dictionary with formatted dates, team details, players, and watchability scores.
@@ -156,13 +206,11 @@ def group_enriched_fixtures(
     finished_fixtures = []
     scheduled_fixtures = []
 
-    for fdata in enriched_fixtures:
-        dt_str = fdata.get("date")
-        if dt_str:
-            dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
-            dt_tz = dt.astimezone(target_tz)
-            match_date = dt_tz.date()
-            fdata["date"] = dt_tz.isoformat()
+    for raw in enriched_fixtures:
+        fdata = localize_fixture_display(raw, target_tz)
+        dt = parse_fixture_datetime(fdata.get("date"))
+        if dt is not None:
+            match_date = dt.astimezone(target_tz).date()
         else:
             match_date = today_date
 

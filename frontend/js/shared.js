@@ -109,6 +109,72 @@ async function resolveTimezone(selectedTimezone = 'local') {
     return 'UTC';
 }
 
+function ymdInTimeZone(date, timeZone) {
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(date);
+}
+
+function addCalendarDays(ymd, days) {
+    const parts = String(ymd).split('-').map(Number);
+    const utc = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + days));
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'UTC',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(utc);
+}
+
+function formatTimeInTimeZone(date, timeZone) {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: timeZone,
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+    }).formatToParts(date);
+    const hour = (parts.find((part) => part.type === 'hour') || {}).value || '00';
+    const minute = (parts.find((part) => part.type === 'minute') || {}).value || '00';
+    return `${hour}:${minute}`;
+}
+
+/**
+ * Recompute kickoff clock/date strings from ISO ``date`` in the viewer timezone.
+ * Hydrated feed cache stores UTC formatted_time; do not print that as local.
+ */
+function localizeFixtureDisplay(match, timeZone) {
+    if (!match || !match.date) {
+        return match;
+    }
+    try {
+        const dateObj = new Date(match.date);
+        if (Number.isNaN(dateObj.getTime())) {
+            return match;
+        }
+        const dateFmt = new Intl.DateTimeFormat('en-US', {
+            timeZone: timeZone,
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+        });
+        const shortFmt = new Intl.DateTimeFormat('en-US', {
+            timeZone: timeZone,
+            month: 'short',
+            day: 'numeric'
+        });
+        return Object.assign({}, match, {
+            formatted_time: formatTimeInTimeZone(dateObj, timeZone),
+            formatted_date: dateFmt.format(dateObj),
+            formatted_date_short: shortFmt.format(dateObj)
+        });
+    } catch (err) {
+        return match;
+    }
+}
+
 /**
  * Watchability Tier Classification Helpers
  */

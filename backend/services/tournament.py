@@ -12,6 +12,8 @@ from backend.services.enrichment import (
     enrich_fixture,
     get_timezone,
     group_enriched_fixtures,
+    localize_fixture_display,
+    week_spotlight_matches,
 )
 from backend.services.knockout import (
     NEXT_ROUND_LOOKUP,
@@ -50,6 +52,8 @@ __all__ = [
     "get_timezone",
     "group_enriched_fixtures",
     "invalidate_fixtures_cache",
+    "localize_fixture_display",
     "propagate_knockout_fixtures",
     "resolve_placeholder_name",
+    "week_spotlight_matches",
 ]

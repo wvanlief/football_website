@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         recommendedContainer.innerHTML = '<div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Fetching top tier matchups...</div>';
         try {
             const res = await fetch(`/api/fixtures/recommended?tz=${encodeURIComponent(resolvedTimezone)}`);
-            activeFixtures = await res.json();
+            activeFixtures = (await res.json()).map((match) => localizeFixtureDisplay(match, resolvedTimezone));
             renderRecommended();
         } catch (err) {
             console.error("Failed to load recommended fixtures", err);
