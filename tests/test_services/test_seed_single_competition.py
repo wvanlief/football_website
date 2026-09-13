@@ -28,7 +28,7 @@ def test_seed_single_competition_european_cup(db_session, monkeypatch):
     assert uel_comp is None
 
 
-def test_retire_european_draw_placeholders_keeps_api_mapped_fixtures(db_session):
+def test_retire_european_draw_placeholders_never_deletes(db_session):
     comp = Competition(name="UCL Placeholder Retire", type="Cup", format_engine="league_phase_knockout")
     db_session.add(comp)
     db_session.flush()
@@ -69,9 +69,8 @@ def test_retire_european_draw_placeholders_keeps_api_mapped_fixtures(db_session)
     db_session.commit()
 
     remaining = db_session.query(Fixture).filter(Fixture.tournament_id == tourney.id).all()
-    assert removed == 1
-    assert len(remaining) == 1
-    assert remaining[0].api_id == "140001"
+    assert removed == 0
+    assert len(remaining) == 2
 
 
 @patch("backend.services.seeder.fetch_and_seed_teams")
@@ -145,7 +144,7 @@ def _fd_ucl_match(match_id, utc_date, home_short, away_short, home_name=None, aw
 @patch("backend.services.seeder.fetch_and_seed_teams")
 @patch("backend.services.providers.football_data.FootballDataProvider.fetch_fixtures")
 def test_ucl_overlay_stamps_inserts_hides_and_skips_api_football_key(
-    mock_fetch_fixtures, mock_fetch_teams, db_session, monkeypatch
+    mock_fetch_fixtures, mock_fetch_teams, db_session, monkeypatch, tmp_path
 ):
     monkeypatch.delenv("FOOTBALL_API_KEY", raising=False)
     monkeypatch.delenv("API_FOOTBALL_KEY", raising=False)
@@ -258,6 +257,27 @@ def test_ucl_overlay_stamps_inserts_hides_and_skips_api_football_key(
     eligible_ids = {f.id for f in eligible}
     assert sporting_row.id in eligible_ids
     assert sporting_lask.id not in eligible_ids
+
+    from backend.services import feed_builder
+
+    class FrozenDatetime:
+        @staticmethod
+        def now(tz=None):
+            return now_utc
+
+    cache_path = tmp_path / "fixtures_feed_cache.json"
+    monkeypatch.setattr(feed_builder, "datetime", FrozenDatetime)
+    monkeypatch.setattr(feed_builder, "CACHE_FILE_PATH", str(cache_path))
+    feed_payload = feed_builder.build_fixtures_feed_cache(db_session)
+    names = {
+        (item["home_team"]["name"], item["away_team"]["name"])
+        for item in feed_payload["fixtures"]
+    }
+    assert ("Sporting CP", "Galatasaray") in names
+    assert ("Sporting CP", "LASK") not in names
+    assert ("Liverpool", "Atlético Madrid") in names
+    assert ("BSC Young Boys", "Aston Villa") not in names
+    assert ("Young Boys", "Aston Villa") not in names
 
 
 @patch("backend.services.seeder.fetch_and_seed_teams")

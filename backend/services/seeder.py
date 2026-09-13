@@ -835,21 +835,7 @@ EURO_CUP_LEAGUE_IDS = (2, 3, 848)
 
 
 def retire_european_draw_placeholders(db: Session, tournament_id: int) -> int:
-    """Remove scheduled draw-seeded fixtures that were never mapped to a live API id."""
-    stale = (
-        db.query(Fixture)
-        .filter(
-            Fixture.tournament_id == tournament_id,
-            Fixture.api_id.is_(None),
-            Fixture.status == "Scheduled",
-        )
-        .all()
-    )
-    count = len(stale)
-    for fixture in stale:
-        db.delete(fixture)
-    if count:
-        db.flush()
-    return count
+    """No-op. Leftover draw rows stay in the table; the feed hides scheduled unstamped UCL."""
+    return 0
 
 

@@ -136,7 +136,7 @@ class FixtureUpserter:
             db.flush()
             is_created = True
         else:
-            # Update existing fixture fields safely
+            # Never overwrite an existing home or away team; placeholders may still be filled.
             if home_team and fixture.home_team_id is None:
                 fixture.home_team_id = home_team.id
                 fixture.home_team_placeholder = None
