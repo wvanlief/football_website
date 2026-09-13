@@ -1,7 +1,9 @@
 """Regression coverage for date / status / competition filtering (issue #91).
 
-Locks origin/main behavior: upcoming columns are calendar-day gated in the
-viewer timezone (`match_date >= today`), not a product change from PR #153.
+Locks calendar-day upcoming gating in the viewer timezone (`match_date >= today`).
+PR #153 (Paris clocks / Next 7 Days) is already on origin/main; this suite does
+not encode kickoff `datetime >= now` (GPT Rule 7) and will need a follow-up if
+that contract lands.
 """
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -233,8 +235,8 @@ def test_offseason_fallback_excludes_legacy_and_respects_now_gate(db_session):
     _assert_upcoming_dates_not_before_today(grouped, now_utc)
 
 
-def test_offseason_feed_cache_grouping_hides_stale_rows(db_session, monkeypatch, tmp_path):
-    """Adjacent: feed cache may include in-window leftovers; grouping still gates upcoming."""
+def test_feed_cache_grouping_hides_in_window_stale_rows(db_session, monkeypatch, tmp_path):
+    """Adjacent: rolling-window cache may keep leftovers; grouping still gates upcoming."""
     cache_path = tmp_path / "fixtures_feed_cache.json"
     monkeypatch.setattr(
         "backend.services.feed_builder.CACHE_FILE_PATH", str(cache_path)
@@ -294,30 +296,48 @@ def test_competition_filter_isolates_fixtures_on_api(client, db_session):
     assert laliga_grouped["today"][0]["competition_name"] == "La Liga Filter"
 
 
-def test_competition_name_filter_on_grouped_payload():
-    """Adjacent UI seam: homepage chips keep rows whose competition_name matches."""
-    now_utc = datetime(2026, 9, 13, 18, 0, tzinfo=timezone.utc)
+def test_viewer_timezone_excludes_previous_local_calendar_day():
+    """#153 merge-order: a UTC 'today' kickoff that is yesterday in Paris is not upcoming."""
+    now_utc = datetime(2026, 9, 13, 22, 0, tzinfo=timezone.utc)
     fixtures = [
         {
-            "id": 10,
-            "date": now_utc.isoformat(),
+            "id": 1,
+            "date": "2026-09-13T15:30:00+00:00",
             "status": "Scheduled",
-            "competition_name": "Premier League",
-            "watchability": {"overall": 80.0},
+            "watchability": {"overall": 91.0},
         },
         {
-            "id": 11,
-            "date": now_utc.isoformat(),
+            "id": 2,
+            "date": "2026-09-14T18:00:00+00:00",
             "status": "Scheduled",
-            "competition_name": "La Liga",
-            "watchability": {"overall": 79.0},
+            "watchability": {"overall": 80.0},
         },
     ]
-    grouped = group_enriched_fixtures(fixtures, ZoneInfo("UTC"), now_dt=now_utc)
-    filtered = [
-        m for m in grouped["today"] if m.get("competition_name") == "Premier League"
-    ]
-    assert [m["id"] for m in filtered] == [10]
+    grouped = group_enriched_fixtures(fixtures, ZoneInfo("Europe/Paris"), now_dt=now_utc)
+    upcoming = _upcoming_ids(grouped)
+    assert 1 not in upcoming
+    assert 2 in upcoming
+    _assert_upcoming_dates_not_before_today(grouped, now_utc, tz_name="Europe/Paris")
+
+
+def test_offseason_fallback_empty_when_only_legacy_past_exists(db_session):
+    """Rule 8 adjacent: no future records means upcoming stays empty, not first Scheduled leftover."""
+    tourney, home, away = _seed_league(db_session, "Legacy Only League")
+    now_utc = datetime.now(timezone.utc)
+    leftover = _add_fixture(
+        db_session, tourney, home, away, now_utc - timedelta(days=40)
+    )
+    db_session.commit()
+
+    eligible = crud_fixture.get_eligible_fixtures(
+        db_session, tournament_id=tourney.id, now_utc=now_utc
+    )
+    assert eligible == []
+    assert leftover.id not in {f.id for f in eligible}
+
+    grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id)
+    assert _upcoming_ids(grouped) == []
+    _assert_upcoming_dates_not_before_today(grouped, now_utc)
 
 
 def test_postponed_past_date_is_not_upcoming(db_session):
