@@ -14,7 +14,7 @@ SHARED_JS = Path("frontend/js/shared.js")
 
 def _extract_helpers() -> str:
     src = SHARED_JS.read_text(encoding="utf-8")
-    start = src.index("function ymdInTimeZone")
+    start = src.index("function parseFixtureDate")
     end = src.index("function getRatingClass")
     return src[start:end]
 
@@ -73,3 +73,31 @@ def test_localize_fixture_display_midnight_crossing():
 def test_add_calendar_days_is_timezone_safe():
     assert _eval_js("addCalendarDays('2026-09-12', 1)") == "2026-09-13"
     assert _eval_js("addCalendarDays('2026-09-12', 8)") == "2026-09-20"
+
+
+def test_naive_iso_kickoff_is_treated_as_utc():
+    match = {
+        "date": "2026-09-13T15:30:00",
+        "formatted_time": "15:30",
+        "formatted_date": "September 13, 2026",
+        "formatted_date_short": "Sep 13",
+    }
+    localized = _eval_js(
+        "localizeFixtureDisplay(" + json.dumps(match) + ", 'Europe/Paris')"
+    )
+    assert localized["formatted_time"] == "17:30"
+
+
+def test_viewer_civil_month_follows_timezone_not_host_date():
+    """Late UTC kickoffs must land in the viewer month used by the calendar."""
+    ymd = _eval_js(
+        "ymdInTimeZone(parseFixtureDate('2026-09-30T22:00:00+00:00'), 'Europe/Paris')"
+    )
+    assert ymd == "2026-10-01"
+
+
+def test_calendar_month_alignment_uses_viewer_ymd():
+    src = Path("frontend/js/calendar.js").read_text(encoding="utf-8")
+    assert "ymdInTimeZone(parsed, resolvedTimezone)" in src
+    assert "firstMatchDate.getFullYear()" not in src
+    assert "d.getMonth() === currentMonth" not in src
