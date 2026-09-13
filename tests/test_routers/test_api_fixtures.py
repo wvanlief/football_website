@@ -196,6 +196,7 @@ def test_get_calendar_fixtures(client, db_session):
     assert "elo" not in data[0]["home_team"]  # Optimized size!
     assert "players" not in data[0]["home_team"]  # Optimized size!
     assert data[0]["home_team"]["name"] == "Germany Cal"
+    assert data[0]["date"].endswith("+00:00")
     assert data[0]["score"] == "2 - 1"
     assert data[0]["watchability_score"] == 80.0
     
@@ -310,7 +311,6 @@ def test_fixtures_tournament_id_filtering(client, db_session):
     dataB = respB.json()
     assert len(dataB["today"]) == 1
     assert dataB["today"][0]["home_team"]["name"] == "Chelsea Test"
-
 
 
 

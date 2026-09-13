@@ -449,6 +449,8 @@ def get_calendar_fixtures(db: Session, tz_str: str, tournament_id: int = None, s
         dt = f.date_utc
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+        else:
+            dt = dt.astimezone(ZoneInfo("UTC"))
         dt_tz = dt.astimezone(target_tz)
 
         group_letter = team_group_map.get((f.tournament_id, f.home_team_id))
@@ -464,7 +466,7 @@ def get_calendar_fixtures(db: Session, tz_str: str, tournament_id: int = None, s
                 "name": f.away_team.name if f.away_team else resolve_placeholder_name(db, f.away_team_placeholder, f.tournament_id),
                 "logo_url": f.away_team.badge_url if f.away_team else "/static/badges/default.png"
             },
-            "date": f.date_utc.isoformat(),
+            "date": dt.isoformat(),
             "formatted_time": dt_tz.strftime("%H:%M"),
             "formatted_date": dt_tz.strftime("%B %d, %Y"),
             "formatted_date_short": dt_tz.strftime("%b %d"),

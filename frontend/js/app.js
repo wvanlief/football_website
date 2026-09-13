@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        const cacheKey = 'findfootball-cached-fixtures-v6';
+        const cacheKey = `findfootball-cached-fixtures-v6-${resolvedTimezone}`;
         const cachedSession = sessionStorage.getItem(cacheKey);
 
         if (cachedSession) {
