@@ -5,6 +5,15 @@ import pytest
 from backend.services.seeder import seed_european_cups
 from backend.database import Competition, Tournament, Fixture, Team
 
+
+@pytest.fixture(autouse=True)
+def _isolate_feed_cache(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "backend.services.feed_builder.CACHE_FILE_PATH",
+        str(tmp_path / "fixtures_feed_cache.json"),
+    )
+
+
 def test_european_draw_json_invariants():
     """
     Strict mathematical validation of openfootball 36-team Swiss draw & knockout dataset.

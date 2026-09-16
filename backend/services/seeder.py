@@ -508,12 +508,23 @@ def _seed_european_cups(db: Session, target_league_id: Optional[int] = None) -> 
             results[comp_name] = f"Error: {exc}"
             print(f"Error seeding {comp_name}: {exc}")
 
+    _rebuild_fixtures_feed_cache(db)
     return SeedResult(
         status="success",
         created=created_total,
         updated=updated_total,
         details=results,
     )
+
+
+def _rebuild_fixtures_feed_cache(db: Session) -> None:
+    """Write the pre-calculated fixtures feed after European-cup overlay."""
+    from backend.services.feed_builder import build_fixtures_feed_cache
+
+    try:
+        build_fixtures_feed_cache(db)
+    except Exception as exc:
+        print(f"Warning: Failed to rebuild fixtures feed cache: {exc}")
 
 
 def _live_seedable_competitions() -> set[str]:
