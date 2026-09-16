@@ -109,6 +109,20 @@ async function resolveTimezone(selectedTimezone = 'local') {
     return 'UTC';
 }
 
+function parseFixtureDate(dateStr) {
+    if (dateStr == null || dateStr === '') {
+        return null;
+    }
+    const normalized = String(dateStr).trim().replace(/Z$/i, '+00:00');
+    const hasOffset = /[+-]\d{2}:\d{2}$/.test(normalized);
+    const iso = hasOffset ? normalized : `${normalized}+00:00`;
+    const dateObj = new Date(iso);
+    if (Number.isNaN(dateObj.getTime())) {
+        return null;
+    }
+    return dateObj;
+}
+
 function ymdInTimeZone(date, timeZone) {
     return new Intl.DateTimeFormat('en-CA', {
         timeZone: timeZone,
@@ -150,8 +164,8 @@ function localizeFixtureDisplay(match, timeZone) {
         return match;
     }
     try {
-        const dateObj = new Date(match.date);
-        if (Number.isNaN(dateObj.getTime())) {
+        const dateObj = parseFixtureDate(match.date);
+        if (!dateObj) {
             return match;
         }
         const dateFmt = new Intl.DateTimeFormat('en-US', {

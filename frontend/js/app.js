@@ -153,7 +153,10 @@ document.addEventListener('DOMContentLoaded', () => {
             let matchDateStr = todayStr;
             if (fdata.date) {
                 try {
-                    matchDateStr = ymdInTimeZone(new Date(fdata.date), userTz);
+                    const parsed = parseFixtureDate(fdata.date);
+                    if (parsed) {
+                        matchDateStr = ymdInTimeZone(parsed, userTz);
+                    }
                 } catch(e) {}
             }
 
