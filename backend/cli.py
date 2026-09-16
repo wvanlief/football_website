@@ -5,6 +5,7 @@ Command-line tools for database seeding, ELO review/matching, badge caching, and
 import sys
 import os
 import argparse
+import urllib.request
 from pathlib import Path
 
 # Add project root to sys.path if missing
@@ -22,8 +23,8 @@ from backend.services.ingestion.team_merge import apply_clubelo_to_canonical_clu
 
 def download_and_cache_badges(db: Session):
     """
-    Point team.logo_url at existing local PNGs in backend/static/badges/{api_id}.png.
-    Does not download from the API-Sports media CDN.
+    Downloads and caches team badge PNGs locally in backend/static/badges/{api_id}.png
+    and updates team.logo_url in the database.
     """
     teams = db.query(Team).filter(Team.api_id.isnot(None)).all()
     static_badges_dir = Path("backend/static/badges")
@@ -38,8 +39,15 @@ def download_and_cache_badges(db: Session):
         local_url = f"/static/badges/{team.api_id}.png"
         
         if not badge_path.exists():
-            print(f"Skipping missing local badge for {team.name} ({team.api_id}); not fetching API-Sports CDN.")
-            continue
+            remote_url = f"https://media.api-sports.io/football/teams/{team.api_id}.png"
+            try:
+                print(f"Downloading badge for {team.name} ({team.api_id})...")
+                req = urllib.request.Request(remote_url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req) as resp, open(badge_path, "wb") as f:
+                    f.write(resp.read())
+            except Exception as e:
+                print(f"Failed to download badge for {team.name}: {e}")
+                continue
                 
         if team.logo_url != local_url:
             team.logo_url = local_url

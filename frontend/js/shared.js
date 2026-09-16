@@ -33,8 +33,8 @@ const COUNTRY_FLAGS = {
 
 /**
  * Returns a crest/flag URL for national teams or clubs.
- * Supports stored logo URLs, local /static/badges/ files (api_id as cache key),
- * flagcdn country codes, and the default badge. Never rewrites to API-Sports.
+ * Prefers stored HTTP crests, then the API-Sports media CDN keyed by api_id
+ * (including rewrite of /static/badges/{id}.png), then flagcdn.
  */
 function getFlagUrl(target, size = 'w40') {
     if (!target) return '/static/badges/default.png';
@@ -50,17 +50,17 @@ function getFlagUrl(target, size = 'w40') {
         teamName = target;
     }
 
-    if (url && url.toLowerCase().includes('media.api-sports.io')) {
-        url = null;
-    }
     if (url && url.startsWith('http')) {
         return url;
     }
     if (url && url.startsWith('/static/badges/') && !url.endsWith('default.png')) {
-        return url;
+        const matchId = url.match(/\/static\/badges\/(\d+)\.png/);
+        if (matchId) {
+            return `https://media.api-sports.io/football/teams/${matchId[1]}.png`;
+        }
     }
     if (apiId) {
-        return `/static/badges/${apiId}.png`;
+        return `https://media.api-sports.io/football/teams/${apiId}.png`;
     }
     if (teamName) {
         const code = COUNTRY_FLAGS[teamName];
