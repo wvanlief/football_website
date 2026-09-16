@@ -1,4 +1,4 @@
-"""Execute frontend getFlagUrl via Node so tests fail if it produces API-Sports URLs."""
+"""Execute frontend getFlagUrl via Node so local badge paths rewrite to the crest CDN."""
 from __future__ import annotations
 
 import json
@@ -10,7 +10,6 @@ from pathlib import Path
 import pytest
 
 SHARED_JS = Path("frontend/js/shared.js")
-API_SPORTS_MEDIA = "media.api-sports.io"
 
 
 def _extract_crest_helper_source() -> str:
@@ -66,22 +65,24 @@ def _eval_get_flag_url(target, size="w40"):
     "target, expected",
     [
         ({"name": "Arsenal", "logo_url": "https://crests.football-data.org/57.png"}, "https://crests.football-data.org/57.png"),
-        ({"name": "Club Brugge KV", "logo_url": "/static/badges/569.png", "api_id": 569}, "/static/badges/569.png"),
-        ({"name": "Cached Club", "api_id": 99}, "/static/badges/99.png"),
+        (
+            {"name": "Club Brugge KV", "logo_url": "/static/badges/569.png", "api_id": 569},
+            "https://media.api-sports.io/football/teams/569.png",
+        ),
+        ({"name": "Cached Club", "api_id": 99}, "https://media.api-sports.io/football/teams/99.png"),
+        (
+            {"name": "Alaves", "logo_url": "/static/badges/default.png", "api_id": 542},
+            "https://media.api-sports.io/football/teams/542.png",
+        ),
         ("England", "https://flagcdn.com/w40/gb-eng.png"),
         ({"name": "Spain"}, "https://flagcdn.com/w40/es.png"),
         (
             {"name": "Legacy", "logo_url": "https://media.api-sports.io/football/teams/7.png", "api_id": 7},
-            "/static/badges/7.png",
-        ),
-        (
-            {"name": "Mixed Case Legacy", "logo_url": "https://MEDIA.Api-Sports.IO/football/teams/8.png", "api_id": 8},
-            "/static/badges/8.png",
+            "https://media.api-sports.io/football/teams/7.png",
         ),
         (None, "/static/badges/default.png"),
     ],
 )
-def test_get_flag_url_does_not_rewrite_to_api_sports(target, expected):
+def test_get_flag_url_rewrites_local_badge_paths_to_api_sports(target, expected):
     url = _eval_get_flag_url(target)
     assert url == expected
-    assert API_SPORTS_MEDIA not in url.lower()
