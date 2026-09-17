@@ -8,6 +8,15 @@ from backend.services.seeder import seed_european_cups
 
 TEST_DATABASE_URL = "sqlite:///:memory:"
 
+
+@pytest.fixture(autouse=True)
+def _isolate_feed_cache(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "backend.services.feed_builder.CACHE_FILE_PATH",
+        str(tmp_path / "fixtures_feed_cache.json"),
+    )
+
+
 @pytest.fixture
 def db_session():
     """Pytest fixture providing a clean in-memory SQLite database session for each test."""

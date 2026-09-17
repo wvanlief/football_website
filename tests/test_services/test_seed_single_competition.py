@@ -1,3 +1,4 @@
+import json
 import pytest
 from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
@@ -9,6 +10,13 @@ from backend.services.seeder import (
     retire_european_draw_placeholders,
 )
 import backend.crud.fixture as crud_fixture
+
+
+@pytest.fixture(autouse=True)
+def _isolate_feed_cache(monkeypatch, tmp_path):
+    cache_path = tmp_path / "fixtures_feed_cache.json"
+    monkeypatch.setattr("backend.services.feed_builder.CACHE_FILE_PATH", str(cache_path))
+    return cache_path
 
 
 def test_seed_single_competition_european_cup(db_session, monkeypatch):
@@ -144,12 +152,23 @@ def _fd_ucl_match(match_id, utc_date, home_short, away_short, home_name=None, aw
 @patch("backend.services.seeder.fetch_and_seed_teams")
 @patch("backend.services.providers.football_data.FootballDataProvider.fetch_fixtures")
 def test_ucl_overlay_stamps_inserts_hides_and_skips_api_football_key(
-    mock_fetch_fixtures, mock_fetch_teams, db_session, monkeypatch, tmp_path
+    mock_fetch_fixtures, mock_fetch_teams, db_session, monkeypatch, _isolate_feed_cache
 ):
     monkeypatch.delenv("FOOTBALL_API_KEY", raising=False)
     monkeypatch.delenv("API_FOOTBALL_KEY", raising=False)
     for name in ("FOOTBALL_DATA_ORG_KEY", "FOOTBALL_DATA_API_KEY", "FOOTBALL_DATA_KEY"):
         monkeypatch.delenv(name, raising=False)
+
+    now_utc = datetime(2026, 9, 16, 12, 0, tzinfo=timezone.utc)
+
+    class FrozenDatetime:
+        @staticmethod
+        def now(tz=None):
+            return now_utc
+
+    from backend.services import feed_builder
+
+    monkeypatch.setattr(feed_builder, "datetime", FrozenDatetime)
 
     mock_fetch_fixtures.return_value = [
         _fd_ucl_match(
@@ -252,23 +271,13 @@ def test_ucl_overlay_stamps_inserts_hides_and_skips_api_football_key(
     assert playoff_count_after == playoff_count_before
     assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() == fixture_count_before + 1
 
-    now_utc = datetime(2026, 9, 16, 12, 0, tzinfo=timezone.utc)
     eligible = crud_fixture.get_eligible_fixtures(db_session, tournament_id=tourney.id, now_utc=now_utc)
     eligible_ids = {f.id for f in eligible}
     assert sporting_row.id in eligible_ids
     assert sporting_lask.id not in eligible_ids
 
-    from backend.services import feed_builder
-
-    class FrozenDatetime:
-        @staticmethod
-        def now(tz=None):
-            return now_utc
-
-    cache_path = tmp_path / "fixtures_feed_cache.json"
-    monkeypatch.setattr(feed_builder, "datetime", FrozenDatetime)
-    monkeypatch.setattr(feed_builder, "CACHE_FILE_PATH", str(cache_path))
-    feed_payload = feed_builder.build_fixtures_feed_cache(db_session)
+    assert _isolate_feed_cache.exists()
+    feed_payload = json.loads(_isolate_feed_cache.read_text(encoding="utf-8"))
     names = {
         (item["home_team"]["name"], item["away_team"]["name"])
         for item in feed_payload["fixtures"]
