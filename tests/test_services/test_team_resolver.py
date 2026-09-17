@@ -136,7 +136,7 @@ def test_lookup_key_matches_fc_porto(db_session):
     resolver = TeamResolver()
     resolved = resolver.resolve(
         db=db_session,
-        provider_name="european_draw",
+        provider_name="football_data",
         raw_name="Porto",
         team_type="Club",
         default_elo=1700,

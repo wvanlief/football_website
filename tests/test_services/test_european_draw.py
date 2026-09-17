@@ -1,12 +1,7 @@
 import pytest
-from datetime import datetime, timezone
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from backend.database import Base, Competition, Tournament, Team, TournamentTeam, Fixture
-from backend.services.seeder import seed_european_cups
-
-TEST_DATABASE_URL = "sqlite:///:memory:"
+from backend.database import Competition, Fixture, Tournament, TournamentTeam
+from backend.services.seeder import seed
 
 
 @pytest.fixture(autouse=True)
@@ -17,24 +12,7 @@ def _isolate_feed_cache(monkeypatch, tmp_path):
     )
 
 
-@pytest.fixture
-def db_session():
-    """Pytest fixture providing a clean in-memory SQLite database session for each test."""
-    engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
-    Base.metadata.create_all(bind=engine)
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    session = TestingSessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
-        Base.metadata.drop_all(bind=engine)
-
-def test_seed_european_cups(db_session, monkeypatch):
-    """
-    Tests that seed_european_cups correctly creates competitions, tournaments, teams, and fixtures
-    for UEFA Champions League, Europa League, and Conference League with proper format and structure.
-    """
+def test_european_cups_kind_uses_ingestion_engine_not_draw(db_session, monkeypatch):
     monkeypatch.delenv("FOOTBALL_DATA_ORG_KEY", raising=False)
     monkeypatch.delenv("FOOTBALL_DATA_API_KEY", raising=False)
     monkeypatch.delenv("FOOTBALL_DATA_KEY", raising=False)
@@ -42,58 +20,29 @@ def test_seed_european_cups(db_session, monkeypatch):
         "backend.services.providers.thesportsdb.fetch_json_with_retry",
         lambda url, *args, **kwargs: {"countries": [], "leagues": [], "events": None},
     )
-    results = seed_european_cups(db_session)
-    assert "UEFA Champions League" in results
-    assert "UEFA Europa League" in results
-    assert "UEFA Conference League" in results
-    
-    # 1. Verify UCL format engine and tournament setup
-    ucl_comp = db_session.query(Competition).filter(Competition.name == "UEFA Champions League").first()
-    assert ucl_comp is not None
-    assert ucl_comp.format_engine == "league_phase_knockout"
-    assert ucl_comp.type == "Cup"
-    
-    ucl_tourney = db_session.query(Tournament).filter(
-        Tournament.competition_id == ucl_comp.id,
-        Tournament.season_name == "2026/27"
-    ).first()
-    assert ucl_tourney is not None
-    assert ucl_tourney.status == "Active"
-    
-    # 2. Verify all 36 teams are added to TournamentTeam
-    ucl_teams_count = db_session.query(TournamentTeam).filter(
-        TournamentTeam.tournament_id == ucl_tourney.id
-    ).count()
-    assert ucl_teams_count == 36
-    
-    # 3. Verify fixtures are created with stage League Phase and odds
-    ucl_fixtures = db_session.query(Fixture).filter(
-        Fixture.tournament_id == ucl_tourney.id
-    ).all()
-    assert len(ucl_fixtures) > 0
-    for f in ucl_fixtures:
-        assert f.stage in ["League Phase", "Play-offs", "Round of 16", "Quarter-final", "Semi-final", "Final"]
-        assert f.status == "Scheduled"
-        assert f.home_team_id is not None
-        assert f.away_team_id is not None
-        assert len(f.odds_history) > 0
-        
-    # 4. Verify UEL and UECL setup
-    uel_comp = db_session.query(Competition).filter(Competition.name == "UEFA Europa League").first()
-    assert uel_comp.format_engine == "league_phase_knockout"
-    
-    uecl_comp = db_session.query(Competition).filter(Competition.name == "UEFA Conference League").first()
-    assert uecl_comp.format_engine == "league_phase_knockout"
+    monkeypatch.setattr(
+        "backend.services.seeder.fetch_and_seed_teams",
+        lambda *args, **kwargs: None,
+    )
 
-    # 5. Verify idempotency: second run creates no duplicate rows
-    comp_count = db_session.query(Competition).count()
-    team_count = db_session.query(Team).count()
-    tt_count = db_session.query(TournamentTeam).count()
-    fixture_count = db_session.query(Fixture).count()
+    result = seed(db_session, {"kind": "european_cups"})
+    assert result.status == "success"
+    assert "UEFA Champions League" in result.details
+    assert "UEFA Europa League" in result.details
+    assert "UEFA Conference League" in result.details
 
-    results2 = seed_european_cups(db_session)
-    assert "UEFA Champions League" in results2
-    assert db_session.query(Competition).count() == comp_count
-    assert db_session.query(Team).count() == team_count
-    assert db_session.query(TournamentTeam).count() == tt_count
-    assert db_session.query(Fixture).count() == fixture_count
+    ucl = db_session.query(Competition).filter(Competition.name == "UEFA Champions League").one()
+    assert ucl.format_engine == "league_phase_knockout"
+    assert ucl.type == "Cup"
+    assert ucl.api_league_id == 2
+
+    tourney = db_session.query(Tournament).filter(
+        Tournament.competition_id == ucl.id,
+        Tournament.season_name == "2026/27",
+    ).one()
+    assert tourney.status == "Active"
+    assert db_session.query(TournamentTeam).filter(
+        TournamentTeam.tournament_id == tourney.id
+    ).count() == 0
+    assert db_session.query(Fixture).filter(Fixture.tournament_id == tourney.id).count() == 0
+    assert db_session.query(Fixture).filter(Fixture.stage == "Play-offs").count() == 0
