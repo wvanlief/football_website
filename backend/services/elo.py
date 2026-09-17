@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from backend.database import Team, Fixture, FixtureOdds, EloHistory, Competition
 from backend.scoring import score
 from backend.utils import fetch_url_with_retry
-from backend.services.ingestion import NameNormalizer
+from backend.services.ingestion.normalizer import NameNormalizer
 from backend.services.odds import calculate_default_odds
 
 def elo_to_form(elo: float) -> float:
