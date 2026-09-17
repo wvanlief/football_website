@@ -2,10 +2,9 @@ import pytest
 from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 
-from backend.database import Competition, Tournament, Fixture, FixtureOdds, Team, TournamentTeam
+from backend.database import Competition, Tournament, Fixture, Team, TournamentTeam
 from backend.services.seeder import (
     seed_single_competition,
-    seed_european_cups,
     retire_european_draw_placeholders,
 )
 import backend.crud.fixture as crud_fixture
@@ -15,14 +14,24 @@ def test_seed_single_competition_european_cup(db_session, monkeypatch):
     monkeypatch.delenv("FOOTBALL_DATA_ORG_KEY", raising=False)
     monkeypatch.delenv("FOOTBALL_DATA_API_KEY", raising=False)
     monkeypatch.delenv("FOOTBALL_DATA_KEY", raising=False)
+    monkeypatch.setattr(
+        "backend.services.providers.thesportsdb.fetch_json_with_retry",
+        lambda url, *args, **kwargs: {"countries": [], "leagues": [], "events": None},
+    )
+    monkeypatch.setattr(
+        "backend.services.seeder.fetch_and_seed_teams",
+        lambda *args, **kwargs: None,
+    )
     result = seed_single_competition(db_session, league_id=2)
     assert result["status"] == "success"
     assert result["league_id"] == 2
-    assert "details" in result
+    assert result["competition"] == "UEFA Champions League"
 
     ucl_comp = db_session.query(Competition).filter(Competition.name == "UEFA Champions League").first()
     assert ucl_comp is not None
     assert ucl_comp.api_league_id == 2
+    tourney = db_session.query(Tournament).filter(Tournament.competition_id == ucl_comp.id).one()
+    assert db_session.query(Fixture).filter(Fixture.tournament_id == tourney.id).count() == 0
 
     uel_comp = db_session.query(Competition).filter(Competition.name == "UEFA Europa League").first()
     assert uel_comp is None
@@ -178,85 +187,12 @@ def test_ucl_overlay_stamps_inserts_hides_and_skips_api_football_key(
         ),
     ]
 
-    seed_european_cups(db_session, target_league_id=2)
-    mock_fetch_fixtures.assert_not_called()
-
-    ucl = db_session.query(Competition).filter_by(name="UEFA Champions League").first()
-    tourney = db_session.query(Tournament).filter_by(competition_id=ucl.id).first()
-
-    sporting_row = next(
-        f
-        for f in db_session.query(Fixture).filter_by(tournament_id=tourney.id)
-        if f.home_team and f.away_team
-        and f.home_team.name == "Sporting CP"
-        and f.away_team.name == "Galatasaray"
-    )
-    odds_before = {
-        o.id: (o.odds_home, o.odds_draw, o.odds_away)
-        for o in db_session.query(FixtureOdds).filter_by(fixture_id=sporting_row.id)
-    }
-    playoff_count_before = (
-        db_session.query(Fixture)
-        .filter(Fixture.tournament_id == tourney.id, Fixture.stage == "Play-offs")
-        .count()
-    )
-    fixture_count_before = db_session.query(Fixture).filter_by(tournament_id=tourney.id).count()
-
-    monkeypatch.setenv("FOOTBALL_DATA_ORG_KEY", "fd-test-key")
-    result = seed_single_competition(db_session, league_id=2)
-    assert result["status"] == "success"
-    mock_fetch_fixtures.assert_called()
-    assert mock_fetch_fixtures.call_args[0][0] == "UEFA Champions League"
-
-    db_session.refresh(sporting_row)
-    assert sporting_row.api_id == "fd_9001"
-    stored = sporting_row.date_utc
-    if stored.tzinfo is None:
-        stored = stored.replace(tzinfo=timezone.utc)
-    assert stored.isoformat().startswith("2026-09-16T19:00:00")
-    assert sporting_row.stage == "League Phase"
-    odds_after = {
-        o.id: (o.odds_home, o.odds_draw, o.odds_away)
-        for o in db_session.query(FixtureOdds).filter_by(fixture_id=sporting_row.id)
-    }
-    for oid, triple in odds_before.items():
-        assert odds_after[oid] == triple
-
-    liverpool = (
-        db_session.query(Fixture)
-        .filter(Fixture.tournament_id == tourney.id, Fixture.api_id == "fd_9002")
-        .one()
-    )
-    assert liverpool.home_team.name == "Liverpool"
-    assert liverpool.away_team.name == "Atlético Madrid"
-    liv_dt = liverpool.date_utc
-    if liv_dt.tzinfo is None:
-        liv_dt = liv_dt.replace(tzinfo=timezone.utc)
-    assert liv_dt.date().isoformat() == "2026-09-09"
-
-    sporting_lask = next(
-        f
-        for f in db_session.query(Fixture).filter_by(tournament_id=tourney.id)
-        if f.home_team and f.away_team
-        and f.home_team.name == "Sporting CP"
-        and f.away_team.name == "LASK"
-    )
-    assert sporting_lask.api_id is None
-    assert sporting_lask.status == "Scheduled"
-
-    playoff_count_after = (
-        db_session.query(Fixture)
-        .filter(Fixture.tournament_id == tourney.id, Fixture.stage == "Play-offs")
-        .count()
-    )
-    assert playoff_count_after == playoff_count_before
-    assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() == fixture_count_before + 1
+    leftover_home = Team(name="BSC Young Boys", team_type="Club")
+    leftover_away = Team(name="Aston Villa", team_type="Club")
+    db_session.add_all([leftover_home, leftover_away])
+    db_session.flush()
 
     now_utc = datetime(2026, 9, 16, 12, 0, tzinfo=timezone.utc)
-    eligible = crud_fixture.get_eligible_fixtures(db_session, tournament_id=tourney.id, now_utc=now_utc)
-    eligible_ids = {f.id for f in eligible}
-    assert sporting_row.id in eligible_ids
-    assert sporting_lask.id not in eligible_ids
 
     from backend.services import feed_builder
 
@@ -268,14 +204,62 @@ def test_ucl_overlay_stamps_inserts_hides_and_skips_api_football_key(
     cache_path = tmp_path / "fixtures_feed_cache.json"
     monkeypatch.setattr(feed_builder, "datetime", FrozenDatetime)
     monkeypatch.setattr(feed_builder, "CACHE_FILE_PATH", str(cache_path))
+    monkeypatch.setenv("FOOTBALL_DATA_ORG_KEY", "fd-test-key")
+    result = seed_single_competition(db_session, league_id=2)
+    assert result["status"] == "success"
+    mock_fetch_fixtures.assert_called()
+    assert mock_fetch_fixtures.call_args[0][0] == "UEFA Champions League"
+
+    ucl = db_session.query(Competition).filter_by(name="UEFA Champions League").first()
+    tourney = db_session.query(Tournament).filter_by(competition_id=ucl.id).first()
+    by_api = {
+        f.api_id: f
+        for f in db_session.query(Fixture).filter_by(tournament_id=tourney.id)
+    }
+    assert set(by_api) == {"fd_9001", "fd_9002", "fd_9003"}
+    sporting_row = by_api["fd_9001"]
+    stored = sporting_row.date_utc
+    if stored.tzinfo is None:
+        stored = stored.replace(tzinfo=timezone.utc)
+    assert stored.isoformat().startswith("2026-09-16T19:00:00")
+    assert sporting_row.stage == "League Phase"
+    assert "Sporting" in sporting_row.home_team.name
+    assert "Galatasaray" in sporting_row.away_team.name
+
+    liverpool = by_api["fd_9002"]
+    assert "Liverpool" in liverpool.home_team.name
+    assert "Atlético" in liverpool.away_team.name
+    liv_dt = liverpool.date_utc
+    if liv_dt.tzinfo is None:
+        liv_dt = liv_dt.replace(tzinfo=timezone.utc)
+    assert liv_dt.date().isoformat() == "2026-09-09"
+    assert "Lille" in by_api["fd_9003"].away_team.name
+
+    pairings = {
+        (f.home_team.name, f.away_team.name)
+        for f in db_session.query(Fixture).filter_by(tournament_id=tourney.id)
+        if f.home_team and f.away_team
+    }
+    assert ("Sporting CP", "LASK") not in pairings
+    assert ("BSC Young Boys", "Aston Villa") not in pairings
+    assert ("Young Boys", "Aston Villa") not in pairings
+    assert db_session.query(Fixture).filter(
+        Fixture.tournament_id == tourney.id, Fixture.stage == "Play-offs"
+    ).count() == 0
+
+    eligible = crud_fixture.get_eligible_fixtures(db_session, tournament_id=tourney.id, now_utc=now_utc)
+    eligible_ids = {f.id for f in eligible}
+    assert sporting_row.id in eligible_ids
+    assert liverpool.id in eligible_ids
+
     feed_payload = feed_builder.build_fixtures_feed_cache(db_session)
     names = {
         (item["home_team"]["name"], item["away_team"]["name"])
         for item in feed_payload["fixtures"]
     }
-    assert ("Sporting CP", "Galatasaray") in names
+    assert any("Sporting" in h and "Galatasaray" in a for h, a in names)
     assert ("Sporting CP", "LASK") not in names
-    assert ("Liverpool", "Atlético Madrid") in names
+    assert any("Liverpool" in h and "Atlético" in a for h, a in names)
     assert ("BSC Young Boys", "Aston Villa") not in names
     assert ("Young Boys", "Aston Villa") not in names
 
@@ -342,7 +326,13 @@ def test_europa_overlay_stamps_from_thesportsdb_after_empty_football_data(
         .filter(Fixture.tournament_id == tourney.id, Fixture.stage == "Play-offs")
         .count()
     )
-    assert playoff_count > 0
+    assert playoff_count == 0
+    leftover = (
+        db_session.query(Fixture)
+        .filter(Fixture.tournament_id == tourney.id, Fixture.api_id.is_(None))
+        .count()
+    )
+    assert leftover == 0
     tsdb_urls = [call.args[0] for call in mock_tsdb_http.call_args_list]
     assert any("search_all_leagues.php" in url for url in tsdb_urls)
     assert any("eventsseason.php" in url and "id=4481" in url for url in tsdb_urls)
@@ -373,7 +363,7 @@ def test_europa_empty_thesportsdb_does_not_invent_fixtures(
         .count()
     )
     assert stamped == 0
-    assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() > 0
+    assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() == 0
 
 
 @patch("backend.services.seeder.fetch_and_seed_teams")
@@ -438,6 +428,6 @@ def test_conference_overlay_stamps_from_thesportsdb_after_empty_football_data(
         .filter(Fixture.tournament_id == tourney.id, Fixture.api_id.is_(None))
         .count()
     )
-    assert leftover > 0
+    assert leftover == 0
     tsdb_urls = [call.args[0] for call in mock_tsdb_http.call_args_list]
     assert any("eventsseason.php" in url and "id=5071" in url for url in tsdb_urls)
