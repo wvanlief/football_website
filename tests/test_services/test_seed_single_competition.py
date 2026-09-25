@@ -272,7 +272,7 @@ def test_ucl_overlay_stamps_inserts_hides_and_skips_api_football_key(
     assert ("Young Boys", "Aston Villa") not in names
 
 
-@patch("backend.services.providers.football_api.FootballApiProvider.fetch_fixtures", return_value=[])
+@patch("backend.services.providers.highlightly.HighlightlyProvider.fetch_fixtures", return_value=[])
 @patch("backend.services.seeder.fetch_and_seed_teams")
 @patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
 @patch("backend.services.providers.football_data.FootballDataProvider.fetch_fixtures")
@@ -350,8 +350,9 @@ def test_europa_overlay_stamps_from_thesportsdb_after_empty_football_data(
 @patch("backend.services.seeder.fetch_and_seed_teams")
 @patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
 @patch("backend.services.providers.football_data.FootballDataProvider.fetch_fixtures")
+@patch("backend.services.providers.highlightly.HighlightlyProvider.fetch_fixtures", return_value=[])
 def test_europa_empty_thesportsdb_does_not_invent_fixtures(
-    mock_fd_fetch, mock_tsdb_http, mock_fetch_teams, db_session, monkeypatch
+    _mock_hl_fetch, mock_fd_fetch, mock_tsdb_http, mock_fetch_teams, db_session, monkeypatch
 ):
     monkeypatch.setenv("FOOTBALL_DATA_ORG_KEY", "fd-test-key")
     mock_fd_fetch.return_value = []
@@ -375,7 +376,7 @@ def test_europa_empty_thesportsdb_does_not_invent_fixtures(
     assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() == 0
 
 
-@patch("backend.services.providers.football_api.FootballApiProvider.fetch_fixtures", return_value=[])
+@patch("backend.services.providers.highlightly.HighlightlyProvider.fetch_fixtures", return_value=[])
 @patch("backend.services.seeder.fetch_and_seed_teams")
 @patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
 @patch("backend.services.providers.football_data.FootballDataProvider.fetch_fixtures")

@@ -1,4 +1,4 @@
-"""Highlightly date-page failover. Not a season dump."""
+"""Highlightly fixtures: a season dump for the seeder, and a date-page failover for the daily updater."""
 from __future__ import annotations
 
 import os
@@ -15,11 +15,17 @@ PROVIDER_NAME = "highlightly"
 BASE_URL = "https://soccer.highlightly.net"
 PAGE_LIMIT = 100
 MAX_PAGES = 3
+MAX_SEASON_PAGES = 8
 
 LEAGUE_PHASE_NAMES = {
     "UEFA Europa League",
     "UEFA Conference League",
     "UEFA Europa Conference League",
+}
+
+# Highlightly's leagueName does not always match our catalog name.
+SEASON_LEAGUE_ALIASES = {
+    "UEFA Conference League": ["UEFA Europa Conference League"],
 }
 
 
@@ -38,6 +44,14 @@ def _parse_date(raw: Optional[str]):
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
+
+
+def season_query_names(competition_name: str) -> list[str]:
+    names = [competition_name]
+    for alias in SEASON_LEAGUE_ALIASES.get(competition_name, []):
+        if alias not in names:
+            names.append(alias)
+    return names
 
 
 def _league_name(item: dict) -> str:
@@ -82,11 +96,30 @@ def _status_and_scores(item: dict) -> tuple[str, Optional[int], Optional[int]]:
 
 
 class HighlightlyProvider:
-    """Date query against Highlightly, optionally filtered by league name."""
+    """Season dump for seeding, and a date query for the daily updater."""
 
     def __init__(self, api_key: Optional[str] = None, team_resolver: Optional[TeamResolver] = None):
         self.api_key = api_key if api_key is not None else get_highlightly_api_key()
         self.team_resolver = team_resolver or TeamResolver()
+
+    def fetch_fixtures(self, competition_name: str, season: int, league_id: Optional[int] = None) -> list[dict]:
+        """One or more ``GET /matches?leagueName=&season=`` pages. ``league_id`` is unused."""
+        del league_id
+        if not self.api_key:
+            print(f"Highlightly: HIGHLIGHTLY_API_KEY is not set; skipping {competition_name}.")
+            return []
+        for league_name in season_query_names(competition_name):
+            rows, failed = self._collect_pages(
+                {"leagueName": league_name, "season": season},
+                MAX_SEASON_PAGES,
+                f"{competition_name} season {season} ({league_name})",
+            )
+            if rows:
+                return rows
+            if failed:
+                return []
+        print(f"Highlightly: no season fixtures for {competition_name} season {season}.")
+        return []
 
     def fetch_matches_by_date(
         self,
@@ -95,36 +128,60 @@ class HighlightlyProvider:
     ) -> list[dict]:
         if not self.api_key:
             return []
+        params = {"date": match_date}
+        if league_name:
+            params["leagueName"] = league_name
+        rows, _failed = self._collect_pages(params, MAX_PAGES, f"date {match_date}")
+        return rows
+
+    def _collect_pages(self, base_params: dict, max_pages: int, label: str) -> tuple[list[dict], bool]:
+        """Return ``(matches, failed)``. ``failed`` is a transport or HTTP error."""
         matches: list[dict] = []
         offset = 0
-        for _page in range(MAX_PAGES):
-            params = {"date": match_date, "limit": PAGE_LIMIT, "offset": offset}
-            if league_name:
-                params["leagueName"] = league_name
-            url = f"{BASE_URL}/matches?{urlencode(params)}"
-            try:
-                payload = fetch_json_with_retry(
-                    url,
-                    headers={"x-rapidapi-key": self.api_key},
-                    use_cache=False,
-                    provider="highlightly",
-                )
-            except Exception as exc:
-                print(f"Highlightly date error for {match_date}: {exc}")
-                break
-            if not isinstance(payload, dict):
-                break
-            page = payload.get("data") or []
-            if not isinstance(page, list) or not page:
+        total = None
+        for _page in range(max_pages):
+            params = dict(base_params)
+            params["limit"] = PAGE_LIMIT
+            params["offset"] = offset
+            page, total, failed = self._request_page(params, label)
+            if failed:
+                return matches, True
+            if not page:
                 break
             matches.extend(page)
-            total = (payload.get("pagination") or {}).get("totalCount")
             offset += PAGE_LIMIT
             if total is not None and offset >= int(total):
                 break
             if len(page) < PAGE_LIMIT:
                 break
-        return matches
+        if total is not None and offset < int(total):
+            print(f"Highlightly: stopped at {len(matches)} of {total} for {label}.")
+        return matches, False
+
+    def _request_page(self, params: dict, label: str) -> tuple[list[dict], Optional[int], bool]:
+        url = f"{BASE_URL}/matches?{urlencode(params)}"
+        try:
+            payload = fetch_json_with_retry(
+                url,
+                headers={"x-rapidapi-key": self.api_key},
+                use_cache=False,
+                provider="highlightly",
+            )
+        except Exception as exc:
+            print(f"Highlightly error for {label}: {exc}")
+            return [], None, True
+        if not isinstance(payload, dict):
+            return [], None, True
+        page = payload.get("data") or []
+        if not isinstance(page, list):
+            return [], None, True
+        total = (payload.get("pagination") or {}).get("totalCount")
+        if not page:
+            plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else None
+            detail = payload.get("errors") or payload.get("error") or (plan or {}).get("message")
+            if detail:
+                print(f"Highlightly: no matches for {label} ({detail}).")
+        return page, total, False
 
     def normalize_fixture_payload(
         self,

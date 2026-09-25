@@ -8,7 +8,7 @@ from backend.services.ingestion.team_resolver import TeamResolver
 from backend.services.ingestion.fixture_upserter import FixtureUpserter, UpsertResult
 from backend.services.ingestion.team_merge import merge_club_aliases
 from backend.services.providers.football_data import COMPETITION_CODE_MAP, FootballDataProvider
-from backend.services.providers.football_api import FootballApiProvider
+from backend.services.providers.highlightly import HighlightlyProvider
 from backend.services.providers.openfootball import OpenFootballProvider
 from backend.services.providers.thesportsdb import TheSportsDBProvider
 
@@ -21,8 +21,8 @@ class IngestionEngine:
     Guarantees:
     - Zero DELETE operations (strictly additive).
     - Pre-flight guard checks fetched fixture count against DB to prevent data loss.
-    - Fallback chain: Football-Data.org -> openfootball -> Football-API (competitions
-      absent from Football-Data.org) -> TheSportsDB.
+    - Fallback chain: Football-Data.org -> openfootball -> Highlightly season dump
+      (competitions absent from Football-Data.org) -> TheSportsDB.
     """
     def __init__(
         self,
@@ -31,7 +31,7 @@ class IngestionEngine:
         fixture_upserter: Optional[FixtureUpserter] = None,
         fd_provider: Optional[FootballDataProvider] = None,
         openfootball_provider: Optional[OpenFootballProvider] = None,
-        football_api_provider: Optional[FootballApiProvider] = None,
+        highlightly_provider: Optional[HighlightlyProvider] = None,
         tsdb_provider: Optional[TheSportsDBProvider] = None,
     ):
         self.preflight = preflight_guard or PreflightGuard()
@@ -41,7 +41,7 @@ class IngestionEngine:
         self.openfootball_provider = openfootball_provider or OpenFootballProvider(
             team_resolver=self.team_resolver
         )
-        self.football_api_provider = football_api_provider or FootballApiProvider(
+        self.highlightly_provider = highlightly_provider or HighlightlyProvider(
             team_resolver=self.team_resolver
         )
         self.tsdb_provider = tsdb_provider or TheSportsDBProvider(
@@ -92,19 +92,18 @@ class IngestionEngine:
 
         if competition_name not in COMPETITION_CODE_MAP:
             print(
-                f"Ingestion: trying Football-API for {competition_name} "
+                f"Ingestion: trying Highlightly for {competition_name} "
                 f"before TheSportsDB."
             )
-            league_id = competition.api_league_id if competition and competition.api_league_id else None
-            fa_fixtures = self.football_api_provider.fetch_fixtures(
-                competition_name, api_season, league_id=league_id
+            hl_fixtures = self.highlightly_provider.fetch_fixtures(
+                competition_name, api_season
             ) or []
-            if fa_fixtures:
+            if hl_fixtures:
                 print(
-                    f"Ingestion: using Football-API for {competition_name} "
-                    f"({len(fa_fixtures)} fixtures)."
+                    f"Ingestion: using Highlightly for {competition_name} "
+                    f"({len(hl_fixtures)} fixtures)."
                 )
-                return fa_fixtures, self.football_api_provider, "Football-API"
+                return hl_fixtures, self.highlightly_provider, "Highlightly"
 
         print(
             f"Ingestion: trying TheSportsDB for {competition_name}."
@@ -121,7 +120,7 @@ class IngestionEngine:
 
         print(
             f"Ingestion: no fixtures from Football-Data.org, openfootball, "
-            f"Football-API, or TheSportsDB for {competition_name}."
+            f"Highlightly, or TheSportsDB for {competition_name}."
         )
         return [], None, "none"
 
@@ -181,7 +180,7 @@ class IngestionEngine:
         else:
             tourney.status = "Active"
 
-        # 3. Provider Fallback Chain: Football-Data.org -> openfootball -> Football-API -> TheSportsDB
+        # 3. Provider Fallback Chain: Football-Data.org -> openfootball -> Highlightly -> TheSportsDB
         raw_fixtures, provider, source_name = self._collect_raw_fixtures(
             competition_name, api_season, db=db, competition=comp
         )
