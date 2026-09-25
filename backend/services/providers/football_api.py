@@ -112,6 +112,32 @@ class FootballApiProvider:
         response = payload.get("response") or []
         return response if isinstance(response, list) else []
 
+    def fetch_fixtures_by_date(self, match_date: str) -> tuple[list[dict], bool]:
+        """One ``GET /fixtures?date=`` call.
+
+        Returns ``(fixtures, failed)``. ``failed`` is true on HTTP 4xx or transport
+        errors. An empty 200 is ``([], False)``.
+        """
+        if not self.api_key:
+            return [], False
+        url = f"{BASE_URL}/fixtures?date={match_date}"
+        try:
+            payload = fetch_json_with_retry(
+                url,
+                headers={"x-apisports-key": self.api_key},
+                use_cache=False,
+                provider="football_api",
+            )
+        except Exception as exc:
+            print(f"Football-API date error for {match_date}: {exc}")
+            return [], True
+        if not isinstance(payload, dict):
+            return [], True
+        response = payload.get("response") or []
+        if not isinstance(response, list):
+            return [], True
+        return response, False
+
     def normalize_fixture_payload(
         self,
         db: Session,

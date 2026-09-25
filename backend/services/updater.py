@@ -27,6 +27,9 @@ from backend.services.providers.football_data import (
     apply_matches_to_existing_fixtures,
     get_football_data_org_key,
 )
+from backend.services.providers.football_api import FootballApiProvider
+from backend.services.providers.highlightly import HighlightlyProvider
+from backend.services.ingestion.fixture_upserter import FixtureUpserter
 from backend.crud.mapping import get_competition_by_external_id
 from backend.utils import fetch_json_with_retry, fetch_url_with_retry, fetch_json
 
@@ -165,19 +168,127 @@ def sync_global_live_scores(db: Session) -> tuple:
 
     Delayed scores on the free plan are acceptable. Matches that transition to
     Finished are settled via finish_fixture(). Returns (updated_count, finished_count).
+
+    The 15-minute live cron stays on Football-Data.org. It does not call
+    Football-API or Highlightly.
     """
     date_from, date_to = _yesterday_and_today()
     return sync_football_data_matches(db, date_from, date_to)
 
+
+_HIGHLIGHTLY_LEAGUE_NAMES = {
+    "UEFA Europa Conference League": "UEFA Conference League",
+}
+
+
+def _active_tournament_for_competition(db: Session, competition: Competition | None):
+    if competition is None or competition.name in COMPETITION_CODE_MAP:
+        return None
+    return db.query(Tournament).filter(
+        Tournament.competition_id == competition.id,
+        Tournament.status == "Active",
+    ).first()
+
+
+def _upsert_payloads(db: Session, grouped: dict) -> tuple[int, int]:
+    upserter = FixtureUpserter()
+    created = updated = 0
+    for tournament, payloads in grouped.items():
+        if not payloads:
+            continue
+        result = upserter.upsert_fixtures(
+            db, tournament, payloads, competition=tournament.competition
+        )
+        created += result.created
+        updated += result.updated
+    return created, updated
+
+
+def _apply_football_api_date(db: Session, provider: FootballApiProvider, fixtures: list[dict]) -> tuple[int, int]:
+    grouped: dict = {}
+    for item in fixtures:
+        league = item.get("league") or {}
+        league_id = league.get("id")
+        competition = None
+        if league_id is not None:
+            competition = db.query(Competition).filter(
+                Competition.api_league_id == league_id
+            ).first()
+        tournament = _active_tournament_for_competition(db, competition)
+        if tournament is None:
+            continue
+        payload = provider.normalize_fixture_payload(
+            db, item, tournament.id, competition.type or "Cup"
+        )
+        if payload:
+            grouped.setdefault(tournament, []).append(payload)
+    return _upsert_payloads(db, grouped)
+
+
+def _apply_highlightly_date(db: Session, provider: HighlightlyProvider, matches: list[dict]) -> tuple[int, int]:
+    grouped: dict = {}
+    for item in matches:
+        league = item.get("league")
+        raw_name = league.get("name") if isinstance(league, dict) else league
+        name = _HIGHLIGHTLY_LEAGUE_NAMES.get(raw_name or "", raw_name)
+        competition = db.query(Competition).filter(Competition.name == name).first() if name else None
+        tournament = _active_tournament_for_competition(db, competition)
+        if tournament is None:
+            continue
+        payload = provider.normalize_fixture_payload(
+            db, item, tournament.id, competition.type or "Cup"
+        )
+        if payload:
+            grouped.setdefault(tournament, []).append(payload)
+    return _upsert_payloads(db, grouped)
+
+
+def sync_non_fd_date_overlay(db: Session, dates: list[str]) -> tuple[int, int]:
+    """Insert or update cups that Football-Data.org does not own.
+
+    Typical daily cost is 2 Football-API ``GET /fixtures?date=`` calls
+    (yesterday and today). Highlightly date pages run only when a Football-API
+    date returns HTTP 4xx or an empty list. Big 5 and UCL stay on Football-Data.org.
+    """
+    football_api = FootballApiProvider()
+    highlightly = HighlightlyProvider()
+    created = updated = 0
+    for match_date in dates:
+        fixtures, failed = football_api.fetch_fixtures_by_date(match_date)
+        if fixtures and not failed:
+            day_created, day_updated = _apply_football_api_date(db, football_api, fixtures)
+        else:
+            print(
+                f"Football-API date {match_date} was "
+                f"{'4xx' if failed else 'empty'}; trying Highlightly."
+            )
+            rows = highlightly.fetch_matches_by_date(match_date)
+            day_created, day_updated = _apply_highlightly_date(db, highlightly, rows)
+        created += day_created
+        updated += day_updated
+    db.commit()
+    return created, updated
+
+
 def update_results_and_odds(db: Session) -> dict:
     """
-    Main daily update task. Queries global results in single-call API requests for today (and yesterday),
-    updates odds history, and recalculates standings.
+    Main daily update task.
+
+    Typical day: 1 Football-Data.org range call (yesterday and today) for the
+    Big 5 and UCL, then 2 Football-API date calls for UEL, Conference, and other
+    cups. Highlightly is the failover when Football-API is 4xx or empty.
+    The 15-minute live path does not use those providers.
+    Rebuilds the fixtures feed cache after the overlay.
     """
     yesterday_str, today_str = _yesterday_and_today()
     fixtures_created, fixtures_updated_results = sync_global_date_results(
         db, yesterday_str, today_str
     )
+    overlay_created, overlay_updated = sync_non_fd_date_overlay(
+        db, [yesterday_str, today_str]
+    )
+    fixtures_created += overlay_created
+    fixtures_updated_results += overlay_updated
 
     # Fallback to tournament adapters if global date sync did not find/update fixtures
     if fixtures_created == 0 and fixtures_updated_results == 0:
