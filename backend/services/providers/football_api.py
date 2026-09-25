@@ -179,6 +179,8 @@ class FootballApiProvider:
         goals = item.get("goals") or {}
         home_score = goals.get("home")
         away_score = goals.get("away")
+        if status == "Finished" and (home_score is None or away_score is None):
+            return None
 
         return {
             "api_id": f"fa_{fixture_id}",

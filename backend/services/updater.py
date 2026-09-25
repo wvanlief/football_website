@@ -179,6 +179,7 @@ def sync_global_live_scores(db: Session) -> tuple:
 _HIGHLIGHTLY_LEAGUE_NAMES = {
     "UEFA Europa Conference League": "UEFA Conference League",
 }
+_HIGHLIGHTLY_QUERY_NAMES = {canonical: raw for raw, canonical in _HIGHLIGHTLY_LEAGUE_NAMES.items()}
 
 
 def _active_tournament_for_competition(db: Session, competition: Competition | None):
@@ -248,22 +249,45 @@ def sync_non_fd_date_overlay(db: Session, dates: list[str]) -> tuple[int, int]:
 
     Typical daily cost is 2 Football-API ``GET /fixtures?date=`` calls
     (yesterday and today). Highlightly date pages run only when a Football-API
-    date returns HTTP 4xx or an empty list. Big 5 and UCL stay on Football-Data.org.
+    date request fails or returns an empty list, or lacks an active competition.
+    Big 5 and UCL stay on Football-Data.org.
     """
     football_api = FootballApiProvider()
     highlightly = HighlightlyProvider()
     created = updated = 0
     for match_date in dates:
         fixtures, failed = football_api.fetch_fixtures_by_date(match_date)
+        active_tournaments = [
+            tournament for tournament in db.query(Tournament).filter(Tournament.status == "Active").all()
+            if tournament.competition and tournament.competition.name not in COMPETITION_CODE_MAP
+        ]
         if fixtures and not failed:
             day_created, day_updated = _apply_football_api_date(db, football_api, fixtures)
+            covered_league_ids = {
+                (item.get("league") or {}).get("id") for item in fixtures
+                if (item.get("league") or {}).get("id") is not None
+            }
+            fallback_tournaments = [
+                tournament for tournament in active_tournaments
+                if tournament.competition.api_league_id not in covered_league_ids
+            ]
         else:
             print(
                 f"Football-API date {match_date} was "
-                f"{'4xx' if failed else 'empty'}; trying Highlightly."
+                f"{'failed' if failed else 'empty'}; trying Highlightly."
             )
-            rows = highlightly.fetch_matches_by_date(match_date)
-            day_created, day_updated = _apply_highlightly_date(db, highlightly, rows)
+            day_created = day_updated = 0
+            fallback_tournaments = active_tournaments
+        rows = []
+        for tournament in fallback_tournaments:
+            name = tournament.competition.name
+            rows.extend(highlightly.fetch_matches_by_date(
+                match_date, league_name=_HIGHLIGHTLY_QUERY_NAMES.get(name, name)
+            ))
+        if rows:
+            hl_created, hl_updated = _apply_highlightly_date(db, highlightly, rows)
+            day_created += hl_created
+            day_updated += hl_updated
         created += day_created
         updated += day_updated
     db.commit()
@@ -276,7 +300,8 @@ def update_results_and_odds(db: Session) -> dict:
 
     Typical day: 1 Football-Data.org range call (yesterday and today) for the
     Big 5 and UCL, then 2 Football-API date calls for UEL, Conference, and other
-    cups. Highlightly is the failover when Football-API is 4xx or empty.
+    cups. Highlightly fills active competitions missing from each date's
+    Football-API response and handles failed or empty responses.
     The 15-minute live path does not use those providers.
     Rebuilds the fixtures feed cache after the overlay.
     """
@@ -284,9 +309,14 @@ def update_results_and_odds(db: Session) -> dict:
     fixtures_created, fixtures_updated_results = sync_global_date_results(
         db, yesterday_str, today_str
     )
-    overlay_created, overlay_updated = sync_non_fd_date_overlay(
-        db, [yesterday_str, today_str]
-    )
+    try:
+        overlay_created, overlay_updated = sync_non_fd_date_overlay(
+            db, [yesterday_str, today_str]
+        )
+    except Exception as exc:
+        db.rollback()
+        print(f"Warning: Non-FD date overlay failed: {exc}")
+        overlay_created = overlay_updated = 0
     fixtures_created += overlay_created
     fixtures_updated_results += overlay_updated
 

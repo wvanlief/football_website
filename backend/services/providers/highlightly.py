@@ -75,9 +75,15 @@ def _status_and_scores(item: dict) -> tuple[str, Optional[int], Optional[int]]:
     if isinstance(current, str) and "-" in current:
         left, right = current.split("-", 1)
         try:
-            home_score, away_score = int(left.strip()), int(right.strip())
+            home_score = int(left.strip())
         except ValueError:
-            home_score = away_score = None
+            pass
+        try:
+            away_score = int(right.strip())
+        except ValueError:
+            pass
+    if status == "Finished" and (home_score is None or away_score is None):
+        status = "Live"
     return status, home_score, away_score
 
 

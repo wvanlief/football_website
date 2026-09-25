@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
+from copy import deepcopy
 from unittest.mock import MagicMock
+import pytest
 
 from backend.database import Competition, Fixture, Team, Tournament
 from backend.services.ingestion.engine import IngestionEngine
@@ -33,6 +35,21 @@ UECL_FIXTURE = {
     },
     "goals": {"home": None, "away": None},
 }
+
+
+@pytest.mark.parametrize("scores", [
+    {"home": None, "away": 1},
+    {"home": 1, "away": None},
+])
+def test_finished_football_api_fixture_requires_both_scores(db_session, scores):
+    item = deepcopy(UEL_FIXTURE)
+    item["fixture"]["status"]["short"] = "FT"
+    item["goals"] = scores
+    provider = FootballApiProvider(api_key="test-key")
+
+    assert provider.normalize_fixture_payload(db_session, item, 1) is None
+    item["fixture"]["status"]["short"] = "1H"
+    assert provider.normalize_fixture_payload(db_session, item, 1)["status"] == "Live"
 
 
 def test_football_api_normalizes_league_phase_with_fa_stamp(db_session, monkeypatch):

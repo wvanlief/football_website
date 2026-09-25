@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import pytest
 from backend.database import Competition, Tournament, Fixture, FixtureOdds, TournamentTeam, Team
 from backend.services.ingestion.fixture_upserter import FixtureUpserter
 
@@ -345,3 +346,85 @@ def test_multiple_legs_outside_window_insert_a_second_row(db_session):
 
     assert created is True
     assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() == 3
+
+
+@pytest.mark.parametrize("stamp", ["fd_1", "fa_1", "hl_1"])
+def test_distinct_same_provider_pairing_inserts_instead_of_overwriting(db_session, stamp):
+    comp = Competition(name="Repeated Pairing", type="Cup")
+    tourney = Tournament(competition=comp, season_name="2026/27", status="Active")
+    home = Team(name="Home", team_type="Club")
+    away = Team(name="Away", team_type="Club")
+    db_session.add_all([tourney, home, away])
+    db_session.flush()
+    original = Fixture(
+        tournament_id=tourney.id, home_team_id=home.id, away_team_id=away.id,
+        api_id=stamp, date_utc=datetime(2026, 9, 25, 19, tzinfo=timezone.utc),
+        stage="League Phase", status="Scheduled",
+    )
+    db_session.add(original)
+    db_session.commit()
+
+    fixture, created = FixtureUpserter().upsert_fixture(db_session, tourney, {
+        "api_id": stamp.replace("_1", "_2"),
+        "home_team": home, "away_team": away,
+        "date_utc": datetime(2026, 9, 25, 20, tzinfo=timezone.utc),
+        "stage": "League Phase", "status": "Scheduled",
+    }, competition=comp)
+
+    assert created is True
+    assert fixture.id != original.id
+    assert original.api_id == stamp
+    assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() == 2
+
+
+def test_unique_pairing_can_match_another_provider_stamp(db_session):
+    comp = Competition(name="Cross-provider Pairing", type="Cup")
+    tourney = Tournament(competition=comp, season_name="2026/27", status="Active")
+    home = Team(name="Home", team_type="Club")
+    away = Team(name="Away", team_type="Club")
+    db_session.add_all([tourney, home, away])
+    db_session.flush()
+    original = Fixture(
+        tournament_id=tourney.id, home_team_id=home.id, away_team_id=away.id,
+        api_id="fa_1", date_utc=datetime(2026, 9, 25, 19, tzinfo=timezone.utc),
+        stage="League Phase", status="Scheduled",
+    )
+    db_session.add(original)
+    db_session.commit()
+
+    fixture, created = FixtureUpserter().upsert_fixture(db_session, tourney, {
+        "api_id": "hl_2", "home_team": home, "away_team": away,
+        "date_utc": datetime(2026, 9, 25, 20, tzinfo=timezone.utc),
+        "stage": "League Phase", "status": "Scheduled",
+    }, competition=comp)
+
+    assert created is False
+    assert fixture.id == original.id
+
+
+@pytest.mark.parametrize("stamp", ["fa_2", "hl_2"])
+def test_overlay_stamp_matches_across_stages_within_window(db_session, stamp):
+    comp = Competition(name="Cross-stage Pairing", type="Cup")
+    tourney = Tournament(competition=comp, season_name="2026/27", status="Active")
+    home = Team(name="Home", team_type="Club")
+    away = Team(name="Away", team_type="Club")
+    db_session.add_all([tourney, home, away])
+    db_session.flush()
+    near = Fixture(
+        tournament_id=tourney.id, home_team_id=home.id, away_team_id=away.id,
+        date_utc=datetime(2026, 9, 25, 19, tzinfo=timezone.utc),
+        stage="Qualifying", status="Scheduled",
+    )
+    far = Fixture(
+        tournament_id=tourney.id, home_team_id=home.id, away_team_id=away.id,
+        date_utc=datetime(2026, 10, 25, 19, tzinfo=timezone.utc),
+        stage="Qualifying", status="Scheduled",
+    )
+    db_session.add_all([near, far])
+    db_session.commit()
+
+    fixture = FixtureUpserter()._find_existing_fixture(
+        db_session, tourney, stamp, home, away,
+        datetime(2026, 9, 25, 20, tzinfo=timezone.utc), "League Phase",
+    )
+    assert fixture.id == near.id
