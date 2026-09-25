@@ -202,11 +202,12 @@ def test_empty_football_data_does_not_invent_ucl_openfootball_path(
     assert fixtures == []
 
 
+@patch("backend.services.providers.football_api.FootballApiProvider.fetch_fixtures", return_value=[])
 @patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
 @patch("backend.services.providers.openfootball.fetch_json_with_retry")
 @patch("backend.services.providers.football_data.fetch_json_with_retry")
 def test_empty_fd_and_openfootball_falls_back_to_thesportsdb_for_conference_league(
-    mock_fd_http, mock_of_http, mock_tsdb_http, db_session
+    mock_fd_http, mock_of_http, mock_tsdb_http, _mock_fa_fetch, db_session
 ):
     """Conference League has no FD free-plan or openfootball dataset; TheSportsDB is tertiary."""
     mock_fd_http.side_effect = _fd_http(matches=[])

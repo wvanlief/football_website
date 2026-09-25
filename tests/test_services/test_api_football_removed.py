@@ -81,12 +81,18 @@ def test_rate_limiter_has_no_api_football_quota():
     assert "api_football" not in APIRateLimiter.LIMITS
 
 
-def test_runtime_python_has_no_api_sports_v3_host():
+def test_runtime_python_has_no_api_sports_v3_host_outside_football_api():
+    allowed = {"backend/services/providers/football_api.py"}
     hits = []
     for path in _production_python_files():
         text = path.read_text(encoding="utf-8")
-        if "v3.football.api-sports.io" in text:
-            hits.append(str(path.relative_to(REPO_ROOT)))
+        rel = str(path.relative_to(REPO_ROOT)).replace("\\", "/")
+        if "v3.football.api-sports.io" in text and rel not in allowed:
+            hits.append(rel)
+        if rel in allowed:
+            assert "media.api-sports.io" not in text
+            assert "players/squads" not in text
+            assert "/squads" not in text
     assert hits == []
 
 

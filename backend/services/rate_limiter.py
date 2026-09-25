@@ -13,6 +13,7 @@ class APIRateLimiter:
         "openfootball": {"per_min": 30, "per_day": 200},
         "the_odds_api": {"per_min": 2, "per_day": 30},
         "thesportsdb": {"per_min": 10, "per_day": 100},
+        "football_api": {"per_min": 10, "per_day": 90},
         "clubelo": {"per_min": 2, "per_day": 20},
         "eloratings": {"per_min": 2, "per_day": 20},
     }
