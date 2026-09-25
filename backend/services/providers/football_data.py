@@ -415,7 +415,7 @@ def apply_matches_to_existing_fixtures(
     matches: List[dict],
     tournament_id: Optional[int] = None,
 ) -> Tuple[int, int]:
-    """Write scores and statuses from Football-Data.org matches onto existing fixtures.
+    """Write date, scores, and statuses from Football-Data.org matches onto existing fixtures.
 
     Returns ``(non_finished_updates, finished_count)``. Never creates fixture rows.
     """
@@ -436,6 +436,16 @@ def apply_matches_to_existing_fixtures(
         home_goals, away_goals = extract_match_scores(item)
         _stamp_provider_api_id(fixture, item.get("id"))
 
+        match_dt = _parse_match_dt(item)
+        date_changed = False
+        if match_dt is not None:
+            stored = fixture.date_utc
+            if stored is not None and stored.tzinfo is None:
+                stored = stored.replace(tzinfo=timezone.utc)
+            if stored != match_dt:
+                fixture.date_utc = match_dt
+                date_changed = True
+
         if new_status == "Finished":
             if (
                 fixture.status != "Finished"
@@ -448,7 +458,7 @@ def apply_matches_to_existing_fixtures(
                 finished += 1
             continue
 
-        changed = False
+        changed = date_changed
         if fixture.status != new_status:
             fixture.status = new_status
             changed = True

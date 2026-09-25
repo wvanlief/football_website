@@ -418,13 +418,6 @@ def _seed_all(db: Session) -> SeedResult:
                     Tournament.competition_id == comp.id,
                     Tournament.season_name == season_str,
                 ).first()
-                if tourney:
-                    f_count = db.query(Fixture).filter(Fixture.tournament_id == tourney.id).count()
-                    if f_count > 0:
-                        print(f"Skipping {name} ({season_str}): already seeded with {f_count} fixtures.")
-                        results[name] = f"Already seeded ({f_count} fixtures)"
-                        continue
-
             print(f"Seeding competition: {name}...")
             teams_exist = bool(
                 tourney

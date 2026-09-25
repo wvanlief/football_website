@@ -240,3 +240,108 @@ def test_upsert_does_not_change_home_or_away_on_existing_row(db_session):
     assert fixture.watchability_score == 91.0
     kept_odds = db_session.query(FixtureOdds).filter_by(id=odds.id).one()
     assert (kept_odds.odds_home, kept_odds.odds_draw, kept_odds.odds_away) == (1.9, 3.5, 4.0)
+
+
+def test_unique_pairing_updates_when_kickoff_and_stage_drift(db_session):
+    """A single home/away row is updated even when kickoff moved by days and stage differs."""
+    comp = Competition(name="UEL Unique Pairing", type="Cup", format_engine="league_phase_knockout")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+
+    home = Team(name="Roma", team_type="Club")
+    away = Team(name="Sporting CP", team_type="Club")
+    db_session.add_all([home, away])
+    db_session.flush()
+
+    original = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=home.id,
+        away_team_id=away.id,
+        date_utc=datetime(2026, 8, 1, 19, 0, tzinfo=timezone.utc),
+        stage="Qualifying",
+        status="Scheduled",
+    )
+    db_session.add(original)
+    db_session.commit()
+
+    fixture, created = FixtureUpserter().upsert_fixture(
+        db_session,
+        tourney,
+        {
+            "api_id": "fd_88001",
+            "home_team": home,
+            "away_team": away,
+            "date_utc": datetime(2026, 9, 24, 19, 0, tzinfo=timezone.utc),
+            "stage": "League Phase",
+            "status": "Scheduled",
+        },
+        competition=comp,
+    )
+    db_session.commit()
+
+    assert created is False
+    assert fixture.id == original.id
+    assert fixture.api_id == "fd_88001"
+    assert fixture.stage == "League Phase"
+    stored = fixture.date_utc
+    if stored.tzinfo is None:
+        stored = stored.replace(tzinfo=timezone.utc)
+    assert stored == datetime(2026, 9, 24, 19, 0, tzinfo=timezone.utc)
+    assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() == 1
+
+
+def test_multiple_legs_outside_window_insert_a_second_row(db_session):
+    """Two existing legs of the same pairing stay distinct; a far kickoff inserts."""
+    comp = Competition(name="UEL Two Legs", type="Cup", format_engine="league_phase_knockout")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+
+    home = Team(name="Ajax", team_type="Club")
+    away = Team(name="Benfica", team_type="Club")
+    db_session.add_all([home, away])
+    db_session.flush()
+    db_session.add_all([
+        Fixture(
+            tournament_id=tourney.id,
+            home_team_id=home.id,
+            away_team_id=away.id,
+            date_utc=datetime(2026, 9, 17, 19, 0, tzinfo=timezone.utc),
+            stage="League Phase",
+            status="Scheduled",
+            api_id="fd_1",
+        ),
+        Fixture(
+            tournament_id=tourney.id,
+            home_team_id=home.id,
+            away_team_id=away.id,
+            date_utc=datetime(2026, 10, 1, 19, 0, tzinfo=timezone.utc),
+            stage="League Phase",
+            status="Scheduled",
+            api_id="fd_2",
+        ),
+    ])
+    db_session.commit()
+
+    _, created = FixtureUpserter().upsert_fixture(
+        db_session,
+        tourney,
+        {
+            "api_id": "fd_3",
+            "home_team": home,
+            "away_team": away,
+            "date_utc": datetime(2026, 11, 5, 20, 0, tzinfo=timezone.utc),
+            "stage": "League Phase",
+            "status": "Scheduled",
+        },
+        competition=comp,
+    )
+    db_session.commit()
+
+    assert created is True
+    assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() == 3

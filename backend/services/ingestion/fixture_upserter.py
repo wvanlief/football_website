@@ -45,7 +45,7 @@ class FixtureUpserter:
     Strictly additive: creates or updates Fixture records without performing any DELETE operations.
 
     Features:
-    - Matches existing fixtures by api_id or by (home_team_id, away_team_id) within ±12 hours.
+    - Matches existing fixtures by api_id, then a unique home/away pairing, then ±12 hours when several legs exist.
     - Registers TournamentTeam associations when home/away teams are resolved.
     - Adds default FixtureOdds with date deduplication (no duplicate odds entries for the same date).
     - Settles finished fixtures using settle_result().
@@ -178,7 +178,7 @@ class FixtureUpserter:
         date_utc: datetime,
         stage: Optional[str],
     ) -> Optional[Fixture]:
-        """Match by provider id, then unique home/away for stamped overlays, then kickoff window."""
+        """Match by provider id, then a unique home/away row, then stage, then kickoff window."""
         if not tournament:
             return None
 
@@ -199,14 +199,17 @@ class FixtureUpserter:
             Fixture.away_team_id == away_team.id,
         ).all()
 
+        # One pairing in this tournament is the official row, even when the
+        # placeholder kickoff or stage drifted. Multiple legs stay on ±12h.
+        if len(pairing) == 1:
+            return pairing[0]
+
         if stage:
             staged = [candidate for candidate in pairing if candidate.stage == stage]
             if len(staged) == 1:
                 return staged[0]
 
         provider_stamp = bool(api_id) and str(api_id).startswith(("fd_", "of_", "tsdb_"))
-        if provider_stamp and len(pairing) == 1:
-            return pairing[0]
 
         kickoff = _as_utc(date_utc)
         if kickoff is None:

@@ -244,6 +244,16 @@ def test_group_enriched_fixtures_canonical_parity(db_session):
     assert result["is_offseason"] is False
 
 
+def test_feed_builder_imports_without_odds_cycle():
+    """odds.NameNormalizer must not pull FixtureUpserter back through the package init."""
+    import backend.services.feed_builder as feed_builder
+    from backend.services.odds import NameNormalizer, calculate_default_odds
+
+    assert feed_builder.build_fixtures_feed_cache
+    assert NameNormalizer.__module__ == "backend.services.ingestion.normalizer"
+    assert calculate_default_odds(1800, 1500)[0] > 1
+
+
 def test_feed_builder_integration(db_session):
     """
     Tests build_fixtures_feed_cache producing a non-empty payload and

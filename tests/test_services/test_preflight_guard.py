@@ -139,3 +139,31 @@ def test_preflight_ignores_unstamped_draw_rows_in_existing_count(db_session):
         guard.check_fixture_count(db_session, tourney.id, fetched_count=4)
     assert "existing count (10" in str(exc_info.value)
 
+
+def test_preflight_aborts_thin_thesportsdb_dump_against_populated_uel(db_session):
+    """A 15-event TheSportsDB page must not overlay a populated Europa League tournament."""
+    comp = Competition(name="UEFA Europa League", type="Cup", format_engine="league_phase_knockout")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+
+    now_utc = datetime.now(timezone.utc)
+    db_session.add_all([
+        Fixture(
+            tournament_id=tourney.id,
+            api_id=f"fd_{i}",
+            date_utc=now_utc,
+            stage="League Phase",
+            status="Scheduled",
+        )
+        for i in range(44)
+    ])
+    db_session.commit()
+
+    with pytest.raises(IngestionAborted) as exc_info:
+        PreflightGuard().check_fixture_count(db_session, tourney.id, fetched_count=15)
+
+    assert "existing count (44" in str(exc_info.value)
+

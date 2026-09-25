@@ -212,6 +212,58 @@ def test_find_fixture_matches_atletico_de_madrid_alias(db_session):
     assert fixture.api_id == "fd_575340"
 
 
+def test_apply_matches_writes_shifted_kickoff(db_session):
+    from backend.services.providers.football_data import apply_matches_to_existing_fixtures
+
+    comp = Competition(name="La Liga", type="League")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+    home = Team(name="Real Madrid")
+    away = Team(name="Barcelona")
+    db_session.add_all([home, away])
+    db_session.flush()
+    fixture = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=home.id,
+        away_team_id=away.id,
+        date_utc=datetime(2026, 9, 1, 20, 0, tzinfo=timezone.utc),
+        stage="Regular Season",
+        status="Scheduled",
+        api_id="fd_140001",
+    )
+    db_session.add(fixture)
+    db_session.commit()
+
+    updated, finished = apply_matches_to_existing_fixtures(
+        db_session,
+        [
+            {
+                "id": 140001,
+                "utcDate": "2026-09-12T19:00:00Z",
+                "status": "TIMED",
+                "homeTeam": {"name": "Real Madrid", "shortName": "Real Madrid"},
+                "awayTeam": {"name": "Barça", "shortName": "Barça"},
+                "score": {"fullTime": {"home": None, "away": None}},
+                "competition": {"code": "PD", "name": "La Liga"},
+            }
+        ],
+        tournament_id=tourney.id,
+    )
+
+    assert finished == 0
+    assert updated == 1
+    db_session.flush()
+    db_session.refresh(fixture)
+    stored = fixture.date_utc
+    if stored.tzinfo is None:
+        stored = stored.replace(tzinfo=timezone.utc)
+    assert stored == datetime(2026, 9, 12, 19, 0, tzinfo=timezone.utc)
+    assert db_session.query(Fixture).count() == 1
+
+
 def test_find_team_prefers_full_name_over_short_slovan(db_session):
     from backend.services.providers.football_data import _find_team_for_sync
 
