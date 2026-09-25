@@ -152,6 +152,13 @@ TEAM_NAME_ALIASES = {
     "Porto": "FC Porto",
     "Braga": "SC Braga",
     "Arsenal FC": "Arsenal",
+    # Football-Data.org La Liga spellings → catalog clubs used by historic rows.
+    "Barça": "Barcelona",
+    "Málaga CF": "Malaga",
+    "Deportivo Alavés": "Alaves",
+    "RC Celta de Vigo": "Celta Vigo",
+    "RC Deportivo La Coruña": "Deportivo La Coruna",
+    "Real Racing Club de Santander": "Racing Santander",
 }
 
 

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from backend.database import FixtureOdds
 from backend.utils import fetch_json_with_retry
-from backend.services.ingestion import NameNormalizer
+from backend.services.ingestion.normalizer import NameNormalizer
 
 def calculate_default_odds(home_elo: int, away_elo: int, neutral_venue: bool = True, home_advantage: int = 100) -> tuple[float, float, float]:
     """

@@ -3,6 +3,7 @@ from datetime import datetime
 from backend.database import Fixture, Team, Tournament, TournamentTeam, Competition
 from backend.services.ingestion.normalizer import NameNormalizer, TEAM_NAME_ALIASES
 from backend.services.ingestion.team_merge import merge_club_aliases
+from backend.services.ingestion.team_resolver import TeamResolver
 
 
 def test_club_draw_names_normalize_to_api_football_names():
@@ -23,6 +24,46 @@ def test_club_draw_names_normalize_to_api_football_names():
     assert normalizer.normalize("Como 1907") == "Como"
     assert "Club Brugge" in TEAM_NAME_ALIASES
     assert "Como 1907" in TEAM_NAME_ALIASES
+
+
+def test_laliga_football_data_names_resolve_to_catalog_clubs():
+    normalizer = NameNormalizer()
+    expected = {
+        "Barça": "Barcelona",
+        "Málaga CF": "Malaga",
+        "Deportivo Alavés": "Alaves",
+        "RC Celta de Vigo": "Celta Vigo",
+        "RC Deportivo La Coruña": "Deportivo La Coruna",
+        "Real Racing Club de Santander": "Racing Santander",
+    }
+    for raw, canonical in expected.items():
+        assert normalizer.normalize(raw) == canonical
+        assert TEAM_NAME_ALIASES[raw] == canonical
+
+
+def test_laliga_aliases_resolve_onto_existing_clubs(db_session):
+    barcelona = Team(name="Barcelona", team_type="Club", elo=1900)
+    malaga = Team(name="Malaga", team_type="Club")
+    db_session.add_all([barcelona, malaga])
+    db_session.commit()
+
+    resolver = TeamResolver()
+    resolved = resolver.resolve(
+        db_session,
+        provider_name="football_data",
+        raw_name="Barça",
+        external_id="81",
+        team_type="Club",
+    )
+    assert resolved.id == barcelona.id
+    assert db_session.query(Team).filter(Team.name == "Barça").first() is None
+    assert resolver.resolve(
+        db_session,
+        provider_name="football_data",
+        raw_name="Málaga CF",
+        external_id="84",
+        team_type="Club",
+    ).id == malaga.id
 
 
 def test_merge_club_aliases_rewires_fixtures(db_session):

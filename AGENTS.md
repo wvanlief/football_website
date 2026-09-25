@@ -16,6 +16,10 @@ Using default canonical triage labels. See `docs/agents/triage-labels.md`.
 
 Single-context repository layout. See `docs/agents/domain.md`.
 
+### European-cup stamping
+
+Stamp, unstamped leftovers, overlay insert-beside, feed hiding vs calendar. See `docs/agents/european-cup-stamping.md`.
+
 ## Development & Verification Guidelines
 
 ### 1. Mandatory Local Verification Protocol

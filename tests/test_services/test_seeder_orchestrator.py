@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -231,3 +232,39 @@ def test_seed_all_skips_team_fetch_when_tournament_teams_exist(db_session, monke
 
     fetch_teams.assert_not_called()
     assert result.details["Premier League"] == "Seeded successfully"
+
+
+def test_seed_all_overlays_when_fixtures_already_exist(db_session, monkeypatch):
+    comp = Competition(name="UEFA Europa League", type="Cup")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    home = Team(name="Roma")
+    away = Team(name="Porto")
+    db_session.add_all([tourney, home, away])
+    db_session.flush()
+    db_session.add(Fixture(
+        tournament_id=tourney.id,
+        home_team_id=home.id,
+        away_team_id=away.id,
+        date_utc=datetime(2026, 8, 1, tzinfo=timezone.utc),
+        stage="Qualifying",
+        status="Scheduled",
+    ))
+    db_session.commit()
+
+    monkeypatch.setattr(
+        seeder_module,
+        "DEFAULT_LEAGUES_TO_SEED",
+        [("UEFA Europa League", "Cup", "league_phase_knockout", 3, "2026/27", 2026, 0, 100)],
+    )
+    monkeypatch.setattr(seeder_module, "seed_database", lambda db: SeedResult())
+    monkeypatch.setattr(seeder_module, "fetch_and_seed_teams", lambda *args, **kwargs: SeedResult())
+    seed_competition = MagicMock(return_value=MagicMock(status="success", message=""))
+    monkeypatch.setattr(seeder_module, "seed_competition", seed_competition)
+
+    result = seeder_module._seed_all(db_session)
+
+    seed_competition.assert_called_once()
+    assert result.details["UEFA Europa League"] == "Seeded successfully"
+    assert "Already seeded" not in result.details["UEFA Europa League"]

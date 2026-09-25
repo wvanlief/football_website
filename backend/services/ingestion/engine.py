@@ -7,7 +7,8 @@ from backend.services.ingestion.preflight import PreflightGuard
 from backend.services.ingestion.team_resolver import TeamResolver
 from backend.services.ingestion.fixture_upserter import FixtureUpserter, UpsertResult
 from backend.services.ingestion.team_merge import merge_club_aliases
-from backend.services.providers.football_data import FootballDataProvider
+from backend.services.providers.football_data import COMPETITION_CODE_MAP, FootballDataProvider
+from backend.services.providers.football_api import FootballApiProvider
 from backend.services.providers.openfootball import OpenFootballProvider
 from backend.services.providers.thesportsdb import TheSportsDBProvider
 
@@ -20,7 +21,8 @@ class IngestionEngine:
     Guarantees:
     - Zero DELETE operations (strictly additive).
     - Pre-flight guard checks fetched fixture count against DB to prevent data loss.
-    - Fallback chain: Football-Data.org -> openfootball -> TheSportsDB.
+    - Fallback chain: Football-Data.org -> openfootball -> Football-API (competitions
+      absent from Football-Data.org) -> TheSportsDB.
     """
     def __init__(
         self,
@@ -29,6 +31,7 @@ class IngestionEngine:
         fixture_upserter: Optional[FixtureUpserter] = None,
         fd_provider: Optional[FootballDataProvider] = None,
         openfootball_provider: Optional[OpenFootballProvider] = None,
+        football_api_provider: Optional[FootballApiProvider] = None,
         tsdb_provider: Optional[TheSportsDBProvider] = None,
     ):
         self.preflight = preflight_guard or PreflightGuard()
@@ -36,6 +39,9 @@ class IngestionEngine:
         self.upserter = fixture_upserter or FixtureUpserter(team_resolver=self.team_resolver)
         self.fd_provider = fd_provider or FootballDataProvider(team_resolver=self.team_resolver)
         self.openfootball_provider = openfootball_provider or OpenFootballProvider(
+            team_resolver=self.team_resolver
+        )
+        self.football_api_provider = football_api_provider or FootballApiProvider(
             team_resolver=self.team_resolver
         )
         self.tsdb_provider = tsdb_provider or TheSportsDBProvider(
@@ -84,9 +90,24 @@ class IngestionEngine:
             )
             return of_fixtures, self.openfootball_provider, "openfootball"
 
+        if competition_name not in COMPETITION_CODE_MAP:
+            print(
+                f"Ingestion: trying Football-API for {competition_name} "
+                f"before TheSportsDB."
+            )
+            league_id = competition.api_league_id if competition and competition.api_league_id else None
+            fa_fixtures = self.football_api_provider.fetch_fixtures(
+                competition_name, api_season, league_id=league_id
+            ) or []
+            if fa_fixtures:
+                print(
+                    f"Ingestion: using Football-API for {competition_name} "
+                    f"({len(fa_fixtures)} fixtures)."
+                )
+                return fa_fixtures, self.football_api_provider, "Football-API"
+
         print(
-            f"Ingestion: openfootball returned no fixtures for {competition_name}; "
-            f"trying TheSportsDB."
+            f"Ingestion: trying TheSportsDB for {competition_name}."
         )
         tsdb_fixtures = self.tsdb_provider.fetch_fixtures(
             competition_name, api_season, db=db, competition=competition
@@ -100,7 +121,7 @@ class IngestionEngine:
 
         print(
             f"Ingestion: no fixtures from Football-Data.org, openfootball, "
-            f"or TheSportsDB for {competition_name}."
+            f"Football-API, or TheSportsDB for {competition_name}."
         )
         return [], None, "none"
 
@@ -160,7 +181,7 @@ class IngestionEngine:
         else:
             tourney.status = "Active"
 
-        # 3. Provider Fallback Chain: Football-Data.org -> openfootball -> TheSportsDB
+        # 3. Provider Fallback Chain: Football-Data.org -> openfootball -> Football-API -> TheSportsDB
         raw_fixtures, provider, source_name = self._collect_raw_fixtures(
             competition_name, api_season, db=db, competition=comp
         )
