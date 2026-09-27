@@ -59,16 +59,33 @@ def test_fixture_graph_must_match_one_group_exactly():
     names = []
     for teams in GROUPS.values():
         names.extend(teams)
-    ids = {name: index for index, name in enumerate(names)}
+    ids = {name: {index} for index, name in enumerate(names)}
     pairs = []
     for teams in GROUPS.values():
         for index, home in enumerate(teams):
             for away in teams[index + 1 :]:
-                pairs.append((ids[home], ids[away]))
+                pairs.append((next(iter(ids[home])), next(iter(ids[away]))))
     assert check_groups(ids, pairs) == []
 
     # England playing France would glue A3 to A1.
-    crossed = pairs + [(ids["England"], ids["France"])]
+    crossed = pairs + [(next(iter(ids["England"])), next(iter(ids["France"])))]
     problems = check_groups(ids, crossed)
     assert problems
     assert any("A1" in problem or "A3" in problem for problem in problems)
+
+
+def test_two_rows_for_one_nation_still_match_their_group():
+    names = []
+    for teams in GROUPS.values():
+        names.extend(teams)
+    ids = {name: {index} for index, name in enumerate(names)}
+    ireland_alias = 1000
+    ids["Republic of Ireland"].add(ireland_alias)
+    pairs = []
+    for teams in GROUPS.values():
+        for index, home in enumerate(teams):
+            for away in teams[index + 1 :]:
+                pairs.append((next(iter(ids[home])), next(iter(ids[away]))))
+    # One Ireland match is stored on the alias row.
+    pairs.append((ireland_alias, next(iter(ids["Austria"]))))
+    assert check_groups(ids, pairs) == []
