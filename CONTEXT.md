@@ -22,13 +22,13 @@
 - **Twice-Weekly Heavy Enrichment**: Heavy fixture enrichment (narrative scoring, ELO calculations, competitiveness) runs twice a week (Monday/Friday). Score updates read existing pre-computed fields.
 
 ## Multi-Source Fixture Ingestion
-- **Priority Fallback Chain**: Match fixtures are ingested in order `Football-Data.org` → `openfootball` → `TheSportsDB`. If a provider returns an error, timeout, empty payload, or has no mapping for the competition, the engine fails over to the next. Odds remain on The Odds API. Live scores remain on Football-Data.org. API-Football is not a live provider.
-- **TheSportsDB coverage**: Tertiary source for cups the other two miss on the free plan / published datasets — notably **UEFA Europa League** and **UEFA Conference League**.
+- **Priority Fallback Chain**: Season fixture ingestion tries `Football-Data.org` → `openfootball` → `Football-API` (for competitions outside Football-Data.org's map) → `TheSportsDB` per competition when a source fails, returns no fixtures, or lacks a mapping. The daily date overlay uses Football-API for competitions outside Football-Data.org coverage and Highlightly for active competitions missing from that date's Football-API response or when the response fails or is empty. Odds remain on The Odds API; live scores remain on Football-Data.org.
+- **TheSportsDB coverage**: Last-resort season source for cups the earlier providers miss on the free plan or published datasets — notably **UEFA Europa League** and **UEFA Conference League**.
 - **Opaque identifiers**: `Team.api_id` is a denormalized local badge-cache key (`/static/badges/{api_id}.png`), not a live API-Football team id. `Competition.api_league_id` is an opaque catalog identifier (UCL remains `2` for admin seed).
-- **Stamp**: Overlay writes a provider fixture id onto `Fixture.api_id` (`fd_…` from Football-Data.org, `tsdb_…` from TheSportsDB). That is the stamp. Unstamped means `api_id` is null or blank — a local seed/draw row not linked to a provider event. Unstamped is not “unplayed”. See `docs/agents/european-cup-stamping.md`.
+- **Stamp**: Overlay writes a provider fixture id onto `Fixture.api_id` (`fd_…` from Football-Data.org, `of_…` from openfootball, `tsdb_…` from TheSportsDB, `fa_…` from Football-API, or `hl_…` from Highlightly). That is the stamp. Unstamped means `api_id` is null or blank — a local seed/draw row not linked to a provider event. Unstamped is not “unplayed”, and leftover SELECT results are not a delete list. See `docs/agents/european-cup-stamping.md`.
 
 ## Global API Sync & Quota Management
-- **Single-Call Daily Sync**: Yesterday and today’s scores update via one Football-Data.org matches query (`GET /v4/matches?dateFrom=YESTERDAY&dateTo=TODAY`). Individual per-league looping is disabled. There is no API-Football `/fixtures?date=` call.
+- **Single-Call Daily Sync**: Yesterday and today’s scores update via one Football-Data.org matches query (`GET /v4/matches?dateFrom=YESTERDAY&dateTo=TODAY`). The daily fixture overlay also makes one Football-API `/fixtures?date=` call for each date, then queries Highlightly by date and active league name for competitions absent from that response or when it fails or is empty. Live polling does not use either overlay provider.
 - **Live Score Polling**: 15-minute polling during active match windows uses Football-Data.org matches for in-window live or delayed scores. There is no API-Football `/fixtures?live=all` call.
 
 ## Watchability Gating & Regional Baselines
@@ -45,7 +45,3 @@
   - `Average`: Standard fixtures outside top percentiles.
   - `Recommended Feed Fallback`: If fewer than 7 matches qualify in the active upcoming window, fallback to the Top 7 highest-rated upcoming matches.
   - `_Avoid_`: Fixed score cutoffs (e.g. `>= 75.0`), hardcoded static gem thresholds.
-
-
-
-

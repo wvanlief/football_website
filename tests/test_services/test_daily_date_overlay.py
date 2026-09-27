@@ -5,6 +5,7 @@ from urllib.error import HTTPError
 from backend.database import Competition, Fixture, Tournament
 from backend.services.providers.football_api import FootballApiProvider
 from backend.services.providers.highlightly import HighlightlyProvider
+from backend.services.providers.highlightly import _status_and_scores
 from backend.services.rate_limiter import APIRateLimiter
 from backend.services.updater import (
     sync_global_live_scores,
@@ -108,10 +109,92 @@ def test_highlightly_failover_when_football_api_returns_4xx(db_session):
         created, _updated = sync_non_fd_date_overlay(db_session, ["2026-09-25"])
 
     fa_fetch.assert_called_once()
-    hl_fetch.assert_called_once_with("2026-09-25")
+    hl_fetch.assert_called_once_with("2026-09-25", league_name="UEFA Europa League")
     assert created == 1
     fixture = db_session.query(Fixture).filter(Fixture.api_id == "hl_1392473362").one()
     assert fixture.home_team.name == "Juventus"
+
+
+def test_successful_football_api_date_falls_back_for_missing_competition(db_session):
+    _uel(db_session)
+    conference = Competition(
+        name="UEFA Conference League", type="Cup", api_league_id=848,
+    )
+    db_session.add(conference)
+    db_session.flush()
+    db_session.add(Tournament(
+        competition_id=conference.id, season_name="2026/27", status="Active",
+    ))
+    db_session.commit()
+    conference_hl = {
+        **UEL_HL,
+        "id": 1392473363,
+        "league": {"name": "UEFA Europa Conference League"},
+    }
+    with patch.object(FootballApiProvider, "fetch_fixtures_by_date", return_value=([UEL_FA], False)), \
+         patch.object(HighlightlyProvider, "fetch_matches_by_date", return_value=[conference_hl]) as hl_fetch:
+        created, updated = sync_non_fd_date_overlay(db_session, ["2026-09-25"])
+
+    hl_fetch.assert_called_once_with(
+        "2026-09-25", league_name="UEFA Europa Conference League"
+    )
+    assert (created, updated) == (2, 0)
+    assert {fixture.api_id for fixture in db_session.query(Fixture).all()} == {
+        "fa_77001", "hl_1392473363",
+    }
+
+
+def test_empty_football_api_date_queries_each_uncovered_league(db_session):
+    _uel(db_session)
+    conference = Competition(name="UEFA Conference League", type="Cup", api_league_id=848)
+    premier_league = Competition(name="Premier League", type="League", api_league_id=39)
+    db_session.add_all([conference, premier_league])
+    db_session.flush()
+    db_session.add_all([
+        Tournament(competition_id=conference.id, season_name="2026/27", status="Active"),
+        Tournament(competition_id=premier_league.id, season_name="2026/27", status="Active"),
+    ])
+    db_session.commit()
+    with patch.object(FootballApiProvider, "fetch_fixtures_by_date", return_value=([], False)), \
+         patch.object(HighlightlyProvider, "fetch_matches_by_date", return_value=[]) as hl_fetch:
+        assert sync_non_fd_date_overlay(db_session, ["2026-09-25"]) == (0, 0)
+
+    assert {call.kwargs["league_name"] for call in hl_fetch.call_args_list} == {
+        "UEFA Europa League", "UEFA Europa Conference League",
+    }
+    assert hl_fetch.call_count == 2
+
+
+def test_highlightly_finished_without_two_parseable_scores_stays_live():
+    assert _status_and_scores({
+        "state": {"description": "Finished", "score": {"current": "2-x"}},
+    }) == ("Live", 2, None)
+    assert _status_and_scores({
+        "state": {"description": "Finished", "score": {"current": None}},
+    }) == ("Live", None, None)
+    assert _status_and_scores({
+        "state": {"description": "Finished", "score": {"current": "2-1"}},
+    }) == ("Finished", 2, 1)
+    assert _status_and_scores({
+        "state": {"description": "Not started", "score": {"current": None}},
+    }) == ("Scheduled", None, None)
+
+
+def test_overlay_failure_rolls_back_and_daily_update_continues(db_session, capsys):
+    _uel(db_session)
+    with patch("backend.services.updater.sync_global_date_results", return_value=(0, 1)), \
+         patch("backend.services.updater.sync_non_fd_date_overlay", side_effect=RuntimeError("overlay failed")), \
+         patch.object(db_session, "rollback", wraps=db_session.rollback) as rollback, \
+         patch("backend.services.updater.propagate_knockout_fixtures"), \
+         patch("backend.services.updater.recalculate_tournament_team_standings"), \
+         patch("backend.services.feed_builder.build_fixtures_feed_cache") as rebuild:
+        result = update_results_and_odds(db_session)
+
+    rollback.assert_called_once()
+    rebuild.assert_called_once()
+    assert result["fixtures_created"] == 0
+    assert result["fixtures_updated_results"] == 1
+    assert "Warning: Non-FD date overlay failed: overlay failed" in capsys.readouterr().out
 
 
 def test_football_api_date_http_403_is_a_failure(monkeypatch):

@@ -199,6 +199,16 @@ class FixtureUpserter:
             Fixture.away_team_id == away_team.id,
         ).all()
 
+        # A different event from the same provider must not replace its stamp,
+        # even when this is the only row for the pairing or stage.
+        provider_prefix = api_id.split("_", 1)[0] + "_" if api_id and "_" in api_id else None
+        if provider_prefix:
+            pairing = [
+                candidate for candidate in pairing
+                if not (candidate.api_id and candidate.api_id != api_id
+                        and str(candidate.api_id).startswith(provider_prefix))
+            ]
+
         # One pairing in this tournament is the official row, even when the
         # placeholder kickoff or stage drifted. Multiple legs stay on ±12h.
         if len(pairing) == 1:
@@ -209,7 +219,7 @@ class FixtureUpserter:
             if len(staged) == 1:
                 return staged[0]
 
-        provider_stamp = bool(api_id) and str(api_id).startswith(("fd_", "of_", "tsdb_"))
+        provider_stamp = bool(api_id) and str(api_id).startswith(("fd_", "of_", "tsdb_", "fa_", "hl_"))
 
         kickoff = _as_utc(date_utc)
         if kickoff is None:
