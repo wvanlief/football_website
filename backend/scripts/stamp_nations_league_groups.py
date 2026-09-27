@@ -94,15 +94,22 @@ def fixture_components(pairs: list[tuple[int, int]]) -> list[set[int]]:
 
 
 def check_groups(
-    team_ids_by_canonical: dict[str, int],
+    team_ids_by_canonical: dict[str, set[int]],
     pairs: list[tuple[int, int]],
 ) -> list[str]:
-    """Return human-readable problems. Empty means the draw matches the fixtures."""
+    """Return human-readable problems. Empty means the draw matches the fixtures.
+
+    Several team rows may share one nation (Ireland and Republic of Ireland).
+    The fixture graph is compared by nation, not by row id.
+    """
     problems: list[str] = []
     official = group_by_team()
-    known_ids = set(team_ids_by_canonical.values())
+    id_to_name: dict[int, str] = {}
+    for name, team_ids in team_ids_by_canonical.items():
+        for team_id in team_ids:
+            id_to_name[team_id] = name
+    known_ids = set(id_to_name)
     components = fixture_components([(h, a) for h, a in pairs if h in known_ids and a in known_ids])
-    id_to_name = {team_id: name for name, team_id in team_ids_by_canonical.items()}
 
     seen_codes: set[str] = set()
     for component in components:
@@ -114,14 +121,15 @@ def check_groups(
                 continue
             codes.add(f"{label[0]}{label[1]}")
         if len(codes) != 1:
-            names = sorted(id_to_name[team_id] for team_id in component)
+            names = sorted({id_to_name[team_id] for team_id in component})
             problems.append(f"Fixture group {names} maps to {sorted(codes) or 'nothing'}")
             continue
         code = next(iter(codes))
         seen_codes.add(code)
-        expected_ids = {team_ids_by_canonical[canonical_name(name)] for name in GROUPS[code]}
-        if component != expected_ids:
-            problems.append(f"{code} fixtures {sorted(component)} != draw {sorted(expected_ids)}")
+        expected = {canonical_name(name) for name in GROUPS[code]}
+        actual = {id_to_name[team_id] for team_id in component}
+        if actual != expected:
+            problems.append(f"{code} fixtures {sorted(actual)} != draw {sorted(expected)}")
 
     missing_codes = set(GROUPS) - seen_codes
     if missing_codes:
@@ -154,17 +162,16 @@ def stamp(db, execute: bool) -> int:
         .all()
     )
     official = group_by_team()
-    team_ids_by_canonical: dict[str, int] = {}
+    team_ids_by_canonical: dict[str, set[int]] = {}
+    raw_names: dict[str, list[str]] = {}
     unresolved: list[str] = []
     for tt, team in rows:
         name = canonical_name(team.name)
         if name not in official:
             unresolved.append(team.name)
             continue
-        if name in team_ids_by_canonical:
-            print(f"Duplicate team row for {name}: {team.name}")
-            return 1
-        team_ids_by_canonical[name] = team.id
+        team_ids_by_canonical.setdefault(name, set()).add(team.id)
+        raw_names.setdefault(name, []).append(team.name)
 
     if unresolved:
         print("These tournament teams are not in the 2026/27 draw:")
@@ -193,7 +200,12 @@ def stamp(db, execute: bool) -> int:
             print(f"  {problem}")
         return 1
 
-    print(f"Tournament {tourney.id}: {len(rows)} teams match the draw and the {len(pairs)} fixtures.")
+    for name, spellings in sorted(raw_names.items()):
+        distinct = sorted(set(spellings))
+        if len(team_ids_by_canonical[name]) > 1 or distinct != [name]:
+            print(f"  {name} uses rows: {', '.join(distinct)}")
+
+    print(f"Tournament {tourney.id}: {len(rows)} team rows, {len(team_ids_by_canonical)} nations, {len(pairs)} fixtures.")
     for code in sorted(GROUPS):
         division, number = code[0], code[1:]
         print(f"  {code}: {', '.join(GROUPS[code])}")
@@ -203,13 +215,16 @@ def stamp(db, execute: bool) -> int:
         return 0
 
     by_id = {team.id: tt for tt, team in rows}
-    for name, team_id in team_ids_by_canonical.items():
+    stamped = 0
+    for name, team_ids in team_ids_by_canonical.items():
         division, number = official[name]
-        tt = by_id[team_id]
-        tt.division = division
-        tt.group_name = number
+        for team_id in team_ids:
+            tt = by_id[team_id]
+            tt.division = division
+            tt.group_name = number
+            stamped += 1
     db.commit()
-    print(f"Stamped division and group_name on {len(team_ids_by_canonical)} teams.")
+    print(f"Stamped division and group_name on {stamped} team rows.")
     return 0
 
 
