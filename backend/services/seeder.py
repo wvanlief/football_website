@@ -688,6 +688,7 @@ DEFAULT_LEAGUES_TO_SEED = [
     ("UEFA Champions League", "Cup", "league_phase_knockout", 2, "2026/27", 2026, 0, 80),
     ("UEFA Europa League", "Cup", "league_phase_knockout", 3, "2026/27", 2026, 0, 60),
     ("UEFA Conference League", "Cup", "league_phase_knockout", 848, "2026/27", 2026, 0, 50),
+    ("UEFA Nations League", "International", "nations_league", 5, "2026/27", 2026, 0, 50),
     ("FA Cup", "Cup", "cup", 45, "2026/27", 2026, 0, 30),
     ("EFL Cup", "Cup", "cup", 48, "2026/27", 2026, 0, 30),
     ("Coppa Italia", "Cup", "cup", 137, "2026/27", 2026, 0, 30),
