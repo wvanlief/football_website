@@ -48,7 +48,8 @@ def test_highlightly_season_pages_uel(monkeypatch):
     assert len(rows) == 188
     assert "leagueName=UEFA+Europa+League" in calls[0][0]
     assert "season=2026" in calls[0][0]
-    assert calls[0][1] == {"x-rapidapi-key": "hl-key"}
+    assert calls[0][1]["x-rapidapi-key"] == "hl-key"
+    assert calls[0][1]["User-Agent"]
     assert calls[0][2] == "highlightly"
     assert "offset=100" in calls[1][0]
     assert len(calls) == 2
