@@ -116,6 +116,20 @@ def test_live_seedable_competitions_includes_thesportsdb_only_leagues():
     assert "UEFA Conference League" in _live_seedable_competitions()
 
 
+def test_nations_league_is_in_the_seed_catalog():
+    from backend.services.seeder import DEFAULT_LEAGUES_BY_ID
+
+    name, comp_type, format_eng, league_id, season_str, api_season, releg, home = DEFAULT_LEAGUES_BY_ID[5]
+    assert name == "UEFA Nations League"
+    assert comp_type == "International"
+    assert format_eng == "nations_league"
+    assert league_id == 5
+    assert season_str == "2026/27"
+    assert api_season == 2026
+    assert releg == 0
+    assert home == 50
+
+
 def test_fetch_and_seed_teams_applies_matched_clubelo(db_session, monkeypatch):
     monkeypatch.setattr(
         "backend.services.providers.football_data.FootballDataProvider.fetch_teams",
