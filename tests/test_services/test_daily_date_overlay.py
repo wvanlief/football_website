@@ -148,7 +148,8 @@ def test_highlightly_date_query_pages_and_optional_league_filter(monkeypatch):
     )
     assert len(rows) == 100
     assert "leagueName=UEFA+Europa+League" in calls[0][0]
-    assert calls[0][1] == {"x-rapidapi-key": "hl-key"}
+    assert calls[0][1]["x-rapidapi-key"] == "hl-key"
+    assert calls[0][1]["User-Agent"]
     assert calls[0][2] == "highlightly"
     assert "offset=100" in calls[1][0]
     assert APIRateLimiter.LIMITS["highlightly"] == {"per_min": 10, "per_day": 90}

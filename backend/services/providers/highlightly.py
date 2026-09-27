@@ -13,6 +13,8 @@ from backend.services.ingestion.team_resolver import TeamResolver
 
 PROVIDER_NAME = "highlightly"
 BASE_URL = "https://soccer.highlightly.net"
+# Cloudflare rejects urllib's default Python user agent with HTTP 403 (error 1010).
+REQUEST_USER_AGENT = "findfootball.games"
 PAGE_LIMIT = 100
 MAX_PAGES = 3
 MAX_SEASON_PAGES = 8
@@ -163,7 +165,11 @@ class HighlightlyProvider:
         try:
             payload = fetch_json_with_retry(
                 url,
-                headers={"x-rapidapi-key": self.api_key},
+                headers={
+                    "User-Agent": REQUEST_USER_AGENT,
+                    "Accept": "application/json",
+                    "x-rapidapi-key": self.api_key,
+                },
                 use_cache=False,
                 provider="highlightly",
             )
