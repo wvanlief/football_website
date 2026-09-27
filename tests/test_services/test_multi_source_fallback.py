@@ -77,7 +77,7 @@ def test_seed_competition_failover_to_openfootball(mock_fd_fetch, mock_of_fetch,
     assert fixtures[0].away_team.name in ("Chelsea FC", "Chelsea")
 
 
-@patch("backend.services.providers.football_api.FootballApiProvider.fetch_fixtures")
+@patch("backend.services.providers.highlightly.HighlightlyProvider.fetch_fixtures")
 @patch("backend.services.providers.thesportsdb.TheSportsDBProvider.fetch_fixtures")
 @patch("backend.services.providers.openfootball.OpenFootballProvider.fetch_fixtures")
 @patch("backend.services.providers.football_data.FootballDataProvider.fetch_fixtures")
@@ -129,8 +129,9 @@ def test_seed_competition_failover_to_thesportsdb(
 @patch("backend.services.providers.thesportsdb.TheSportsDBProvider.fetch_fixtures")
 @patch("backend.services.providers.openfootball.OpenFootballProvider.fetch_fixtures")
 @patch("backend.services.providers.football_data.FootballDataProvider.fetch_fixtures")
+@patch("backend.services.providers.highlightly.HighlightlyProvider.fetch_fixtures", return_value=[])
 def test_seed_competition_all_providers_empty_is_graceful(
-    mock_fd_fetch, mock_of_fetch, mock_tsdb_fetch, db_session
+    _mock_hl_fetch, mock_fd_fetch, mock_of_fetch, mock_tsdb_fetch, db_session
 ):
     mock_fd_fetch.return_value = []
     mock_of_fetch.return_value = []

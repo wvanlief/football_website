@@ -202,7 +202,7 @@ def test_empty_football_data_does_not_invent_ucl_openfootball_path(
     assert fixtures == []
 
 
-@patch("backend.services.providers.football_api.FootballApiProvider.fetch_fixtures", return_value=[])
+@patch("backend.services.providers.highlightly.HighlightlyProvider.fetch_fixtures", return_value=[])
 @patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
 @patch("backend.services.providers.openfootball.fetch_json_with_retry")
 @patch("backend.services.providers.football_data.fetch_json_with_retry")
