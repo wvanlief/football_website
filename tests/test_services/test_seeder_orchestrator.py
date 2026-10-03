@@ -282,3 +282,91 @@ def test_seed_all_overlays_when_fixtures_already_exist(db_session, monkeypatch):
     seed_competition.assert_called_once()
     assert result.details["UEFA Europa League"] == "Seeded successfully"
     assert "Already seeded" not in result.details["UEFA Europa League"]
+
+
+def test_seed_all_shares_one_ingestion_engine(db_session, monkeypatch):
+    created = []
+
+    class CountingEngine:
+        def __init__(self, *args, **kwargs):
+            created.append(self)
+
+    monkeypatch.setattr(
+        "backend.services.ingestion.engine.IngestionEngine",
+        CountingEngine,
+    )
+    monkeypatch.setattr(
+        seeder_module,
+        "DEFAULT_LEAGUES_TO_SEED",
+        [
+            ("Premier League", "League", "league", 39, "2026/27", 2026, 3, 100),
+            ("La Liga", "League", "league", 140, "2026/27", 2026, 3, 120),
+        ],
+    )
+    monkeypatch.setattr(seeder_module, "seed_database", lambda db: SeedResult())
+    monkeypatch.setattr(
+        seeder_module,
+        "fetch_and_seed_teams",
+        lambda *args, **kwargs: SeedResult(status="success"),
+    )
+    engines = []
+
+    def capture(*args, **kwargs):
+        engines.append(kwargs["engine"])
+        return MagicMock(status="success", message="")
+
+    monkeypatch.setattr(seeder_module, "seed_competition", capture)
+
+    seeder_module._seed_all(db_session)
+
+    assert len(created) == 1
+    assert engines == [created[0], created[0]]
+
+
+def test_european_cups_share_one_ingestion_engine(db_session, monkeypatch):
+    created = []
+
+    class CountingEngine:
+        def __init__(self, *args, **kwargs):
+            created.append(self)
+
+    monkeypatch.setattr(
+        "backend.services.ingestion.engine.IngestionEngine",
+        CountingEngine,
+    )
+    engines = []
+
+    def capture(db, league_id, fetch_squads=False, engine=None):
+        engines.append(engine)
+        return SeedResult(status="success", message="ok")
+
+    monkeypatch.setattr(seeder_module, "_seed_single", capture)
+
+    seeder_module._seed_european_cups_via_engine(db_session)
+
+    assert len(created) == 1
+    assert len(engines) == 3
+    assert engines == [created[0], created[0], created[0]]
+
+
+def test_seed_competition_forwards_shared_engine():
+    class Spy:
+        def seed_competition(self, db, **kwargs):
+            self.kwargs = kwargs
+            return "forwarded"
+
+    spy = Spy()
+    result = seeder_module.seed_competition(
+        db=None,
+        competition_name="Premier League",
+        competition_type="League",
+        format_engine="league",
+        season="2026/27",
+        api_league_id=39,
+        api_season=2026,
+        engine=spy,
+    )
+
+    assert result == "forwarded"
+    assert spy.kwargs["competition_name"] == "Premier League"
+    assert spy.kwargs["api_league_id"] == 39

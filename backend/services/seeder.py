@@ -343,11 +343,14 @@ def _seed_european_cups_via_engine(
     db: Session, target_league_id: Optional[int] = None
 ) -> SeedResult:
     """Seed catalog UCL / Europa / Conference through the ingestion engine only."""
+    from backend.services.ingestion.engine import IngestionEngine
+
     league_ids = (
         (int(target_league_id),)
         if target_league_id is not None
         else EURO_CUP_LEAGUE_IDS
     )
+    engine = IngestionEngine()
     details: dict[str, str] = {}
     created_total = 0
     updated_total = 0
@@ -355,7 +358,7 @@ def _seed_european_cups_via_engine(
     for league_id in league_ids:
         if league_id not in DEFAULT_LEAGUES_BY_ID:
             continue
-        result = _seed_single(db, league_id=league_id)
+        result = _seed_single(db, league_id=league_id, engine=engine)
         name = DEFAULT_LEAGUES_BY_ID[league_id][0]
         details[name] = result.message or result.status
         created_total += result.created
@@ -398,7 +401,10 @@ def _live_seedable_competitions() -> set[str]:
 
 
 def _seed_all(db: Session) -> SeedResult:
+    from backend.services.ingestion.engine import IngestionEngine
+
     results = {}
+    engine = IngestionEngine()
     print("--- Starting Full Multi-Competition Database Seeding ---")
     try:
         seed_database(db)
@@ -445,6 +451,7 @@ def _seed_all(db: Session) -> SeedResult:
                 api_season=api_season,
                 relegation_spots=releg_spots,
                 home_advantage_elo=home_adv,
+                engine=engine,
             )
             skipped = [
                 result.message
@@ -489,7 +496,12 @@ def _seed_named_competition(db: Session, config: dict) -> SeedResult:
     )
 
 
-def _seed_single(db: Session, league_id: int, fetch_squads: bool = False) -> SeedResult:
+def _seed_single(
+    db: Session,
+    league_id: int,
+    fetch_squads: bool = False,
+    engine=None,
+) -> SeedResult:
     if league_id in DEFAULT_LEAGUES_BY_ID:
         name, comp_type, format_eng, _lid, season_str, api_season, releg_spots, home_adv = DEFAULT_LEAGUES_BY_ID[league_id]
         fetch_and_seed_teams(db, api_league_id=league_id, api_season=api_season, fetch_squads=fetch_squads)
@@ -503,6 +515,7 @@ def _seed_single(db: Session, league_id: int, fetch_squads: bool = False) -> See
             api_season=api_season,
             relegation_spots=releg_spots,
             home_advantage_elo=home_adv,
+            engine=engine,
         )
         _rebuild_fixtures_feed_cache(db)
         return SeedResult(
@@ -550,6 +563,7 @@ def _seed_single(db: Session, league_id: int, fetch_squads: bool = False) -> See
         api_season=api_season,
         home_advantage_elo=comp.home_advantage_elo or 100,
         odds_api_sport_key=comp.odds_api_sport_key,
+        engine=engine,
     )
     _rebuild_fixtures_feed_cache(db)
     return SeedResult(
@@ -662,8 +676,13 @@ def seed_competition(
     relegation_playoff_spots: int = 0,
     odds_api_sport_key: str = None,
     home_advantage_elo: int = 100,
+    engine=None,
 ):
-    """Seed / upsert competition fixture data via the ingestion engine."""
+    """Seed / upsert competition fixture data via the ingestion engine.
+
+    ``engine`` reuses one ``IngestionEngine`` across a batch. A new engine is
+    created when the argument is omitted.
+    """
     from backend.services.ingestion import seed_competition as ingestion_seed_competition
 
     return ingestion_seed_competition(
@@ -676,6 +695,7 @@ def seed_competition(
         api_season=api_season,
         home_advantage_elo=0 if neutral_venue else home_advantage_elo,
         odds_api_sport_key=odds_api_sport_key,
+        engine=engine,
     )
 
 

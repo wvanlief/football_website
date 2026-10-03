@@ -368,3 +368,41 @@ def test_thesportsdb_overlay_stamps_sparse_payload_without_abort(mock_tsdb_http,
     assert result.created == 1
     assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() == 11
     assert db_session.query(Fixture).filter_by(api_id="tsdb_3000001").one().home_team.name == "Fiorentina"
+
+
+def test_seed_competition_reuses_supplied_engine():
+    class Spy:
+        def seed_competition(self, db, **kwargs):
+            self.seen = kwargs["competition_name"]
+            return "reused"
+
+    engine = Spy()
+    result = seed_competition(
+        db=None,
+        competition_name="La Liga",
+        engine=engine,
+    )
+
+    assert result == "reused"
+    assert engine.seen == "La Liga"
+
+
+def test_seed_competition_builds_engine_when_omitted(monkeypatch):
+    created = []
+
+    class Spy:
+        def __init__(self, *args, **kwargs):
+            created.append(self)
+
+        def seed_competition(self, db, **kwargs):
+            return self
+
+    monkeypatch.setattr(
+        "backend.services.ingestion.engine.IngestionEngine",
+        Spy,
+    )
+
+    result = seed_competition(db=None, competition_name="Serie A")
+
+    assert len(created) == 1
+    assert result is created[0]

@@ -375,10 +375,15 @@ def seed_competition(
     api_season: int = 2026,
     badge: Optional[str] = None,
     home_advantage_elo: int = 100,
-    odds_api_sport_key: Optional[str] = None
+    odds_api_sport_key: Optional[str] = None,
+    engine: Optional[IngestionEngine] = None,
 ) -> UpsertResult:
-    """Public convenience function for seeding a competition."""
-    engine = IngestionEngine()
+    """Public convenience function for seeding a competition.
+
+    Pass ``engine`` to reuse one instance (and its provider clients) across a
+    batch. A new engine is created when the argument is omitted.
+    """
+    engine = engine or IngestionEngine()
     return engine.seed_competition(
         db,
         competition_name=competition_name,
