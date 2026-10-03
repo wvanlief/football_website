@@ -14,7 +14,7 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/css/base.css?v=1.1.2">
+    <link rel="stylesheet" href="/css/base.css?v=1.1.3">
     <link rel="stylesheet" href="/css/cards.css?v=1.1.0">
     <link rel="stylesheet" href="/css/hero.css?v=1.1.0">
 </head>
@@ -191,10 +191,26 @@
         </div>
     </aside>
 
+    <!-- Mobile panes: Feed, Competitions drawer, Inspector (< 768px) -->
+    <nav class="mobile-tab-bar" id="mobile-tab-bar" aria-label="Mobile sections">
+        <button type="button" class="mobile-tab active" data-mobile-pane="feed" id="mobile-tab-feed" aria-selected="true">
+            <i class="fa-solid fa-list" aria-hidden="true"></i>
+            <span>Feed</span>
+        </button>
+        <button type="button" class="mobile-tab" data-mobile-pane="competitions" id="mobile-tab-competitions" aria-selected="false">
+            <i class="fa-solid fa-bars" aria-hidden="true"></i>
+            <span>Competitions</span>
+        </button>
+        <button type="button" class="mobile-tab" data-mobile-pane="inspector" id="mobile-tab-inspector" aria-selected="false">
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <span>Inspector</span>
+        </button>
+    </nav>
+
     <!-- Main Application Scripts -->
     <script src="/js/shared.js?v=1.0.3"></script>
-    <script src="/js/navigation.js?v=1.0.7"></script>
-    <script src="/js/app.js?v=1.1.1"></script>
+    <script src="/js/navigation.js?v=1.0.8"></script>
+    <script src="/js/app.js?v=1.1.2"></script>
 </body>
 
 </html>

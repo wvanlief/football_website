@@ -74,6 +74,18 @@ def _eval_get_flag_url(target, size="w40"):
             {"name": "Alaves", "logo_url": "/static/badges/default.png", "api_id": 542},
             "https://media.api-sports.io/football/teams/542.png",
         ),
+        (
+            {"name": "Sparta Praha", "logo_url": "/static/badges/628.png", "api_id": 628},
+            "https://media.api-sports.io/football/teams/628.png",
+        ),
+        (
+            {"name": "Dinamo Zagreb", "logo_url": "/static/badges/620.png", "api_id": 620},
+            "https://media.api-sports.io/football/teams/620.png",
+        ),
+        (
+            {"name": "Qarabag", "logo_url": "/static/badges/556.png", "api_id": 556},
+            "https://media.api-sports.io/football/teams/556.png",
+        ),
         ("England", "https://flagcdn.com/w40/gb-eng.png"),
         ({"name": "Spain"}, "https://flagcdn.com/w40/es.png"),
         (

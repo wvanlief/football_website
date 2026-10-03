@@ -53,3 +53,30 @@ def test_team_badge_url_prefers_http_crest_then_api_sports_cdn():
         logo_url="https://media.api-sports.io/football/teams/7.png",
     )
     assert legacy.badge_url == f"{API_SPORTS_CREST_CDN}7.png"
+
+
+def test_reported_clubs_keep_their_own_badge_ids():
+    """Issue 27: Sparta Praha must not resolve to Besiktas, Dinamo Zagreb must not resolve to Gent."""
+    sparta = Team(name="Sparta Praha", api_id=628, team_type="Club", logo_url="/static/badges/628.png")
+    besiktas = Team(name="Besiktas", api_id=549, team_type="Club", logo_url="/static/badges/549.png")
+    zagreb = Team(name="Dinamo Zagreb", api_id=620, team_type="Club", logo_url="/static/badges/620.png")
+    gent = Team(name="Gent", api_id=631, team_type="Club", logo_url="/static/badges/631.png")
+    qarabag = Team(name="Qarabag", api_id=556, team_type="Club", logo_url="/static/badges/556.png")
+
+    assert "628" in sparta.badge_url
+    assert "549" not in sparta.badge_url
+    assert sparta.badge_url != besiktas.badge_url
+
+    assert "620" in zagreb.badge_url
+    assert "631" not in zagreb.badge_url
+    assert zagreb.badge_url != gent.badge_url
+
+    assert qarabag.badge_url != "/static/badges/default.png"
+    assert "556" in qarabag.badge_url
+
+
+def test_logo_only_alias_does_not_borrow_another_clubs_crest():
+    """Adjacent case: a draw-name row with no api_id keeps its own stored crest path."""
+    orphan = Team(name="Sparta Prague", team_type="Club", logo_url="/static/badges/628.png")
+    assert orphan.badge_url == "/static/badges/628.png"
+    assert "549" not in orphan.badge_url

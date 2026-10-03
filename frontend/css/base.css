@@ -2848,3 +2848,83 @@ body.has-comp-picker .app-main {
     background: #10b981;
 }
 
+/* ==========================================
+   MOBILE BOTTOM TABS (< 768px)
+   Feed / Competitions drawer / Inspector
+   ========================================== */
+.mobile-tab-bar {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    body:has(#mobile-tab-bar) {
+        padding-bottom: calc(62px + env(safe-area-inset-bottom));
+    }
+
+    .mobile-tab-bar {
+        display: flex;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 24000;
+        height: calc(62px + env(safe-area-inset-bottom));
+        padding: 0 0.25rem env(safe-area-inset-bottom);
+        background: rgba(6, 8, 7, 0.96);
+        border-top: 1px solid rgba(245, 158, 11, 0.35);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+    }
+
+    .mobile-tab {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.2rem;
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        font-family: var(--font-family);
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        cursor: pointer;
+        min-height: 48px;
+    }
+
+    .mobile-tab i {
+        font-size: 1rem;
+    }
+
+    .mobile-tab.active {
+        color: #fbbf24;
+    }
+
+    .offcanvas-sidebar {
+        height: auto;
+        bottom: calc(62px + env(safe-area-inset-bottom));
+    }
+
+    .inspector-side-panel {
+        display: none;
+    }
+
+    body.mobile-pane-inspector #inspector-feed-area {
+        display: none;
+    }
+
+    body.mobile-pane-inspector .inspector-side-panel {
+        display: block;
+        position: static;
+        width: 100%;
+        top: auto;
+        height: auto;
+    }
+
+    body.mobile-pane-inspector .variant-c-inspector-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
