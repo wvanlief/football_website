@@ -10,7 +10,6 @@ from backend.services.ingestion.preflight import (
     has_provider_fixture_id,
 )
 from backend.services.ingestion.team_resolver import TeamResolver
-from backend.services.ingestion.fixture_upserter import FixtureUpserter, UpsertResult
 
 __all__ = [
     "COUNTRY_ISO_MAP",
@@ -29,6 +28,12 @@ __all__ = [
 
 
 def __getattr__(name: str):
+    if name in ("FixtureUpserter", "UpsertResult"):
+        from backend.services.ingestion.fixture_upserter import FixtureUpserter, UpsertResult
+
+        globals()["FixtureUpserter"] = FixtureUpserter
+        globals()["UpsertResult"] = UpsertResult
+        return globals()[name]
     if name in ("IngestionEngine", "seed_competition"):
         from backend.services.ingestion.engine import IngestionEngine, seed_competition
 
