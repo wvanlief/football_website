@@ -24,6 +24,14 @@ def test_european_cups_kind_uses_ingestion_engine_not_draw(db_session, monkeypat
         "backend.services.seeder.fetch_and_seed_teams",
         lambda *args, **kwargs: None,
     )
+    monkeypatch.setattr(
+        "backend.services.providers.football_api.FootballApiProvider.fetch_fixtures",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        "backend.services.providers.highlightly.HighlightlyProvider.fetch_fixtures",
+        lambda *args, **kwargs: [],
+    )
 
     result = seed(db_session, {"kind": "european_cups"})
     assert result.status == "success"

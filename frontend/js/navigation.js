@@ -228,12 +228,92 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeDrawerBtn = document.getElementById('close-drawer-btn');
     const offcanvasSidebar = document.getElementById('offcanvas-sidebar');
 
+    const mobileTabBar = document.getElementById('mobile-tab-bar');
+    const MOBILE_TAB_MAX = 768;
+
+    function isMobileTabs() {
+        return Boolean(mobileTabBar) && window.innerWidth < MOBILE_TAB_MAX;
+    }
+
+    function markMobileTab(pane) {
+        if (!mobileTabBar) return;
+        let focusTab = false;
+        let selectedTab;
+        mobileTabBar.querySelectorAll('.mobile-tab').forEach(btn => {
+            const selected = btn.getAttribute('data-mobile-pane') === pane;
+            if (selected) selectedTab = btn;
+            btn.classList.toggle('active', selected);
+            btn.setAttribute('aria-selected', selected ? 'true' : 'false');
+            btn.tabIndex = selected ? 0 : -1;
+            const panel = document.getElementById(btn.getAttribute('aria-controls'));
+            if (panel) {
+                const inactive = isMobileTabs() && !selected;
+                if (inactive && panel.contains(document.activeElement)) focusTab = true;
+                panel.inert = inactive;
+                if (isMobileTabs()) panel.setAttribute('aria-hidden', selected ? 'false' : 'true');
+                else panel.removeAttribute('aria-hidden');
+            }
+        });
+        if (focusTab && selectedTab) selectedTab.focus();
+    }
+
+    function showMobilePane(pane) {
+        if (!isMobileTabs()) {
+            document.body.classList.remove('mobile-pane-inspector');
+            return;
+        }
+        markMobileTab(pane);
+        if (pane === 'competitions') {
+            document.body.classList.remove('mobile-pane-inspector');
+            if (offcanvasSidebar) offcanvasSidebar.classList.add('open');
+            return;
+        }
+        if (offcanvasSidebar) offcanvasSidebar.classList.remove('open');
+        document.body.classList.toggle('mobile-pane-inspector', pane === 'inspector');
+    }
+
+    window.showMobilePane = showMobilePane;
+
+    function syncMobileTabToDrawer() {
+        if (!isMobileTabs()) return;
+        const drawerOpen = offcanvasSidebar && offcanvasSidebar.classList.contains('open');
+        if (drawerOpen) {
+            markMobileTab('competitions');
+            document.body.classList.remove('mobile-pane-inspector');
+        } else if (!document.body.classList.contains('mobile-pane-inspector')) {
+            markMobileTab('feed');
+        }
+    }
+
     function toggleOffcanvasDrawer() {
         if (offcanvasSidebar) offcanvasSidebar.classList.toggle('open');
+        syncMobileTabToDrawer();
     }
 
     if (hamburgerBtn) hamburgerBtn.addEventListener('click', toggleOffcanvasDrawer);
     if (closeDrawerBtn) closeDrawerBtn.addEventListener('click', toggleOffcanvasDrawer);
+
+    if (mobileTabBar) {
+        const tabs = Array.from(mobileTabBar.querySelectorAll('.mobile-tab'));
+        tabs.forEach((tab, index) => {
+            tab.addEventListener('click', () => {
+                const pane = tab.getAttribute('data-mobile-pane');
+                if (pane) showMobilePane(pane);
+            });
+            tab.addEventListener('keydown', (event) => {
+                if (!isMobileTabs()) return;
+                let next;
+                if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+                else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
+                else if (event.key === 'Home') next = 0;
+                else if (event.key === 'End') next = tabs.length - 1;
+                else return;
+                event.preventDefault();
+                showMobilePane(tabs[next].getAttribute('data-mobile-pane'));
+                tabs[next].focus();
+            });
+        });
+    }
 
     document.querySelectorAll('.drawer-item').forEach(dBtn => {
         dBtn.addEventListener('click', () => {
@@ -244,8 +324,63 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.filterMatchesByName(filter);
             }
             if (offcanvasSidebar) offcanvasSidebar.classList.remove('open');
+            if (isMobileTabs()) showMobilePane('feed');
         });
     });
+
+    function swipeShouldBeIgnored(target) {
+        if (!target || !target.closest) return false;
+        return Boolean(target.closest(
+            'input, textarea, select, a, .mobile-tab-bar, .inline-waterfall-bar, .results-list-horizontal'
+        ));
+    }
+
+    let swipeStartX = 0;
+    let swipeStartY = 0;
+    let swipeTracking = false;
+
+    document.addEventListener('touchstart', (event) => {
+        if (!isMobileTabs() || event.touches.length !== 1 || swipeShouldBeIgnored(event.target)) {
+            swipeTracking = false;
+            return;
+        }
+        swipeStartX = event.touches[0].clientX;
+        swipeStartY = event.touches[0].clientY;
+        swipeTracking = true;
+    }, { passive: true });
+
+    document.addEventListener('touchend', (event) => {
+        if (!swipeTracking || !isMobileTabs() || !event.changedTouches.length) {
+            swipeTracking = false;
+            return;
+        }
+        swipeTracking = false;
+        const touch = event.changedTouches[0];
+        const dx = touch.clientX - swipeStartX;
+        const dy = touch.clientY - swipeStartY;
+        if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+
+        const inspectorOpen = document.body.classList.contains('mobile-pane-inspector');
+        const drawerOpen = offcanvasSidebar && offcanvasSidebar.classList.contains('open');
+        if (dx < 0) {
+            if (drawerOpen) showMobilePane('feed');
+            else if (!inspectorOpen) showMobilePane('inspector');
+        } else if (inspectorOpen) {
+            showMobilePane('feed');
+        } else if (!drawerOpen) {
+            showMobilePane('competitions');
+        }
+    }, { passive: true });
+
+    window.addEventListener('resize', () => {
+        if (!isMobileTabs()) {
+            document.body.classList.remove('mobile-pane-inspector');
+            markMobileTab('feed');
+        } else {
+            syncMobileTabToDrawer();
+        }
+    });
+    markMobileTab('feed');
 
     // 7. Top Inline Geographic Waterfall Filter Controller
     const triggerChip = document.getElementById('trigger-drawer-chip');

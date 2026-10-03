@@ -382,11 +382,28 @@ def find_fixture_for_match(
         Fixture.home_team_id == home_team.id,
         Fixture.away_team_id == away_team.id,
     )
-    if match_dt is not None:
+    incoming_code = _incoming_competition_code(item)
+
+    def _competition_ok(cand: Fixture) -> bool:
+        expected_code = _fixture_competition_code(cand)
+        if tournament_id is not None:
+            if incoming_code and expected_code and incoming_code != expected_code:
+                return False
+            return True
+        return incoming_code is not None and expected_code == incoming_code
+
+    pairing = [cand for cand in candidates_q.all() if _competition_ok(cand)]
+
+    # Only an unstamped unique pairing can match independently of kickoff.
+    if len(pairing) == 1:
+        return pairing[0] if not pairing[0].api_id else None
+
+    candidates = pairing
+    if match_dt is not None and len(pairing) != 1:
         window_start = match_dt - timedelta(hours=12)
         window_end = match_dt + timedelta(hours=12)
         dated = []
-        for cand in candidates_q.all():
+        for cand in pairing:
             if not cand.date_utc:
                 continue
             cand_dt = cand.date_utc
@@ -395,10 +412,7 @@ def find_fixture_for_match(
             if window_start <= cand_dt <= window_end:
                 dated.append(cand)
         candidates = dated
-    else:
-        candidates = candidates_q.all()
 
-    incoming_code = _incoming_competition_code(item)
     for cand in candidates:
         expected_code = _fixture_competition_code(cand)
         if tournament_id is not None:

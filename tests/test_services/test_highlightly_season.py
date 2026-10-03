@@ -78,12 +78,15 @@ def test_engine_uses_highlightly_for_uel_and_skips_thesportsdb(db_session):
     fd = MagicMock()
     fd.fetch_fixtures.return_value = []
     fd.last_request_skipped = False
+    fa = MagicMock()
+    fa.fetch_fixtures.return_value = []
     hl = HighlightlyProvider(api_key="hl-key")
     hl.fetch_fixtures = MagicMock(return_value=[UEL_MATCH])
     tsdb = MagicMock()
     engine = IngestionEngine(
         fd_provider=fd,
         openfootball_provider=MagicMock(),
+        football_api_provider=fa,
         highlightly_provider=hl,
         tsdb_provider=tsdb,
     )
@@ -97,6 +100,7 @@ def test_engine_uses_highlightly_for_uel_and_skips_thesportsdb(db_session):
         api_season=2026,
     )
     assert result.created == 1
+    fa.fetch_fixtures.assert_called_once()
     hl.fetch_fixtures.assert_called_once()
     assert hl.fetch_fixtures.call_args.args[0] == "UEFA Europa League"
     assert hl.fetch_fixtures.call_args.args[1] == 2026
@@ -136,11 +140,14 @@ def test_highlightly_shifted_kickoff_updates_unique_pairing(db_session):
     fd = MagicMock()
     fd.fetch_fixtures.return_value = []
     fd.last_request_skipped = False
+    fa = MagicMock()
+    fa.fetch_fixtures.return_value = []
     hl = HighlightlyProvider(api_key="hl-key")
     hl.fetch_fixtures = MagicMock(return_value=[UEL_MATCH])
     engine = IngestionEngine(
         fd_provider=fd,
         openfootball_provider=MagicMock(),
+        football_api_provider=fa,
         highlightly_provider=hl,
         tsdb_provider=MagicMock(),
     )

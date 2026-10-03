@@ -7,6 +7,7 @@ from backend.services.ingestion.preflight import PreflightGuard
 from backend.services.ingestion.team_resolver import TeamResolver
 from backend.services.ingestion.fixture_upserter import FixtureUpserter, UpsertResult
 from backend.services.ingestion.team_merge import merge_club_aliases
+from backend.services.providers.football_api import FootballApiProvider
 from backend.services.providers.football_data import COMPETITION_CODE_MAP, FootballDataProvider
 from backend.services.providers.highlightly import HighlightlyProvider
 from backend.services.providers.openfootball import OpenFootballProvider
@@ -21,8 +22,9 @@ class IngestionEngine:
     Guarantees:
     - Zero DELETE operations (strictly additive).
     - Pre-flight guard checks fetched fixture count against DB to prevent data loss.
-    - Fallback chain: Football-Data.org -> openfootball -> Highlightly season dump
-      (competitions absent from Football-Data.org) -> TheSportsDB.
+    - Fallback chain: Football-Data.org -> openfootball -> Football-API
+      (competitions absent from Football-Data.org) -> Highlightly season dump
+      -> TheSportsDB.
     """
     def __init__(
         self,
@@ -31,6 +33,7 @@ class IngestionEngine:
         fixture_upserter: Optional[FixtureUpserter] = None,
         fd_provider: Optional[FootballDataProvider] = None,
         openfootball_provider: Optional[OpenFootballProvider] = None,
+        football_api_provider: Optional[FootballApiProvider] = None,
         highlightly_provider: Optional[HighlightlyProvider] = None,
         tsdb_provider: Optional[TheSportsDBProvider] = None,
     ):
@@ -39,6 +42,9 @@ class IngestionEngine:
         self.upserter = fixture_upserter or FixtureUpserter(team_resolver=self.team_resolver)
         self.fd_provider = fd_provider or FootballDataProvider(team_resolver=self.team_resolver)
         self.openfootball_provider = openfootball_provider or OpenFootballProvider(
+            team_resolver=self.team_resolver
+        )
+        self.football_api_provider = football_api_provider or FootballApiProvider(
             team_resolver=self.team_resolver
         )
         self.highlightly_provider = highlightly_provider or HighlightlyProvider(
@@ -91,6 +97,28 @@ class IngestionEngine:
             return of_fixtures, self.openfootball_provider, "openfootball"
 
         if competition_name not in COMPETITION_CODE_MAP:
+            league_id = competition.api_league_id if competition is not None else None
+            print(
+                f"Ingestion: trying Football-API for {competition_name} "
+                f"before TheSportsDB."
+            )
+            fa_fixtures = self.football_api_provider.fetch_fixtures(
+                competition_name,
+                api_season,
+                league_id=league_id,
+            ) or []
+            fa_fixtures = [
+                item for item in fa_fixtures
+                if self.football_api_provider.is_valid_fixture_payload(item)
+            ]
+            if fa_fixtures:
+                print(
+                    f"Ingestion: using Football-API for {competition_name} "
+                    f"({len(fa_fixtures)} fixtures)."
+                )
+                self._fixture_request_skipped = False
+                return fa_fixtures, self.football_api_provider, "Football-API"
+
             print(
                 f"Ingestion: trying Highlightly for {competition_name} "
                 f"before TheSportsDB."
@@ -103,6 +131,7 @@ class IngestionEngine:
                     f"Ingestion: using Highlightly for {competition_name} "
                     f"({len(hl_fixtures)} fixtures)."
                 )
+                self._fixture_request_skipped = False
                 return hl_fixtures, self.highlightly_provider, "Highlightly"
 
         print(
@@ -120,7 +149,7 @@ class IngestionEngine:
 
         print(
             f"Ingestion: no fixtures from Football-Data.org, openfootball, "
-            f"Highlightly, or TheSportsDB for {competition_name}."
+            f"Football-API, Highlightly, or TheSportsDB for {competition_name}."
         )
         return [], None, "none"
 
@@ -180,7 +209,7 @@ class IngestionEngine:
         else:
             tourney.status = "Active"
 
-        # 3. Provider Fallback Chain: Football-Data.org -> openfootball -> Highlightly -> TheSportsDB
+        # 3. Provider Fallback Chain: Football-Data.org -> openfootball -> Football-API -> Highlightly -> TheSportsDB
         raw_fixtures, provider, source_name = self._collect_raw_fixtures(
             competition_name, api_season, db=db, competition=comp
         )
@@ -375,10 +404,15 @@ def seed_competition(
     api_season: int = 2026,
     badge: Optional[str] = None,
     home_advantage_elo: int = 100,
-    odds_api_sport_key: Optional[str] = None
+    odds_api_sport_key: Optional[str] = None,
+    engine: Optional[IngestionEngine] = None,
 ) -> UpsertResult:
-    """Public convenience function for seeding a competition."""
-    engine = IngestionEngine()
+    """Public convenience function for seeding a competition.
+
+    Pass ``engine`` to reuse one instance (and its provider clients) across a
+    batch. A new engine is created when the argument is omitted.
+    """
+    engine = engine or IngestionEngine()
     return engine.seed_competition(
         db,
         competition_name=competition_name,

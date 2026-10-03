@@ -138,13 +138,11 @@ class FootballApiProvider:
             return [], True
         return response, False
 
-    def normalize_fixture_payload(
-        self,
-        db: Session,
-        item: dict,
-        tournament_id: int,
-        competition_type: str = "Cup",
-    ) -> Optional[dict]:
+    @staticmethod
+    def is_valid_fixture_payload(item: dict) -> bool:
+        """Check normalization requirements without mutating teams or mappings."""
+        if not isinstance(item, dict):
+            return False
         fixture = item.get("fixture") or {}
         fixture_id = fixture.get("id")
         date_utc = _parse_date(fixture.get("date"))
@@ -154,7 +152,31 @@ class FootballApiProvider:
         home_name = home.get("name") or ""
         away_name = away.get("name") or ""
         if fixture_id is None or not date_utc or not home_name or not away_name:
+            return False
+
+        short = ((fixture.get("status") or {}).get("short") or "NS").upper()
+        goals = item.get("goals") or {}
+        return STATUS_MAP.get(short, "Scheduled") != "Finished" or (
+            goals.get("home") is not None and goals.get("away") is not None
+        )
+
+    def normalize_fixture_payload(
+        self,
+        db: Session,
+        item: dict,
+        tournament_id: int,
+        competition_type: str = "Cup",
+    ) -> Optional[dict]:
+        if not self.is_valid_fixture_payload(item):
             return None
+        fixture = item.get("fixture") or {}
+        fixture_id = fixture.get("id")
+        date_utc = _parse_date(fixture.get("date"))
+        teams = item.get("teams") or {}
+        home = teams.get("home") or {}
+        away = teams.get("away") or {}
+        home_name = home.get("name") or ""
+        away_name = away.get("name") or ""
 
         team_type = "National" if competition_type == "International" else "Club"
         home_team = self.team_resolver.resolve(
@@ -179,8 +201,6 @@ class FootballApiProvider:
         goals = item.get("goals") or {}
         home_score = goals.get("home")
         away_score = goals.get("away")
-        if status == "Finished" and (home_score is None or away_score is None):
-            return None
 
         return {
             "api_id": f"fa_{fixture_id}",
