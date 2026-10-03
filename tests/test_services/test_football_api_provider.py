@@ -279,3 +279,44 @@ def test_seed_one_overlays_uel_and_conference_from_football_api(db_session, monk
     assert db_session.query(Fixture).filter_by(api_id="fa_880011").one().stage == "League Phase"
     assert db_session.query(Fixture).filter_by(api_id="fa_880848").one().stage == "League Phase"
     assert tsdb_calls == []
+
+
+def test_unusable_football_api_payloads_continue_fallback_without_mutation(db_session):
+    from copy import deepcopy
+
+    missing_date = deepcopy(UEL_FIXTURE)
+    missing_date['fixture']['date'] = 'invalid'
+    missing_team = deepcopy(UEL_FIXTURE)
+    missing_team['teams']['away'] = {}
+    finished_without_scores = deepcopy(UEL_FIXTURE)
+    finished_without_scores['fixture']['status']['short'] = 'FT'
+    provider = FootballApiProvider(api_key='test-key', team_resolver=MagicMock())
+    provider.fetch_fixtures = MagicMock(return_value=[
+        {}, missing_date, missing_team, finished_without_scores,
+    ])
+    engine, _, highlightly, tsdb = _engine_with_football_api(provider)
+    highlightly.fetch_fixtures.return_value = [{'highlightly': 'fixture'}]
+    raw, selected, name = engine._collect_raw_fixtures('UEFA Europa League', 2026)
+    assert (raw, selected, name) == (
+        [{'highlightly': 'fixture'}], highlightly, 'Highlightly',
+    )
+    tsdb.fetch_fixtures.assert_not_called()
+
+    highlightly.fetch_fixtures.return_value = []
+    tsdb.fetch_fixtures.return_value = [{'tsdb': 'fixture'}]
+    raw, selected, name = engine._collect_raw_fixtures('UEFA Europa League', 2026)
+    assert (raw, selected, name) == ([{'tsdb': 'fixture'}], tsdb, 'TheSportsDB')
+    for item in provider.fetch_fixtures.return_value:
+        assert provider.normalize_fixture_payload(db_session, item, 1) is None
+    provider.team_resolver.resolve.assert_not_called()
+
+
+def test_football_api_mixed_payload_keeps_only_normalizable_fixtures():
+    provider = FootballApiProvider(api_key='test-key', team_resolver=MagicMock())
+    provider.fetch_fixtures = MagicMock(return_value=[{}, UEL_FIXTURE])
+    engine, _, highlightly, tsdb = _engine_with_football_api(provider)
+    raw, selected, name = engine._collect_raw_fixtures('UEFA Europa League', 2026)
+    assert (raw, selected, name) == ([UEL_FIXTURE], provider, 'Football-API')
+    highlightly.fetch_fixtures.assert_not_called()
+    tsdb.fetch_fixtures.assert_not_called()
+    provider.team_resolver.resolve.assert_not_called()

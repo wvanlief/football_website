@@ -410,3 +410,70 @@ def test_normalize_fixture_payload(db_session):
     assert norm["away_score"] == 1
     assert norm["home_team"].name == "Arsenal"
     assert norm["away_team"].name == "Manchester United"
+
+
+def _pairing_lookup_case(db_session, api_id=None):
+    comp = Competition(name='Premier League', type='League')
+    tourney = Tournament(competition=comp, season_name='2026/27', status='Active')
+    home, away = Team(name='Arsenal'), Team(name='Chelsea')
+    fixture = Fixture(
+        tournament=tourney, home_team=home, away_team=away,
+        date_utc=datetime(2026, 8, 1, 19, tzinfo=timezone.utc),
+        status='Scheduled', stage='Regular Season', api_id=api_id,
+    )
+    db_session.add(fixture)
+    db_session.flush()
+    match = {
+        'id': 99001, 'competition': {'code': 'PL'},
+        'homeTeam': {'name': 'Arsenal'}, 'awayTeam': {'name': 'Chelsea'},
+        'utcDate': '2026-09-01T19:00:00Z',
+    }
+    return fixture, [home, away], match
+
+
+def test_other_competition_does_not_disqualify_shifted_unique_pairing(db_session):
+    expected, teams, match = _pairing_lookup_case(db_session)
+    foreign = Fixture(
+        tournament=Tournament(
+            competition=Competition(name='UEFA Champions League', type='Cup'),
+            season_name='2026/27', status='Active',
+        ),
+        home_team=teams[0], away_team=teams[1],
+        date_utc=datetime(2026, 9, 1, 19, tzinfo=timezone.utc),
+        status='Scheduled', stage='League Phase',
+    )
+    db_session.add(foreign)
+    db_session.flush()
+    assert find_fixture_for_match(db_session, match, teams, NameNormalizer()) is expected
+    match['competition']['code'] = 'PD'
+    assert find_fixture_for_match(db_session, match, teams, NameNormalizer()) is None
+
+
+def test_unique_pairing_rejects_conflicting_stamp_even_at_same_kickoff(db_session):
+    fixture, teams, match = _pairing_lookup_case(db_session, api_id='fd_12345')
+    for stamp in ('fd_12345', 'tsdb_12345'):
+        fixture.api_id = stamp
+        db_session.flush()
+        for kickoff in ('2026-08-01T19:00:00Z', '2026-09-01T19:00:00Z'):
+            match['utcDate'] = kickoff
+            assert find_fixture_for_match(
+                db_session, match, teams, NameNormalizer(), tournament_id=fixture.tournament_id,
+            ) is None
+    fixture.api_id = 'fd_99001'
+    db_session.flush()
+    assert find_fixture_for_match(db_session, match, teams, NameNormalizer()) is fixture
+    fixture.api_id = ''
+    db_session.flush()
+    assert find_fixture_for_match(db_session, match, teams, NameNormalizer()) is fixture
+
+
+def test_multiple_compatible_pairings_still_use_kickoff_window(db_session):
+    old, teams, match = _pairing_lookup_case(db_session)
+    current = Fixture(
+        tournament=old.tournament, home_team=teams[0], away_team=teams[1],
+        date_utc=datetime(2026, 9, 1, 19, tzinfo=timezone.utc),
+        status='Scheduled', stage='Regular Season',
+    )
+    db_session.add(current)
+    db_session.flush()
+    assert find_fixture_for_match(db_session, match, teams, NameNormalizer()) is current

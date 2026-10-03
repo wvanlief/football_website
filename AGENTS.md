@@ -55,7 +55,7 @@ Hard constraints for code changes. Rules 2–4 and the date gate in rule 7 are s
 4. **No production-first testing.** Follow section 1: reproduce and regression-test locally before any deploy.
 5. **Preserve scope.** A request to hide, filter, or relabel matches stays in that layer. Expand into an updater rewrite, a migration, a scoring rewrite, a cache redesign, or a frontend rewrite only when the original layer cannot solve it and the evidence says so.
 6. **One source of truth.** The database holds canonical fixture data. The feed cache is a performance copy. The frontend presents that data. Keep one business definition of eligibility, windows, and tiers.
-7. **Upcoming means future.** A `Scheduled` status is not enough. An upcoming fixture has an allowed status and a kickoff at or after now. Scheduled feed filters use the section 4 gate `matchDateStr >= todayStr`.
+7. **Upcoming means future.** A `Scheduled` status is not enough. An upcoming fixture has an allowed status and a kickoff at or after now. The section 4 gate `matchDateStr >= todayStr` excludes past dates but still allows earlier kickoffs today. Scheduled feed filters must also exclude kickoff timestamps before now.
 8. **No stale fallback.** Choose the next fixture only from a candidate set that still contains future records. Leave a past season's earliest `Scheduled` row out of that set.
 9. **Regression test user-reported bugs.** A production bug gets a regression test that reproduces the original failure, the intended fix, and one adjacent case.
 10. **Honest empty states.** When the future set is empty, show that empty state. Leave fabricated, stale, and past matches out of the gap.

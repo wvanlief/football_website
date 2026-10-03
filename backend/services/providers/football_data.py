@@ -382,7 +382,6 @@ def find_fixture_for_match(
         Fixture.home_team_id == home_team.id,
         Fixture.away_team_id == away_team.id,
     )
-    pairing = candidates_q.all()
     incoming_code = _incoming_competition_code(item)
 
     def _competition_ok(cand: Fixture) -> bool:
@@ -393,9 +392,11 @@ def find_fixture_for_match(
             return True
         return incoming_code is not None and expected_code == incoming_code
 
-    # One home/away row is the official fixture even when the kickoff moved by days.
-    if len(pairing) == 1 and _competition_ok(pairing[0]):
-        return pairing[0]
+    pairing = [cand for cand in candidates_q.all() if _competition_ok(cand)]
+
+    # Only an unstamped unique pairing can match independently of kickoff.
+    if len(pairing) == 1:
+        return pairing[0] if not pairing[0].api_id else None
 
     candidates = pairing
     if match_dt is not None and len(pairing) != 1:

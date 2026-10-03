@@ -107,6 +107,10 @@ class IngestionEngine:
                 api_season,
                 league_id=league_id,
             ) or []
+            fa_fixtures = [
+                item for item in fa_fixtures
+                if self.football_api_provider.is_valid_fixture_payload(item)
+            ]
             if fa_fixtures:
                 print(
                     f"Ingestion: using Football-API for {competition_name} "

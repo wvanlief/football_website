@@ -237,11 +237,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function markMobileTab(pane) {
         if (!mobileTabBar) return;
+        let focusTab = false;
+        let selectedTab;
         mobileTabBar.querySelectorAll('.mobile-tab').forEach(btn => {
             const selected = btn.getAttribute('data-mobile-pane') === pane;
+            if (selected) selectedTab = btn;
             btn.classList.toggle('active', selected);
             btn.setAttribute('aria-selected', selected ? 'true' : 'false');
+            btn.tabIndex = selected ? 0 : -1;
+            const panel = document.getElementById(btn.getAttribute('aria-controls'));
+            if (panel) {
+                const inactive = isMobileTabs() && !selected;
+                if (inactive && panel.contains(document.activeElement)) focusTab = true;
+                panel.inert = inactive;
+                if (isMobileTabs()) panel.setAttribute('aria-hidden', selected ? 'false' : 'true');
+                else panel.removeAttribute('aria-hidden');
+            }
         });
+        if (focusTab && selectedTab) selectedTab.focus();
     }
 
     function showMobilePane(pane) {
@@ -281,10 +294,23 @@ document.addEventListener('DOMContentLoaded', () => {
     if (closeDrawerBtn) closeDrawerBtn.addEventListener('click', toggleOffcanvasDrawer);
 
     if (mobileTabBar) {
-        mobileTabBar.querySelectorAll('.mobile-tab').forEach(tab => {
+        const tabs = Array.from(mobileTabBar.querySelectorAll('.mobile-tab'));
+        tabs.forEach((tab, index) => {
             tab.addEventListener('click', () => {
                 const pane = tab.getAttribute('data-mobile-pane');
                 if (pane) showMobilePane(pane);
+            });
+            tab.addEventListener('keydown', (event) => {
+                if (!isMobileTabs()) return;
+                let next;
+                if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+                else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
+                else if (event.key === 'Home') next = 0;
+                else if (event.key === 'End') next = tabs.length - 1;
+                else return;
+                event.preventDefault();
+                showMobilePane(tabs[next].getAttribute('data-mobile-pane'));
+                tabs[next].focus();
             });
         });
     }
@@ -349,8 +375,12 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', () => {
         if (!isMobileTabs()) {
             document.body.classList.remove('mobile-pane-inspector');
+            markMobileTab('feed');
+        } else {
+            syncMobileTabToDrawer();
         }
     });
+    markMobileTab('feed');
 
     // 7. Top Inline Geographic Waterfall Filter Controller
     const triggerChip = document.getElementById('trigger-drawer-chip');

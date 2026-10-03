@@ -2856,7 +2856,7 @@ body.has-comp-picker .app-main {
     display: none;
 }
 
-@media (max-width: 768px) {
+@media (width < 768px) {
     body:has(#mobile-tab-bar) {
         padding-bottom: calc(62px + env(safe-area-inset-bottom));
     }
