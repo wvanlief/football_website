@@ -35,6 +35,12 @@ class FixtureOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class FixtureScoreOut(BaseModel):
+    id: int
+    status: str
+    score: Optional[str] = None
+
+
 class GroupedFixturesResponse(BaseModel):
     today: List[FixtureOut]
     tomorrow: List[FixtureOut]

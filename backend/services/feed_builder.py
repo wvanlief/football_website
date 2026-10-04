@@ -80,6 +80,42 @@ def build_fixtures_feed_cache(db: Session, force_enrichment: bool = False) -> di
     print(f"Successfully generated {CACHE_FILE_PATH} with {len(enriched_fixtures)} fixtures in {elapsed}ms.")
     return feed_payload
 
+def patch_feed_cache_scores(updates: list[dict]) -> bool:
+    """Replace ``status`` and ``score`` on cached fixtures. Leave every other key.
+
+    Does not rebuild or re-enrich the feed. Returns True when the file changes.
+    """
+    if not updates:
+        return False
+    cache = load_precalculated_feed_cache()
+    if not cache or not isinstance(cache.get("fixtures"), list):
+        return False
+    by_id = {}
+    for item in updates:
+        fixture_id = item.get("id")
+        if fixture_id is None:
+            continue
+        by_id[fixture_id] = item
+    changed = False
+    for fixture in cache["fixtures"]:
+        patch = by_id.get(fixture.get("id"))
+        if not patch:
+            continue
+        status = patch.get("status")
+        score = patch.get("score")
+        if fixture.get("status") == status and fixture.get("score") == score:
+            continue
+        fixture["status"] = status
+        fixture["score"] = score
+        changed = True
+    if not changed:
+        return False
+    os.makedirs(os.path.dirname(CACHE_FILE_PATH), exist_ok=True)
+    with open(CACHE_FILE_PATH, "w", encoding="utf-8") as handle:
+        json.dump(cache, handle, ensure_ascii=False, indent=2)
+    return True
+
+
 def load_precalculated_feed_cache() -> dict:
     """Loads pre-calculated feed cache from disk if available."""
     if os.path.exists(CACHE_FILE_PATH):

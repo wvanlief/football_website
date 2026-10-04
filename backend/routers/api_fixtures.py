@@ -3,12 +3,18 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.schemas.fixture import GroupedFixturesResponse, FixtureOut, CalendarFixtureOut
+from backend.schemas.fixture import (
+    GroupedFixturesResponse,
+    FixtureOut,
+    FixtureScoreOut,
+    CalendarFixtureOut,
+)
 from backend.services.queries import (
     get_grouped_fixtures,
     get_recommended_fixtures,
     get_calendar_fixtures,
     get_fixture_details_by_id,
+    list_match_window_scores,
 )
 
 router = APIRouter(prefix="/api/fixtures", tags=["Fixtures"])
@@ -47,6 +53,12 @@ def get_calendar(
     Returns minimal fixture info for the calendar page (last 30 days and upcoming 60 days by default).
     """
     return get_calendar_fixtures(db, tz, tournament_id=tournament_id, start_date_str=start_date, end_date_str=end_date)
+
+
+@router.get("/scores", response_model=List[FixtureScoreOut])
+def get_fixture_scores(db: Session = Depends(get_db)):
+    """Status and score for fixtures in the live match window."""
+    return list_match_window_scores(db)
 
 
 @router.get("/{fixture_id}", response_model=FixtureOut)

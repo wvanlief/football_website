@@ -9,7 +9,12 @@ from backend.database import Team, Fixture, Tournament, Competition, SessionLoca
 from backend.services.ingestion import NameNormalizer
 from backend.services.odds import update_odds_from_api, calculate_default_odds
 from backend.services.knockout import propagate_knockout_fixtures
-from backend.services.queries import evaluate_nations_league_promotions, invalidate_fixtures_cache
+from backend.services.queries import (
+    evaluate_nations_league_promotions,
+    fixtures_in_match_window,
+    invalidate_fixtures_cache,
+    score_text,
+)
 
 from backend.services.simulation import run_monte_carlo_simulation
 from backend.services.standings import recalculate_tournament_team_standings
@@ -27,8 +32,8 @@ from backend.services.providers.football_data import (
     apply_matches_to_existing_fixtures,
     get_football_data_org_key,
 )
-from backend.services.providers.football_api import FootballApiProvider
-from backend.services.providers.highlightly import HighlightlyProvider
+from backend.services.providers.football_api import FootballApiProvider, live_score_fields as football_api_live_fields
+from backend.services.providers.highlightly import HighlightlyProvider, live_score_fields as highlightly_live_fields
 from backend.services.ingestion.fixture_upserter import FixtureUpserter
 from backend.crud.mapping import get_competition_by_external_id
 from backend.utils import fetch_json_with_retry, fetch_url_with_retry, fetch_json
@@ -162,18 +167,217 @@ def sync_global_date_results(db: Session, date_from: str, date_to: str) -> tuple
     return 0, updated + finished
 
 
+_KICKOFF_TOLERANCE = timedelta(hours=12)
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _kickoff_matches(fixture: Fixture, kickoff: datetime | None) -> bool:
+    if kickoff is None or fixture.date_utc is None:
+        return True
+    return abs(_as_utc(fixture.date_utc) - _as_utc(kickoff)) <= _KICKOFF_TOLERANCE
+
+
+def _provider_stamp(prefix: str, match_id) -> str | None:
+    if match_id is None:
+        return None
+    return f"{prefix}{match_id}"
+
+
+def _stamp_blank_api_id(fixture: Fixture, stamp: str | None) -> None:
+    if stamp and not fixture.api_id:
+        fixture.api_id = stamp
+
+
+def _write_live_score(fixture: Fixture, status: str, home_score, away_score) -> str | None:
+    """Write status and scores only. A concluded state is stored as Finished."""
+    if status not in ("Live", "Finished"):
+        return None
+    if status == "Finished" and (home_score is None or away_score is None):
+        status = "Live"
+    changed = False
+    if fixture.status != status:
+        fixture.status = status
+        changed = True
+    if home_score is not None and fixture.home_score != home_score:
+        fixture.home_score = home_score
+        changed = True
+    if away_score is not None and fixture.away_score != away_score:
+        fixture.away_score = away_score
+        changed = True
+    if not changed:
+        return None
+    return "finished" if fixture.status == "Finished" else "updated"
+
+
+def _competitions_in_window(fixtures: list[Fixture]) -> list[Competition]:
+    competitions = []
+    seen = set()
+    for fixture in fixtures:
+        tournament = fixture.tournament
+        competition = tournament.competition if tournament else None
+        if competition is None or competition.id in seen:
+            continue
+        seen.add(competition.id)
+        competitions.append(competition)
+    competitions.sort(key=lambda competition: competition.name)
+    return competitions
+
+
+def _find_window_fixture(candidates, competition_id: int, home_name: str, away_name: str, kickoff):
+    normalizer = NameNormalizer()
+    hits = []
+    for fixture in candidates:
+        tournament = fixture.tournament
+        competition = tournament.competition if tournament else None
+        if competition is None or competition.id != competition_id:
+            continue
+        home = fixture.home_team.name if fixture.home_team else ""
+        away = fixture.away_team.name if fixture.away_team else ""
+        if not normalizer.match_names(home, home_name) or not normalizer.match_names(away, away_name):
+            continue
+        if not _kickoff_matches(fixture, kickoff):
+            continue
+        hits.append(fixture)
+    if len(hits) == 1:
+        return hits[0]
+    return None
+
+
+def _highlightly_row_for_competition(league_name: str, competition: Competition) -> bool:
+    if not league_name:
+        return True
+    canonical = _HIGHLIGHTLY_LEAGUE_NAMES.get(league_name, league_name)
+    query_name = _HIGHLIGHTLY_QUERY_NAMES.get(competition.name, competition.name)
+    return canonical == competition.name or league_name in {competition.name, query_name}
+
+
+def _missed_competition_for_football_api(fields: dict, missed: list[Competition]) -> Competition | None:
+    league_id = fields.get("league_id")
+    league_name = fields.get("league_name") or ""
+    for competition in missed:
+        if league_id is not None and competition.api_league_id == league_id:
+            return competition
+        if league_name and league_name == competition.name:
+            return competition
+    return None
+
+
+def _apply_live_fields(fixture: Fixture, fields: dict, stamp_prefix: str) -> str | None:
+    _stamp_blank_api_id(fixture, _provider_stamp(stamp_prefix, fields.get("match_id")))
+    return _write_live_score(fixture, fields["status"], fields["home_score"], fields["away_score"])
+
+
+def _record_live_write(outcome, fixture: Fixture, patches: list, updated: int, finished: int):
+    if outcome == "updated":
+        updated += 1
+    elif outcome == "finished":
+        finished += 1
+    else:
+        return updated, finished
+    patches.append({
+        "id": fixture.id,
+        "status": fixture.status,
+        "score": score_text(fixture.status, fixture.home_score, fixture.away_score),
+    })
+    return updated, finished
+
+
+def _patch_cached_scores(patches: list[dict]) -> None:
+    if not patches:
+        return
+    try:
+        from backend.services.feed_builder import patch_feed_cache_scores
+        patch_feed_cache_scores(patches)
+        invalidate_fixtures_cache()
+    except Exception as exc:
+        print(f"Warning: Failed to patch feed cache scores: {exc}")
+
+
 def sync_global_live_scores(db: Session) -> tuple:
     """
-    Fetches in-window live or delayed scores from Football-Data.org matches.
+    Poll Highlightly once per in-window competition.
 
-    Delayed scores on the free plan are acceptable. Matches that transition to
-    Finished are settled via finish_fixture(). Returns (updated_count, finished_count).
-
-    The 15-minute live cron stays on Football-Data.org. It does not call
-    Football-API or Highlightly.
+    One API-Football ``GET /fixtures?live=all`` runs only for competitions
+    Highlightly missed (error, empty, or quota). Writes status, home_score,
+    and away_score. A blank api_id may take an hl_ or fa_ stamp. Does not
+    replace an fd_ stamp, create teams or fixtures, settle the match, or
+    fall through to Football-Data.org. Returns (updated_count, finished_count).
     """
-    date_from, date_to = _yesterday_and_today()
-    return sync_football_data_matches(db, date_from, date_to)
+    window = fixtures_in_match_window(db)
+    competitions = _competitions_in_window(window)
+    if not competitions:
+        return 0, 0
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    highlightly = HighlightlyProvider()
+    missed: list[Competition] = []
+    updated = finished = 0
+    patches: list[dict] = []
+
+    for competition in competitions:
+        league_name = _HIGHLIGHTLY_QUERY_NAMES.get(competition.name, competition.name)
+        try:
+            rows = highlightly.fetch_matches_by_date(today, league_name=league_name)
+        except Exception as exc:
+            print(f"Highlightly live poll failed for {competition.name}: {exc}")
+            rows = []
+        if not rows:
+            missed.append(competition)
+            continue
+        for item in rows:
+            fields = highlightly_live_fields(item)
+            if not fields or not _highlightly_row_for_competition(fields["league_name"], competition):
+                continue
+            fixture = _find_window_fixture(
+                window,
+                competition.id,
+                fields["home_name"],
+                fields["away_name"],
+                fields["date_utc"],
+            )
+            if fixture is None:
+                continue
+            outcome = _apply_live_fields(fixture, fields, "hl_")
+            updated, finished = _record_live_write(outcome, fixture, patches, updated, finished)
+
+    if missed:
+        print(
+            "Highlightly missed "
+            + ", ".join(competition.name for competition in missed)
+            + "; trying one API-Football live=all call."
+        )
+        live_rows, failed = FootballApiProvider().fetch_live_fixtures()
+        if live_rows and not failed:
+            for item in live_rows:
+                fields = football_api_live_fields(item)
+                if not fields:
+                    continue
+                competition = _missed_competition_for_football_api(fields, missed)
+                if competition is None:
+                    continue
+                fixture = _find_window_fixture(
+                    window,
+                    competition.id,
+                    fields["home_name"],
+                    fields["away_name"],
+                    fields["date_utc"],
+                )
+                if fixture is None:
+                    continue
+                outcome = _apply_live_fields(fixture, fields, "fa_")
+                updated, finished = _record_live_write(outcome, fixture, patches, updated, finished)
+
+    if db.dirty:
+        db.commit()
+    _patch_cached_scores(patches)
+    return updated, finished
 
 
 _HIGHLIGHTLY_LEAGUE_NAMES = {
@@ -302,7 +506,7 @@ def update_results_and_odds(db: Session) -> dict:
     Big 5 and UCL, then 2 Football-API date calls for UEL, Conference, and other
     cups. Highlightly fills active competitions missing from each date's
     Football-API response and handles failed or empty responses.
-    The 15-minute live path does not use those providers.
+    The live score poll is separate and does not rebuild this feed.
     Rebuilds the fixtures feed cache after the overlay.
     """
     yesterday_str, today_str = _yesterday_and_today()
@@ -375,61 +579,21 @@ def update_results_and_odds(db: Session) -> dict:
 
 def update_live_scores(db: Session, force: bool = False) -> dict:
     """
-    Lightweight updater for live scores. Only queries when matches are scheduled/live.
+    Lightweight updater for live scores. Only queries when a match is in the window.
+
+    Writes status and scores, then patches those two fields on the feed cache.
+    Does not settle the match or rebuild the feed.
     """
-    now_time = datetime.now(timezone.utc)
-    
-    window_start = now_time - timedelta(hours=3)
-    window_end = now_time + timedelta(minutes=15)
-    
-    active_fixtures = db.query(Fixture).filter(
-        Fixture.status != "Finished",
-        Fixture.date_utc >= window_start,
-        Fixture.date_utc <= window_end
-    ).all()
-    
-    live_fixtures = db.query(Fixture).filter(Fixture.status == "Live").all()
-    is_active_window = len(active_fixtures) > 0 or len(live_fixtures) > 0
-    
-    if not is_active_window and not force:
+    if not fixtures_in_match_window(db) and not force:
         print("No active match window detected in DB. Skipping live API call.")
         return {"status": "skipped", "message": "No active match window."}
-        
+
     updated, finished = sync_global_live_scores(db)
-
-    # Fallback to tournament adapters if global sync did not update any fixtures
-    if updated == 0 and finished == 0:
-        tournaments = db.query(Tournament).filter(Tournament.status == "Active").all()
-        for tourney in tournaments:
-            adapter = get_format_adapter(tourney.competition.format_engine if tourney.competition else "", tourney.competition.name if tourney.competition else "")
-            u, f = adapter.sync_live_scores(db, tourney)
-            updated += u
-            finished += f
-
-    if finished > 0 or updated > 0:
-        try:
-            propagate_knockout_fixtures(db)
-        except Exception as e:
-            pass
-        db.commit()
-        
-        tournaments = db.query(Tournament).filter(Tournament.status == "Active").all()
-        for tourney in tournaments:
-            try:
-                recalculate_tournament_team_standings(db, tourney.id)
-                if tourney.competition and tourney.competition.format_engine == "nations_league":
-                    evaluate_nations_league_promotions(db, tourney.id)
-            except Exception as e:
-                pass
-        db.commit()
-
-    simulation_status = "Simulation temporarily disabled"
-
     return {
         "status": "success",
         "fixtures_updated_live": updated,
         "fixtures_finished": finished,
-        "simulation": simulation_status
+        "simulation": "Simulation temporarily disabled",
     }
 
 if __name__ == "__main__":

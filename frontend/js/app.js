@@ -72,6 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Periodically update freshness relative text
     setInterval(updateFreshnessIndicator, 30000);
+    // Provider scores change when the live job runs, about every 5 minutes.
+    setInterval(pollLiveScores, 5 * 60 * 1000);
 
     // Initialize Page
     selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
@@ -296,6 +298,61 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
+    function rememberLiveScore(row) {
+        if (!activeFixtures || row.id == null) return;
+        ['today', 'tomorrow', 'this_week', 'finished'].forEach(key => {
+            (activeFixtures[key] || []).forEach(match => {
+                if (match.id === row.id) {
+                    match.status = row.status;
+                    match.score = row.score;
+                }
+            });
+        });
+    }
+
+    function applyLiveScoreToCard(card, row) {
+        if (!card || (row.status !== 'Live' && row.status !== 'Finished')) return;
+        const center = card.querySelector('.match-info-center');
+        if (!center) return;
+        const vs = center.querySelector('.match-vs');
+        center.querySelectorAll('.match-score, .match-time, .live-indicator').forEach(node => node.remove());
+        const scoreEl = document.createElement('span');
+        scoreEl.className = row.status === 'Live' ? 'match-score live' : 'match-score';
+        scoreEl.textContent = row.score || '';
+        if (vs) center.insertBefore(scoreEl, vs);
+        else center.appendChild(scoreEl);
+        if (row.status === 'Live') {
+            const indicator = document.createElement('span');
+            indicator.className = 'live-indicator';
+            const dot = document.createElement('span');
+            dot.className = 'live-dot';
+            indicator.append(dot, document.createTextNode('Live'));
+            if (vs) center.insertBefore(indicator, vs);
+            else center.appendChild(indicator);
+        }
+    }
+
+    async function pollLiveScores() {
+        try {
+            const res = await fetch('/api/fixtures/scores');
+            if (!res.ok) return;
+            const rows = await res.json();
+            if (!Array.isArray(rows)) return;
+            rows.forEach(row => {
+                rememberLiveScore(row);
+                document.querySelectorAll('.match-card').forEach(card => {
+                    if (card.getAttribute('data-fixture-id') === String(row.id)) {
+                        applyLiveScoreToCard(card, row);
+                    }
+                });
+            });
+        } catch (err) {
+            console.warn('Live score poll failed', err);
+        }
+    }
+
+    window.pollLiveScores = pollLiveScores;
 
     function renderResultsBar(fixtures) {
         if (!resultsBarContainer || !resultsListHorizontal) return;
@@ -736,6 +793,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const compName = match.competition_name || '';
             const matchRegion = match.region || (['Copa Libertadores', 'Copa Sudamericana', 'Brasileirão', 'MLS', 'Major League Soccer', 'Argentina', 'Liga Profesional', 'CONCACAF'].some(c => compName.includes(c)) ? 'Americas' : 'Europe');
             card.className = `match-card ${ratingClass}`;
+            card.setAttribute('data-fixture-id', String(match.id));
             card.setAttribute('data-region', matchRegion);
             card.setAttribute('data-competition', compName);
             card.innerHTML = `

@@ -81,9 +81,13 @@ def _status_and_scores(item: dict) -> tuple[str, Optional[int], Optional[int]]:
         description = state
         current = item.get("score")
     lowered = description.lower()
-    if "finish" in lowered or lowered in {"ft", "ended", "after penalties"}:
+    # Concluded states are checked before in-play tokens so "after extra time"
+    # and "after penalties" are not left Live by the "extra" / "penalt" tokens.
+    concluded = {"ft", "ended", "aet", "full time", "after penalties", "after extra time"}
+    in_play = ("live", "half", "progress", "1st", "2nd", "extra", "penalt", "break")
+    if "finish" in lowered or lowered in concluded:
         status = "Finished"
-    elif any(token in lowered for token in ("live", "half", "progress", "1st", "2nd")):
+    elif any(token in lowered for token in in_play):
         status = "Live"
     else:
         status = "Scheduled"
@@ -101,6 +105,27 @@ def _status_and_scores(item: dict) -> tuple[str, Optional[int], Optional[int]]:
     if status == "Finished" and (home_score is None or away_score is None):
         status = "Live"
     return status, home_score, away_score
+
+
+def live_score_fields(item: dict) -> Optional[dict]:
+    """Names, kickoff, status, and scores. Does not create teams or fixtures."""
+    if not isinstance(item, dict):
+        return None
+    home_name, _home_ext = _team_name(item, "home", "homeTeam")
+    away_name, _away_ext = _team_name(item, "away", "awayTeam")
+    if not home_name or not away_name:
+        return None
+    status, home_score, away_score = _status_and_scores(item)
+    return {
+        "match_id": item.get("id"),
+        "date_utc": _parse_date(item.get("date")),
+        "home_name": home_name,
+        "away_name": away_name,
+        "status": status,
+        "home_score": home_score,
+        "away_score": away_score,
+        "league_name": _league_name(item),
+    }
 
 
 class HighlightlyProvider:
