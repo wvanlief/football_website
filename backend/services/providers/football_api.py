@@ -45,6 +45,48 @@ STATUS_MAP = {
 }
 
 
+def _as_score(value) -> Optional[int]:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def live_score_fields(item: dict) -> Optional[dict]:
+    """Names, kickoff, status, and scores. Does not create teams or fixtures."""
+    if not isinstance(item, dict):
+        return None
+    fixture = item.get("fixture") or {}
+    teams = item.get("teams") or {}
+    home_name = (teams.get("home") or {}).get("name") or ""
+    away_name = (teams.get("away") or {}).get("name") or ""
+    if not home_name or not away_name:
+        return None
+    short = ((fixture.get("status") or {}).get("short") or "NS").upper()
+    status = STATUS_MAP.get(short, "Scheduled")
+    goals = item.get("goals") or {}
+    home_score = _as_score(goals.get("home"))
+    away_score = _as_score(goals.get("away"))
+    if status == "Finished" and (home_score is None or away_score is None):
+        status = "Live"
+    league = item.get("league") or {}
+    return {
+        "match_id": fixture.get("id"),
+        "date_utc": _parse_date(fixture.get("date")),
+        "home_name": home_name,
+        "away_name": away_name,
+        "status": status,
+        "home_score": home_score,
+        "away_score": away_score,
+        "league_id": league.get("id"),
+        "league_name": league.get("name") or "",
+    }
+
+
 def get_football_api_key() -> Optional[str]:
     value = os.getenv("FOOTBALLAPI_API_KEY")
     return value or None
@@ -132,6 +174,32 @@ class FootballApiProvider:
             print(f"Football-API date error for {match_date}: {exc}")
             return [], True
         if not isinstance(payload, dict):
+            return [], True
+        response = payload.get("response") or []
+        if not isinstance(response, list):
+            return [], True
+        return response, False
+
+    def fetch_live_fixtures(self) -> tuple[list[dict], bool]:
+        """One ``GET /fixtures?live=all`` call. No cache.
+
+        Returns ``(fixtures, failed)``. A rate-limit placeholder and transport
+        errors are failures. An empty 200 is ``([], False)``.
+        """
+        if not self.api_key:
+            return [], True
+        url = f"{BASE_URL}/fixtures?live=all"
+        try:
+            payload = fetch_json_with_retry(
+                url,
+                headers={"x-apisports-key": self.api_key},
+                use_cache=False,
+                provider="football_api",
+            )
+        except Exception as exc:
+            print(f"Football-API live error: {exc}")
+            return [], True
+        if not isinstance(payload, dict) or "response" not in payload:
             return [], True
         response = payload.get("response") or []
         if not isinstance(response, list):

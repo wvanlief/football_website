@@ -41,6 +41,66 @@ def invalidate_fixtures_cache():
     _RECOMMENDED_CACHE.clear()
 
 
+MATCH_WINDOW_LOOKBACK = timedelta(hours=3)
+MATCH_WINDOW_LOOKAHEAD = timedelta(minutes=15)
+
+
+def match_window_bounds(now: datetime | None = None) -> tuple[datetime, datetime]:
+    """Kickoff window for a live check: started within 3 hours, or within 15 minutes."""
+    now_time = now or datetime.now(timezone.utc)
+    return now_time - MATCH_WINDOW_LOOKBACK, now_time + MATCH_WINDOW_LOOKAHEAD
+
+
+def score_text(status: str | None, home_score, away_score) -> str | None:
+    """Same ``"2 - 1"`` string ``enrich_fixture`` stores on a live or finished match."""
+    if status in ("Finished", "Live") and home_score is not None and away_score is not None:
+        return f"{home_score} - {away_score}"
+    return None
+
+
+def fixtures_in_match_window(db: Session) -> list[Fixture]:
+    """Unfinished fixtures in the kickoff window, plus any row already Live."""
+    window_start, window_end = match_window_bounds()
+    options = (
+        joinedload(Fixture.home_team),
+        joinedload(Fixture.away_team),
+        joinedload(Fixture.tournament).joinedload(Tournament.competition),
+    )
+    active = db.query(Fixture).options(*options).filter(
+        Fixture.status != "Finished",
+        Fixture.date_utc >= window_start,
+        Fixture.date_utc <= window_end,
+    ).all()
+    live = db.query(Fixture).options(*options).filter(Fixture.status == "Live").all()
+    by_id = {fixture.id: fixture for fixture in active}
+    for fixture in live:
+        by_id.setdefault(fixture.id, fixture)
+    return list(by_id.values())
+
+
+def list_match_window_scores(db: Session) -> list[dict]:
+    """``{id, status, score}`` for the match window, including a row already Live."""
+    window_start, window_end = match_window_bounds()
+    in_window = db.query(Fixture).filter(
+        Fixture.date_utc >= window_start,
+        Fixture.date_utc <= window_end,
+    ).all()
+    live = db.query(Fixture).filter(Fixture.status == "Live").all()
+    by_id = {fixture.id: fixture for fixture in in_window}
+    for fixture in live:
+        by_id.setdefault(fixture.id, fixture)
+    rows = [
+        {
+            "id": fixture.id,
+            "status": fixture.status or "Scheduled",
+            "score": score_text(fixture.status, fixture.home_score, fixture.away_score),
+        }
+        for fixture in by_id.values()
+    ]
+    rows.sort(key=lambda row: row["id"])
+    return rows
+
+
 def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) -> dict:
     """
     Returns fixtures grouped by time buckets (today, tomorrow, this_week, finished).
