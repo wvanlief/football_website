@@ -661,7 +661,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const matchData = JSON.parse(el.getAttribute('data-match-data'));
                     const inspector = document.getElementById('proto-inspector');
-                    if (inspector && window.innerWidth >= 1100) {
+                    const width = window.innerWidth;
+                    if (inspector && (width >= 1100 || width < 768)) {
                         openMatchInSideInspector(matchData, el);
                     } else {
                         openMatchDetails(matchData);
@@ -851,6 +852,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const homeOdds = match.odds ? match.odds.home.toFixed(2) : '2.14';
         const drawOdds = match.odds ? match.odds.draw.toFixed(2) : '4.20';
         const awayOdds = match.odds ? match.odds.away.toFixed(2) : '4.04';
+
+        if (window.innerWidth < 768 && typeof window.showMobilePane === 'function') {
+            window.showMobilePane('inspector');
+        }
 
         inspector.innerHTML = `
             <div class="inspector-card glass">

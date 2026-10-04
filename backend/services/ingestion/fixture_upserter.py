@@ -150,7 +150,7 @@ class FixtureUpserter:
                 fixture.stage = stage
             if matchday is not None and fixture.matchday_number != matchday:
                 fixture.matchday_number = matchday
-            if api_id and (not fixture.api_id or not str(fixture.api_id).startswith("fd_")):
+            if api_id:
                 fixture.api_id = api_id
 
         # 3. Handle score settling or status updates
@@ -199,8 +199,12 @@ class FixtureUpserter:
             Fixture.away_team_id == away_team.id,
         ).all()
 
-        # A different event from the same provider must not replace its stamp,
-        # even when this is the only row for the pairing or stage.
+        # One pairing in this tournament is the official row, even when the
+        # provider match id changed or another source already stamped it.
+        # Multiple legs stay on ±12h after dropping other same-provider stamps.
+        if len(pairing) == 1:
+            return pairing[0]
+
         provider_prefix = api_id.split("_", 1)[0] + "_" if api_id and "_" in api_id else None
         if provider_prefix:
             pairing = [
@@ -209,8 +213,6 @@ class FixtureUpserter:
                         and str(candidate.api_id).startswith(provider_prefix))
             ]
 
-        # One pairing in this tournament is the official row, even when the
-        # placeholder kickoff or stage drifted. Multiple legs stay on ±12h.
         if len(pairing) == 1:
             return pairing[0]
 

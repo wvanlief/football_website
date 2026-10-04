@@ -41,6 +41,50 @@ def db_session():
         Base.metadata.drop_all(bind=test_engine)
         test_engine.dispose()
 
+
+REPLICA_DB = Path(__file__).resolve().parent.parent / "football_games.db"
+
+
+@pytest.fixture(scope="session")
+def replica_db():
+    """Read-only session against the local production SQLite replica."""
+    if not REPLICA_DB.exists() or REPLICA_DB.stat().st_size == 0:
+        pytest.skip("local production replica football_games.db is required")
+    replica_engine = create_engine(
+        "sqlite:///" + REPLICA_DB.resolve().as_posix(),
+        connect_args={"check_same_thread": False},
+    )
+    ReplicaSession = sessionmaker(autocommit=False, autoflush=False, bind=replica_engine)
+    db = ReplicaSession()
+    try:
+        yield db
+    finally:
+        db.close()
+        replica_engine.dispose()
+
+
+def replica_club(db, name: str):
+    from backend.database import Team
+
+    rows = db.query(Team).filter(Team.name == name).all()
+    if not rows:
+        pytest.fail(f"{name} is missing from the local production replica")
+    clubs = [row for row in rows if (row.team_type or "") == "Club"] or rows
+    with_key = [row for row in clubs if row.api_id is not None or row.logo_url]
+    return with_key[0] if with_key else clubs[0]
+
+
+def replica_badge_key(team) -> str | None:
+    """Badge identity stored on the replica row, not a test-authored id."""
+    if team.api_id is not None:
+        return str(team.api_id)
+    logo = team.logo_url or ""
+    if "/static/badges/" in logo and not logo.endswith("default.png"):
+        digits = "".join(ch for ch in logo.rsplit("/", 1)[-1] if ch.isdigit())
+        return digits or None
+    return None
+
+
 @pytest.fixture(scope="function")
 def client(db_session):
     """

@@ -337,9 +337,7 @@ def _stamp_provider_api_id(fixture: Fixture, match_id) -> None:
     if match_id is None:
         return
     prefixed = f"fd_{match_id}"
-    if fixture.api_id == prefixed:
-        return
-    if not fixture.api_id or not str(fixture.api_id).startswith("fd_"):
+    if fixture.api_id != prefixed:
         fixture.api_id = prefixed
 
 
@@ -350,7 +348,11 @@ def find_fixture_for_match(
     normalizer: NameNormalizer,
     tournament_id: Optional[int] = None,
 ) -> Optional[Fixture]:
-    """Locate an existing fixture for a Football-Data.org match without creating rows."""
+    """Locate an existing fixture for a Football-Data.org match without creating rows.
+
+    Match by provider id, then the only home/away row in that competition
+    (stamp and kickoff may differ), then a ±12-hour window when several legs exist.
+    """
     query = db.query(Fixture)
     if tournament_id is not None:
         query = query.filter(Fixture.tournament_id == tournament_id)
@@ -382,11 +384,29 @@ def find_fixture_for_match(
         Fixture.home_team_id == home_team.id,
         Fixture.away_team_id == away_team.id,
     )
-    if match_dt is not None:
+    incoming_code = _incoming_competition_code(item)
+
+    def _competition_ok(cand: Fixture) -> bool:
+        expected_code = _fixture_competition_code(cand)
+        if tournament_id is not None:
+            if incoming_code and expected_code and incoming_code != expected_code:
+                return False
+            return True
+        return incoming_code is not None and expected_code == incoming_code
+
+    pairing = [cand for cand in candidates_q.all() if _competition_ok(cand)]
+
+    # One home/away row in this competition is that fixture, including when a
+    # provider reissued the match id or another source already stamped the row.
+    if len(pairing) == 1:
+        return pairing[0]
+
+    candidates = pairing
+    if match_dt is not None and len(pairing) != 1:
         window_start = match_dt - timedelta(hours=12)
         window_end = match_dt + timedelta(hours=12)
         dated = []
-        for cand in candidates_q.all():
+        for cand in pairing:
             if not cand.date_utc:
                 continue
             cand_dt = cand.date_utc
@@ -395,10 +415,7 @@ def find_fixture_for_match(
             if window_start <= cand_dt <= window_end:
                 dated.append(cand)
         candidates = dated
-    else:
-        candidates = candidates_q.all()
 
-    incoming_code = _incoming_competition_code(item)
     for cand in candidates:
         expected_code = _fixture_competition_code(cand)
         if tournament_id is not None:

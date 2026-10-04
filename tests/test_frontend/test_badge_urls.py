@@ -2,6 +2,8 @@ from pathlib import Path
 
 from backend.database import Team
 
+from tests.conftest import replica_badge_key, replica_club
+
 GROUP_JS = Path("frontend/js/group.js").read_text(encoding="utf-8")
 REC_JS = Path("frontend/js/recommended.js").read_text(encoding="utf-8")
 SHARED_JS = Path("frontend/js/shared.js").read_text(encoding="utf-8")
@@ -53,3 +55,46 @@ def test_team_badge_url_prefers_http_crest_then_api_sports_cdn():
         logo_url="https://media.api-sports.io/football/teams/7.png",
     )
     assert legacy.badge_url == f"{API_SPORTS_CREST_CDN}7.png"
+
+
+def test_reported_clubs_keep_their_own_badge_ids(replica_db):
+    """Issue 27: replica rows must not share another club's stored badge key."""
+    sparta = replica_club(replica_db, "Sparta Praha")
+    besiktas = replica_club(replica_db, "Besiktas")
+    zagreb = replica_club(replica_db, "Dinamo Zagreb")
+    gent = replica_club(replica_db, "Gent")
+    qarabag = replica_club(replica_db, "Qarabag")
+
+    sparta_key = replica_badge_key(sparta)
+    besiktas_key = replica_badge_key(besiktas)
+    zagreb_key = replica_badge_key(zagreb)
+    gent_key = replica_badge_key(gent)
+    qarabag_key = replica_badge_key(qarabag)
+
+    assert sparta_key
+    assert besiktas_key
+    assert zagreb_key
+    assert gent_key
+    assert qarabag_key
+    assert sparta_key != besiktas_key
+    assert zagreb_key != gent_key
+    assert sparta_key in sparta.badge_url
+    assert besiktas_key not in sparta.badge_url
+    assert zagreb_key in zagreb.badge_url
+    assert gent_key not in zagreb.badge_url
+    assert qarabag.badge_url != "/static/badges/default.png"
+    assert qarabag_key in qarabag.badge_url
+
+
+def test_logo_only_alias_does_not_borrow_another_clubs_crest(replica_db):
+    """Adjacent case: a draw-name replica row keeps its own stored crest path."""
+    orphan = replica_club(replica_db, "Sparta Prague")
+    besiktas = replica_club(replica_db, "Besiktas")
+    orphan_key = replica_badge_key(orphan)
+    besiktas_key = replica_badge_key(besiktas)
+    assert orphan.logo_url
+    assert orphan.badge_url == orphan.logo_url or (orphan_key and orphan_key in orphan.badge_url)
+    assert besiktas_key
+    assert besiktas_key not in (orphan.logo_url or "")
+    if orphan.api_id is None:
+        assert orphan.badge_url == orphan.logo_url

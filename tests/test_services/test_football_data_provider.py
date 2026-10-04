@@ -264,6 +264,59 @@ def test_apply_matches_writes_shifted_kickoff(db_session):
     assert db_session.query(Fixture).count() == 1
 
 
+def test_apply_matches_writes_shifted_kickoff_on_unique_unstamped_row(db_session):
+    """A single home/away row is dated even when the kickoff moved by days."""
+    from backend.services.providers.football_data import apply_matches_to_existing_fixtures
+
+    comp = Competition(name="La Liga", type="League")
+    db_session.add(comp)
+    db_session.flush()
+    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
+    db_session.add(tourney)
+    db_session.flush()
+    home = Team(name="Real Madrid")
+    away = Team(name="Barcelona")
+    db_session.add_all([home, away])
+    db_session.flush()
+    fixture = Fixture(
+        tournament_id=tourney.id,
+        home_team_id=home.id,
+        away_team_id=away.id,
+        date_utc=datetime(2026, 8, 1, 20, 0, tzinfo=timezone.utc),
+        stage="Regular Season",
+        status="Scheduled",
+    )
+    db_session.add(fixture)
+    db_session.commit()
+
+    updated, finished = apply_matches_to_existing_fixtures(
+        db_session,
+        [
+            {
+                "id": 140099,
+                "utcDate": "2026-09-12T19:00:00Z",
+                "status": "TIMED",
+                "homeTeam": {"name": "Real Madrid", "shortName": "Real Madrid"},
+                "awayTeam": {"name": "Barça", "shortName": "Barça"},
+                "score": {"fullTime": {"home": None, "away": None}},
+                "competition": {"code": "PD", "name": "La Liga"},
+            }
+        ],
+        tournament_id=tourney.id,
+    )
+
+    assert finished == 0
+    assert updated == 1
+    db_session.flush()
+    db_session.refresh(fixture)
+    stored = fixture.date_utc
+    if stored.tzinfo is None:
+        stored = stored.replace(tzinfo=timezone.utc)
+    assert stored == datetime(2026, 9, 12, 19, 0, tzinfo=timezone.utc)
+    assert fixture.api_id == "fd_140099"
+    assert db_session.query(Fixture).count() == 1
+
+
 def test_find_team_prefers_full_name_over_short_slovan(db_session):
     from backend.services.providers.football_data import _find_team_for_sync
 
@@ -357,3 +410,83 @@ def test_normalize_fixture_payload(db_session):
     assert norm["away_score"] == 1
     assert norm["home_team"].name == "Arsenal"
     assert norm["away_team"].name == "Manchester United"
+
+
+def _pairing_lookup_case(db_session, api_id=None):
+    comp = Competition(name='Premier League', type='League')
+    tourney = Tournament(competition=comp, season_name='2026/27', status='Active')
+    home, away = Team(name='Arsenal'), Team(name='Chelsea')
+    fixture = Fixture(
+        tournament=tourney, home_team=home, away_team=away,
+        date_utc=datetime(2026, 8, 1, 19, tzinfo=timezone.utc),
+        status='Scheduled', stage='Regular Season', api_id=api_id,
+    )
+    db_session.add(fixture)
+    db_session.flush()
+    match = {
+        'id': 99001, 'competition': {'code': 'PL'},
+        'homeTeam': {'name': 'Arsenal'}, 'awayTeam': {'name': 'Chelsea'},
+        'utcDate': '2026-09-01T19:00:00Z',
+    }
+    return fixture, [home, away], match
+
+
+def test_other_competition_does_not_disqualify_shifted_unique_pairing(db_session):
+    expected, teams, match = _pairing_lookup_case(db_session)
+    foreign = Fixture(
+        tournament=Tournament(
+            competition=Competition(name='UEFA Champions League', type='Cup'),
+            season_name='2026/27', status='Active',
+        ),
+        home_team=teams[0], away_team=teams[1],
+        date_utc=datetime(2026, 9, 1, 19, tzinfo=timezone.utc),
+        status='Scheduled', stage='League Phase',
+    )
+    db_session.add(foreign)
+    db_session.flush()
+    assert find_fixture_for_match(db_session, match, teams, NameNormalizer()) is expected
+    match['competition']['code'] = 'PD'
+    assert find_fixture_for_match(db_session, match, teams, NameNormalizer()) is None
+
+
+def test_unique_pairing_updates_when_provider_id_changes(db_session):
+    """One Arsenal (H)–Chelsea (A) row is that PL fixture even if the stamp differs."""
+    from backend.services.providers.football_data import apply_matches_to_existing_fixtures
+
+    fixture, teams, match = _pairing_lookup_case(db_session, api_id='fd_12345')
+    for stamp in ('fd_12345', 'tsdb_12345', 'fa_12345'):
+        fixture.api_id = stamp
+        db_session.flush()
+        for kickoff in ('2026-08-01T19:00:00Z', '2026-09-01T19:00:00Z'):
+            match['utcDate'] = kickoff
+            assert find_fixture_for_match(
+                db_session, match, teams, NameNormalizer(), tournament_id=fixture.tournament_id,
+            ) is fixture
+
+    fixture.api_id = 'fd_12345'
+    fixture.date_utc = datetime(2026, 8, 1, 19, tzinfo=timezone.utc)
+    db_session.commit()
+    updated, finished = apply_matches_to_existing_fixtures(
+        db_session, [match], tournament_id=fixture.tournament_id,
+    )
+    assert (updated, finished) == (1, 0)
+    db_session.flush()
+    db_session.refresh(fixture)
+    stored = fixture.date_utc
+    if stored.tzinfo is None:
+        stored = stored.replace(tzinfo=timezone.utc)
+    assert stored == datetime(2026, 9, 1, 19, tzinfo=timezone.utc)
+    assert fixture.api_id == 'fd_99001'
+    assert db_session.query(Fixture).count() == 1
+
+
+def test_multiple_compatible_pairings_still_use_kickoff_window(db_session):
+    old, teams, match = _pairing_lookup_case(db_session)
+    current = Fixture(
+        tournament=old.tournament, home_team=teams[0], away_team=teams[1],
+        date_utc=datetime(2026, 9, 1, 19, tzinfo=timezone.utc),
+        status='Scheduled', stage='Regular Season',
+    )
+    db_session.add(current)
+    db_session.flush()
+    assert find_fixture_for_match(db_session, match, teams, NameNormalizer()) is current

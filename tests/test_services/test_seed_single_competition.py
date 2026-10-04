@@ -279,6 +279,10 @@ def test_ucl_overlay_stamps_inserts_hides_and_skips_api_football_key(
 def test_europa_overlay_stamps_from_thesportsdb_after_empty_football_data(
     mock_fd_fetch, mock_tsdb_http, mock_fetch_teams, _mock_fa_fetch, db_session, monkeypatch
 ):
+    monkeypatch.setattr(
+        "backend.services.providers.football_api.FootballApiProvider.fetch_fixtures",
+        lambda *args, **kwargs: [],
+    )
     monkeypatch.setenv("FOOTBALL_DATA_ORG_KEY", "fd-test-key")
     mock_fd_fetch.return_value = []
     mock_tsdb_http.side_effect = lambda url, *args, **kwargs: (
@@ -354,6 +358,10 @@ def test_europa_overlay_stamps_from_thesportsdb_after_empty_football_data(
 def test_europa_empty_thesportsdb_does_not_invent_fixtures(
     _mock_hl_fetch, mock_fd_fetch, mock_tsdb_http, mock_fetch_teams, db_session, monkeypatch
 ):
+    monkeypatch.setattr(
+        "backend.services.providers.football_api.FootballApiProvider.fetch_fixtures",
+        lambda *args, **kwargs: [],
+    )
     monkeypatch.setenv("FOOTBALL_DATA_ORG_KEY", "fd-test-key")
     mock_fd_fetch.return_value = []
     mock_tsdb_http.side_effect = lambda url, *args, **kwargs: (
@@ -383,6 +391,10 @@ def test_europa_empty_thesportsdb_does_not_invent_fixtures(
 def test_conference_overlay_stamps_from_thesportsdb_after_empty_football_data(
     mock_fd_fetch, mock_tsdb_http, mock_fetch_teams, _mock_fa_fetch, db_session, monkeypatch
 ):
+    monkeypatch.setattr(
+        "backend.services.providers.football_api.FootballApiProvider.fetch_fixtures",
+        lambda *args, **kwargs: [],
+    )
     monkeypatch.setenv("FOOTBALL_DATA_ORG_KEY", "fd-test-key")
     mock_fd_fetch.return_value = []
     mock_tsdb_http.side_effect = lambda url, *args, **kwargs: (

@@ -202,12 +202,13 @@ def test_empty_football_data_does_not_invent_ucl_openfootball_path(
     assert fixtures == []
 
 
+@patch("backend.services.providers.football_api.FootballApiProvider.fetch_fixtures", return_value=[])
 @patch("backend.services.providers.highlightly.HighlightlyProvider.fetch_fixtures", return_value=[])
 @patch("backend.services.providers.thesportsdb.fetch_json_with_retry")
 @patch("backend.services.providers.openfootball.fetch_json_with_retry")
 @patch("backend.services.providers.football_data.fetch_json_with_retry")
 def test_empty_fd_and_openfootball_falls_back_to_thesportsdb_for_conference_league(
-    mock_fd_http, mock_of_http, mock_tsdb_http, _mock_fa_fetch, db_session
+    mock_fd_http, mock_of_http, mock_tsdb_http, _mock_hl_fetch, _mock_fa_fetch, db_session
 ):
     """Conference League has no FD free-plan or openfootball dataset; TheSportsDB is tertiary."""
     mock_fd_http.side_effect = _fd_http(matches=[])
@@ -368,3 +369,41 @@ def test_thesportsdb_overlay_stamps_sparse_payload_without_abort(mock_tsdb_http,
     assert result.created == 1
     assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() == 11
     assert db_session.query(Fixture).filter_by(api_id="tsdb_3000001").one().home_team.name == "Fiorentina"
+
+
+def test_seed_competition_reuses_supplied_engine():
+    class Spy:
+        def seed_competition(self, db, **kwargs):
+            self.seen = kwargs["competition_name"]
+            return "reused"
+
+    engine = Spy()
+    result = seed_competition(
+        db=None,
+        competition_name="La Liga",
+        engine=engine,
+    )
+
+    assert result == "reused"
+    assert engine.seen == "La Liga"
+
+
+def test_seed_competition_builds_engine_when_omitted(monkeypatch):
+    created = []
+
+    class Spy:
+        def __init__(self, *args, **kwargs):
+            created.append(self)
+
+        def seed_competition(self, db, **kwargs):
+            return self
+
+    monkeypatch.setattr(
+        "backend.services.ingestion.engine.IngestionEngine",
+        Spy,
+    )
+
+    result = seed_competition(db=None, competition_name="Serie A")
+
+    assert len(created) == 1
+    assert result is created[0]

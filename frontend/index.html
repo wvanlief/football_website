@@ -14,7 +14,7 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/css/base.css?v=1.1.2">
+    <link rel="stylesheet" href="/css/base.css?v=1.1.3">
     <link rel="stylesheet" href="/css/cards.css?v=1.1.0">
     <link rel="stylesheet" href="/css/hero.css?v=1.1.0">
 </head>
@@ -64,7 +64,7 @@
     <main class="app-main">
         <!-- Main Inspector & Feed Grid Layout -->
         <div class="variant-c-inspector-layout glass">
-            <div class="inspector-feed-area" id="inspector-feed-area">
+            <div class="inspector-feed-area" id="inspector-feed-area" role="tabpanel" aria-labelledby="mobile-tab-feed" tabindex="0">
                 <!-- Top Inline Geographic Waterfall Filter Bar -->
                 <div class="inline-waterfall-bar glass" id="inline-waterfall-bar">
                     <div class="inline-waterfall-group">
@@ -139,7 +139,7 @@
             </div>
 
             <!-- Docked Right Side Inspector Panel -->
-            <aside class="inspector-side-panel" id="proto-inspector">
+            <aside class="inspector-side-panel" id="proto-inspector" role="tabpanel" aria-labelledby="mobile-tab-inspector" tabindex="0">
                 <div class="inspector-card glass">
                     <div class="inspector-empty">
                         <i class="fa-solid fa-hand-pointer"></i>
@@ -165,7 +165,7 @@
     <div id="toast" class="toast">Weights updated & scores recalculated!</div>
 
     <!-- Off-Canvas Competitions Drawer -->
-    <aside id="offcanvas-sidebar" class="offcanvas-sidebar glass">
+    <aside id="offcanvas-sidebar" role="tabpanel" aria-labelledby="mobile-tab-competitions" tabindex="0" class="offcanvas-sidebar glass">
         <div class="drawer-header">
             <h3><i class="fa-solid fa-trophy"></i> Competitions</h3>
             <button id="close-drawer-btn" class="close-drawer-btn">&times;</button>
@@ -191,10 +191,26 @@
         </div>
     </aside>
 
+    <!-- Mobile panes: Feed, Competitions drawer, Inspector (< 768px) -->
+    <nav class="mobile-tab-bar" id="mobile-tab-bar" role="tablist" aria-label="Mobile sections">
+        <button type="button" class="mobile-tab active" data-mobile-pane="feed" id="mobile-tab-feed" role="tab" aria-controls="inspector-feed-area" tabindex="0" aria-selected="true">
+            <i class="fa-solid fa-list" aria-hidden="true"></i>
+            <span>Feed</span>
+        </button>
+        <button type="button" class="mobile-tab" data-mobile-pane="competitions" id="mobile-tab-competitions" role="tab" aria-controls="offcanvas-sidebar" tabindex="-1" aria-selected="false">
+            <i class="fa-solid fa-bars" aria-hidden="true"></i>
+            <span>Competitions</span>
+        </button>
+        <button type="button" class="mobile-tab" data-mobile-pane="inspector" id="mobile-tab-inspector" role="tab" aria-controls="proto-inspector" tabindex="-1" aria-selected="false">
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <span>Inspector</span>
+        </button>
+    </nav>
+
     <!-- Main Application Scripts -->
     <script src="/js/shared.js?v=1.0.3"></script>
-    <script src="/js/navigation.js?v=1.0.7"></script>
-    <script src="/js/app.js?v=1.1.1"></script>
+    <script src="/js/navigation.js?v=1.0.8"></script>
+    <script src="/js/app.js?v=1.1.2"></script>
 </body>
 
 </html>

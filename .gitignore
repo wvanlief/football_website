@@ -33,4 +33,11 @@ backend/static/badges/*
 !backend/static/badges/default.png
 !backend/static/badges/.gitkeep
 
+# Agent / local scratch (never commit)
+_tmp*
+scratch/
+.scratch/
+graphify-out/
+logs/*.log
+
 
