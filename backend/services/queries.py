@@ -15,6 +15,11 @@ from backend.database import Fixture, PlayerContract, Tournament, TournamentTeam
 import backend.crud.fixture as crud_fixture
 import backend.crud.player as crud_player
 import backend.crud.team as crud_team
+from backend.services.eligibility import (
+    eligible_fixtures,
+    recommended_fixtures as eligible_recommended_fixtures,
+    select_recommended,
+)
 from backend.services.enrichment import (
     enrich_fixture,
     get_timezone,
@@ -132,7 +137,7 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None, no
         return payload
 
     # Specific tournament path or live test environment
-    fixtures = crud_fixture.get_eligible_fixtures(db, tournament_id=tournament_id, now_utc=now_utc)
+    fixtures = eligible_fixtures(db, tournament_id=tournament_id, now_utc=now_utc)
     tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all() if tournament_id else db.query(TournamentTeam).all()
 
     contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(
@@ -190,20 +195,28 @@ def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None
                 else:
                     future_cached.append(f)
 
-            recs = [f for f in future_cached if f.get("watchability", {}).get("overall", 0) >= min_score]
-            if len(recs) < min_count:
-                sorted_f = sorted(future_cached, key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
-                recs = sorted_f[:min_count]
-            recs.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
+            recs = select_recommended(
+                future_cached,
+                lambda row: row.get("watchability", {}).get("overall", 0),
+                min_score=min_score,
+                min_count=min_count,
+            )
             recs = [localize_fixture_display(f, target_tz) for f in recs]
             _RECOMMENDED_CACHE[cache_key] = (cached_at, recs)
             return recs
 
+    now_utc = now or datetime.now(timezone.utc)
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
     if tournament_id is not None:
-        fixtures = crud_fixture.get_recommended_fixtures(db, tournament_id=tournament_id, min_score=min_score, min_count=min_count)
+        fixtures = eligible_recommended_fixtures(
+            db, tournament_id=tournament_id, min_score=min_score, min_count=min_count, now=now_utc
+        )
         tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all()
     else:
-        fixtures = crud_fixture.get_recommended_fixtures(db, tournament_id=None, min_score=min_score, min_count=min_count)
+        fixtures = eligible_recommended_fixtures(
+            db, tournament_id=None, min_score=min_score, min_count=min_count, now=now_utc
+        )
         tts = db.query(TournamentTeam).all()
 
     # Preload maps to avoid N+1 queries
