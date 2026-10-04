@@ -349,7 +349,7 @@ def test_multiple_legs_outside_window_insert_a_second_row(db_session):
 
 
 @pytest.mark.parametrize("stamp", ["fd_1", "fa_1", "hl_1"])
-def test_distinct_same_provider_pairing_inserts_instead_of_overwriting(db_session, stamp):
+def test_unique_pairing_updates_when_same_provider_id_changes(db_session, stamp):
     comp = Competition(name="Repeated Pairing", type="Cup")
     tourney = Tournament(competition=comp, season_name="2026/27", status="Active")
     home = Team(name="Home", team_type="Club")
@@ -364,17 +364,24 @@ def test_distinct_same_provider_pairing_inserts_instead_of_overwriting(db_sessio
     db_session.add(original)
     db_session.commit()
 
+    incoming = stamp.replace("_1", "_2")
+    new_kickoff = datetime(2026, 9, 25, 20, tzinfo=timezone.utc)
     fixture, created = FixtureUpserter().upsert_fixture(db_session, tourney, {
-        "api_id": stamp.replace("_1", "_2"),
+        "api_id": incoming,
         "home_team": home, "away_team": away,
-        "date_utc": datetime(2026, 9, 25, 20, tzinfo=timezone.utc),
+        "date_utc": new_kickoff,
         "stage": "League Phase", "status": "Scheduled",
     }, competition=comp)
 
-    assert created is True
-    assert fixture.id != original.id
-    assert original.api_id == stamp
-    assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() == 2
+    db_session.refresh(original)
+    assert created is False
+    assert fixture.id == original.id
+    assert original.api_id == incoming
+    stored = original.date_utc
+    if stored.tzinfo is None:
+        stored = stored.replace(tzinfo=timezone.utc)
+    assert stored == new_kickoff
+    assert db_session.query(Fixture).filter_by(tournament_id=tourney.id).count() == 1
 
 
 def test_unique_pairing_can_match_another_provider_stamp(db_session):
@@ -398,8 +405,10 @@ def test_unique_pairing_can_match_another_provider_stamp(db_session):
         "stage": "League Phase", "status": "Scheduled",
     }, competition=comp)
 
+    db_session.refresh(original)
     assert created is False
     assert fixture.id == original.id
+    assert original.api_id == "hl_2"
 
 
 @pytest.mark.parametrize("stamp", ["fa_2", "hl_2"])

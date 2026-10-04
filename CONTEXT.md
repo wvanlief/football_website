@@ -1,9 +1,9 @@
 # Domain Glossary & Model Conventions (findfootball.games)
 
 ## Team Badges & Assets
-- **`logo_url`**: Canonical URL string stored on the `Team` model pointing to the team's crest image (`/static/badges/{api_id}.png` for clubs, a Football-Data.org crest URL, or flagcdn for national teams). Never an API-Sports media CDN URL.
-- **`badge_url`**: Resolved crest URL on `Team` for API payloads. Prefers stored `logo_url`, then `/static/badges/{api_id}.png` (`api_id` is an opaque local cache key), then flagcdn. Must not construct or emit `media.api-sports.io` URLs.
-- **Badge Caching**: Club badges already on disk under static assets are served from `/static/badges/{api_id}.png`. New clubs can store a Football-Data.org crest on `logo_url`. National flags use flagcdn.
+- **`logo_url`**: Canonical URL string stored on the `Team` model pointing to the team's crest image (`/static/badges/{api_id}.png` for clubs, a Football-Data.org crest URL, an API-Sports media CDN URL, or flagcdn for national teams).
+- **`badge_url`**: Resolved crest URL on `Team` for API payloads. Prefers a stored HTTP `logo_url`, then rewrites local `/static/badges/{api_id}.png` to `https://media.api-sports.io/football/teams/{api_id}.png`, then flagcdn. `api_id` is an opaque local cache key, not a live fixture-provider team id. Serving club crests from `media.api-sports.io` is allowed; that host is not used as a fixture API.
+- **Badge Caching**: Club badges already on disk under static assets are served from `/static/badges/{api_id}.png` and rewritten to the API-Sports media CDN in API payloads and `getFlagUrl`. New clubs can store a Football-Data.org crest on `logo_url`. National flags use flagcdn.
 
 ## Season & Date Filtering
 - **Date Anchoring**: Fixture recommendations and hot lists must filter strictly against `datetime.now(target_tz)` for active/upcoming matches, anchored to current or upcoming matchdays.

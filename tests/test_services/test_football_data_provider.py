@@ -449,22 +449,35 @@ def test_other_competition_does_not_disqualify_shifted_unique_pairing(db_session
     assert find_fixture_for_match(db_session, match, teams, NameNormalizer()) is None
 
 
-def test_unique_pairing_rejects_conflicting_stamp_even_at_same_kickoff(db_session):
+def test_unique_pairing_updates_when_provider_id_changes(db_session):
+    """One Arsenal (H)–Chelsea (A) row is that PL fixture even if the stamp differs."""
+    from backend.services.providers.football_data import apply_matches_to_existing_fixtures
+
     fixture, teams, match = _pairing_lookup_case(db_session, api_id='fd_12345')
-    for stamp in ('fd_12345', 'tsdb_12345'):
+    for stamp in ('fd_12345', 'tsdb_12345', 'fa_12345'):
         fixture.api_id = stamp
         db_session.flush()
         for kickoff in ('2026-08-01T19:00:00Z', '2026-09-01T19:00:00Z'):
             match['utcDate'] = kickoff
             assert find_fixture_for_match(
                 db_session, match, teams, NameNormalizer(), tournament_id=fixture.tournament_id,
-            ) is None
-    fixture.api_id = 'fd_99001'
+            ) is fixture
+
+    fixture.api_id = 'fd_12345'
+    fixture.date_utc = datetime(2026, 8, 1, 19, tzinfo=timezone.utc)
+    db_session.commit()
+    updated, finished = apply_matches_to_existing_fixtures(
+        db_session, [match], tournament_id=fixture.tournament_id,
+    )
+    assert (updated, finished) == (1, 0)
     db_session.flush()
-    assert find_fixture_for_match(db_session, match, teams, NameNormalizer()) is fixture
-    fixture.api_id = ''
-    db_session.flush()
-    assert find_fixture_for_match(db_session, match, teams, NameNormalizer()) is fixture
+    db_session.refresh(fixture)
+    stored = fixture.date_utc
+    if stored.tzinfo is None:
+        stored = stored.replace(tzinfo=timezone.utc)
+    assert stored == datetime(2026, 9, 1, 19, tzinfo=timezone.utc)
+    assert fixture.api_id == 'fd_99001'
+    assert db_session.query(Fixture).count() == 1
 
 
 def test_multiple_compatible_pairings_still_use_kickoff_window(db_session):

@@ -337,9 +337,7 @@ def _stamp_provider_api_id(fixture: Fixture, match_id) -> None:
     if match_id is None:
         return
     prefixed = f"fd_{match_id}"
-    if fixture.api_id == prefixed:
-        return
-    if not fixture.api_id or not str(fixture.api_id).startswith("fd_"):
+    if fixture.api_id != prefixed:
         fixture.api_id = prefixed
 
 
@@ -350,7 +348,11 @@ def find_fixture_for_match(
     normalizer: NameNormalizer,
     tournament_id: Optional[int] = None,
 ) -> Optional[Fixture]:
-    """Locate an existing fixture for a Football-Data.org match without creating rows."""
+    """Locate an existing fixture for a Football-Data.org match without creating rows.
+
+    Match by provider id, then the only home/away row in that competition
+    (stamp and kickoff may differ), then a ±12-hour window when several legs exist.
+    """
     query = db.query(Fixture)
     if tournament_id is not None:
         query = query.filter(Fixture.tournament_id == tournament_id)
@@ -394,9 +396,10 @@ def find_fixture_for_match(
 
     pairing = [cand for cand in candidates_q.all() if _competition_ok(cand)]
 
-    # Only an unstamped unique pairing can match independently of kickoff.
+    # One home/away row in this competition is that fixture, including when a
+    # provider reissued the match id or another source already stamped the row.
     if len(pairing) == 1:
-        return pairing[0] if not pairing[0].api_id else None
+        return pairing[0]
 
     candidates = pairing
     if match_dt is not None and len(pairing) != 1:

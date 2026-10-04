@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.conftest import replica_badge_key, replica_club
+
 SHARED_JS = Path("frontend/js/shared.js")
 
 
@@ -74,18 +76,6 @@ def _eval_get_flag_url(target, size="w40"):
             {"name": "Alaves", "logo_url": "/static/badges/default.png", "api_id": 542},
             "https://media.api-sports.io/football/teams/542.png",
         ),
-        (
-            {"name": "Sparta Praha", "logo_url": "/static/badges/628.png", "api_id": 628},
-            "https://media.api-sports.io/football/teams/628.png",
-        ),
-        (
-            {"name": "Dinamo Zagreb", "logo_url": "/static/badges/620.png", "api_id": 620},
-            "https://media.api-sports.io/football/teams/620.png",
-        ),
-        (
-            {"name": "Qarabag", "logo_url": "/static/badges/556.png", "api_id": 556},
-            "https://media.api-sports.io/football/teams/556.png",
-        ),
         ("England", "https://flagcdn.com/w40/gb-eng.png"),
         ({"name": "Spain"}, "https://flagcdn.com/w40/es.png"),
         (
@@ -98,3 +88,32 @@ def _eval_get_flag_url(target, size="w40"):
 def test_get_flag_url_rewrites_local_badge_paths_to_api_sports(target, expected):
     url = _eval_get_flag_url(target)
     assert url == expected
+
+
+def test_replica_reported_clubs_getflagurl_uses_stored_badge_source(replica_db):
+    """Issue 27: getFlagUrl must use each replica club's stored badge key."""
+    pairs = (
+        ("Sparta Praha", "Besiktas"),
+        ("Dinamo Zagreb", "Gent"),
+    )
+    for club_name, other_name in pairs:
+        club = replica_club(replica_db, club_name)
+        other = replica_club(replica_db, other_name)
+        club_key = replica_badge_key(club)
+        other_key = replica_badge_key(other)
+        assert club_key
+        assert other_key
+        assert club_key != other_key
+        payload = {"name": club.name, "logo_url": club.logo_url, "api_id": club.api_id}
+        url = _eval_get_flag_url(payload)
+        assert club_key in url
+        assert other_key not in url
+
+    qarabag = replica_club(replica_db, "Qarabag")
+    qarabag_key = replica_badge_key(qarabag)
+    assert qarabag_key
+    url = _eval_get_flag_url(
+        {"name": qarabag.name, "logo_url": qarabag.logo_url, "api_id": qarabag.api_id}
+    )
+    assert url != "/static/badges/default.png"
+    assert qarabag_key in url
