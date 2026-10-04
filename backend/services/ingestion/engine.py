@@ -283,7 +283,6 @@ class IngestionEngine:
                 continue
             normalized_fixtures.append(norm_item)
 
-        self.preflight.assert_no_deletes("overlay_from_football_data")
         result = self.upserter.upsert_fixtures(
             db, tournament, normalized_fixtures, competition=competition
         )
@@ -305,7 +304,6 @@ class IngestionEngine:
         api_season: int,
     ) -> UpsertResult:
         """Additive TheSportsDB overlay. Never falls back to openfootball or DELETE."""
-        self.preflight.assert_no_deletes("overlay_from_thesportsdb")
         raw_fixtures = self.tsdb_provider.fetch_fixtures(
             competition.name, api_season, db=db, competition=competition
         ) or []
@@ -345,7 +343,6 @@ class IngestionEngine:
                 message="TheSportsDB returned no ingestible fixtures",
             )
 
-        self.preflight.assert_no_deletes("overlay_from_thesportsdb")
         result = self.upserter.upsert_fixtures(
             db, tournament, normalized_fixtures, competition=competition
         )

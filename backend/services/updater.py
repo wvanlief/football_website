@@ -19,7 +19,7 @@ from backend.services.queries import (
 from backend.services.simulation import run_monte_carlo_simulation
 from backend.services.standings import recalculate_tournament_team_standings
 from backend.services.format_adapters import (
-    get_format_adapter,
+    CompetitionSyncAdapter,
     STAGE_MAPPING,
     STADIUM_TIMEZONES,
     parse_match_date,
@@ -37,15 +37,6 @@ from backend.services.providers.highlightly import HighlightlyProvider, live_sco
 from backend.services.ingestion.fixture_upserter import FixtureUpserter
 from backend.crud.mapping import get_competition_by_external_id
 from backend.utils import fetch_json_with_retry, fetch_url_with_retry, fetch_json
-
-
-def normalize_team_name(name: str) -> str:
-    """Normalizes a team name using the NameNormalizer."""
-    return NameNormalizer().normalize(name)
-
-def matches_team_name(db_name: str, api_name: str) -> bool:
-    """Checks if two team names match using fuzzy matching and alias mapping."""
-    return NameNormalizer().match_names(db_name, api_name)
 
 
 def _tournament_id_for_match(db: Session, match: dict) -> int | None:
@@ -196,7 +187,12 @@ def _stamp_blank_api_id(fixture: Fixture, stamp: str | None) -> None:
 
 
 def _write_live_score(fixture: Fixture, status: str, home_score, away_score) -> str | None:
-    """Write status and scores only. A concluded state is stored as Finished."""
+    """Write status and scores only. This is the only score writer besides settlement.
+
+    A concluded state is stored as Finished so the homepage can show the score.
+    It does not call finish_fixture: live polling does not settle streaks,
+    watchability, or standings, and it does not rebuild the feed.
+    """
     if status not in ("Live", "Finished"):
         return None
     if status == "Finished" and (home_score is None or away_score is None):
@@ -528,7 +524,7 @@ def update_results_and_odds(db: Session) -> dict:
     if fixtures_created == 0 and fixtures_updated_results == 0:
         tournaments = db.query(Tournament).filter(Tournament.status == "Active").all()
         for tourney in tournaments:
-            adapter = get_format_adapter(tourney.competition.format_engine if tourney.competition else "", tourney.competition.name if tourney.competition else "")
+            adapter = CompetitionSyncAdapter()
             c, u = adapter.sync_results(db, tourney)
             fixtures_created += c
             fixtures_updated_results += u
@@ -625,5 +621,14 @@ if __name__ == "__main__":
             print("Running full results and odds updater...")
             result = update_results_and_odds(db)
             print(json.dumps(result, indent=2))
+            from backend.services.hygiene import run_hygiene_report
+            print("Running database hygiene report...")
+            hygiene_report = run_hygiene_report(db)
+            print(json.dumps({
+                "split_seasons": len(hygiene_report["split_seasons"]),
+                "duplicate_fixtures": len(hygiene_report["duplicate_fixtures"]),
+                "world_cup_rows": len(hygiene_report["world_cup_dates_on_other_tournaments"]["rows"]),
+                "european_cup_leftovers": hygiene_report["european_cup_leftovers"]["total"],
+            }, indent=2))
     finally:
         db.close()

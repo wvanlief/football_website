@@ -356,7 +356,9 @@ def test_seed_competition_forwards_shared_engine():
             return "forwarded"
 
     spy = Spy()
-    result = seeder_module.seed_competition(
+    from backend.services.ingestion.engine import seed_competition
+
+    result = seed_competition(
         db=None,
         competition_name="Premier League",
         competition_type="League",

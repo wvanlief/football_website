@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 from backend.database import Team, Fixture, Competition, Tournament, TournamentTeam, FixtureOdds, EloHistory
 from backend.services.updater import update_results_and_odds
-from backend.services.format_adapters import get_format_adapter
+from backend.services.format_adapters import CompetitionSyncAdapter
 
 def test_update_results_and_odds(db_session):
     # 1. Setup base competition and tournament
@@ -99,7 +99,7 @@ def test_update_results_and_odds(db_session):
             
         mock_fetch.side_effect = fetch_side_effect
         
-        adapter = get_format_adapter(comp.format_engine, comp.name)
+        adapter = CompetitionSyncAdapter()
         c, u = adapter.sync_results(db_session, tourney)
         result = {"status": "success", "fixtures_created": c, "fixtures_updated_results": u}
         
@@ -230,7 +230,7 @@ def test_update_live_scores(mock_sim, mock_fetch, db_session, monkeypatch):
     mock_fetch.return_value = {"games": mock_games}
 
     # Test 2: Active match window updates to Live
-    adapter = get_format_adapter(comp.format_engine, comp.name, fetch_json=mock_fetch)
+    adapter = CompetitionSyncAdapter(fetch_json=mock_fetch)
     u, f = adapter.sync_live_scores(db_session, tourney)
     res = {"status": "success", "fixtures_updated_live": u, "fixtures_finished": f}
     assert res["status"] == "success"
@@ -315,7 +315,7 @@ def test_newly_created_finished_fixture_updates_team_stats(mock_fetch_elo, mock_
 
     mock_fetch.side_effect = fetch_side_effect
 
-    adapter = get_format_adapter(comp.format_engine, comp.name)
+    adapter = CompetitionSyncAdapter()
     c, u = adapter.sync_results(db_session, tourney)
     result = {"status": "success", "fixtures_created": c, "fixtures_updated_results": u}
 
@@ -397,7 +397,7 @@ def test_update_placeholder_fixtures_resolution(mock_fetch_elo, mock_sim, mock_o
     mock_fetch.side_effect = fetch_side_effect_1
 
     # Run update: this should create the placeholder fixture
-    adapter = get_format_adapter(comp.format_engine, comp.name)
+    adapter = CompetitionSyncAdapter()
     c1, u1 = adapter.sync_results(db_session, tourney)
     res1 = {"status": "success", "fixtures_created": c1}
     assert res1["status"] == "success"
@@ -505,11 +505,7 @@ def test_update_live_scores_league(mock_odds_api, mock_fetch_retry, db_session, 
         ]
     }
 
-    adapter = get_format_adapter(
-        comp.format_engine,
-        comp.name,
-        fetch_json_with_retry=mock_fetch_retry,
-    )
+    adapter = CompetitionSyncAdapter(fetch_json_with_retry=mock_fetch_retry)
     u, f = adapter.sync_live_scores(db_session, tourney)
     res = {"status": "success", "fixtures_updated_live": u, "fixtures_finished": f}
     
@@ -607,10 +603,9 @@ def test_update_results_and_odds_league(mock_odds_api, mock_fetch_clubelo, mock_
 
 def test_format_adapter_does_not_accept_api_football_client():
     import inspect
-    from backend.services.format_adapters import CompetitionSyncAdapter, get_format_adapter
+    from backend.services.format_adapters import CompetitionSyncAdapter
 
     assert "call_football_api" not in inspect.signature(CompetitionSyncAdapter.__init__).parameters
-    assert "call_football_api" not in inspect.signature(get_format_adapter).parameters
 
 
 def test_calculate_default_odds_custom_advantage():

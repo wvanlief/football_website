@@ -31,6 +31,7 @@ from backend.services.ingestion import (
     TeamResolver,
     FixtureUpserter,
 )
+from backend.services.ingestion.engine import seed_competition
 from backend.services.odds import update_odds_from_api
 from backend.services.elo import (
     elo_to_form,
@@ -449,7 +450,6 @@ def _seed_all(db: Session) -> SeedResult:
                 season=season_str,
                 api_league_id=league_id,
                 api_season=api_season,
-                relegation_spots=releg_spots,
                 home_advantage_elo=home_adv,
                 engine=engine,
             )
@@ -471,6 +471,7 @@ def _seed_all(db: Session) -> SeedResult:
 
 
 def _seed_named_competition(db: Session, config: dict) -> SeedResult:
+    home_adv = 0 if config.get("neutral_venue", False) else config.get("home_advantage_elo", 100)
     upsert = seed_competition(
         db=db,
         competition_name=config["competition_name"],
@@ -479,12 +480,8 @@ def _seed_named_competition(db: Session, config: dict) -> SeedResult:
         season=config.get("season", "2026/27"),
         api_league_id=config.get("api_league_id"),
         api_season=config.get("api_season", 2026),
-        relegation_spots=config.get("relegation_spots", 0),
-        promotion_spots=config.get("promotion_spots", 0),
-        relegation_playoff_spots=config.get("relegation_playoff_spots", 0),
         odds_api_sport_key=config.get("odds_api_sport_key"),
-        home_advantage_elo=config.get("home_advantage_elo", 100),
-        neutral_venue=config.get("neutral_venue", False),
+        home_advantage_elo=home_adv,
     )
     return SeedResult(
         status="success",
@@ -513,7 +510,6 @@ def _seed_single(
             season=season_str,
             api_league_id=league_id,
             api_season=api_season,
-            relegation_spots=releg_spots,
             home_advantage_elo=home_adv,
             engine=engine,
         )
@@ -662,43 +658,6 @@ def fetch_and_seed_teams(
     return SeedResult(status="success")
 
 
-def seed_competition(
-    db: Session,
-    competition_name: str,
-    competition_type: str,
-    format_engine: str,
-    season: str,
-    api_league_id: int,
-    api_season: int,
-    neutral_venue: bool = False,
-    relegation_spots: int = 0,
-    promotion_spots: int = 0,
-    relegation_playoff_spots: int = 0,
-    odds_api_sport_key: str = None,
-    home_advantage_elo: int = 100,
-    engine=None,
-):
-    """Seed / upsert competition fixture data via the ingestion engine.
-
-    ``engine`` reuses one ``IngestionEngine`` across a batch. A new engine is
-    created when the argument is omitted.
-    """
-    from backend.services.ingestion import seed_competition as ingestion_seed_competition
-
-    return ingestion_seed_competition(
-        db,
-        competition_name=competition_name,
-        competition_type=competition_type,
-        format_engine=format_engine,
-        season=season,
-        api_league_id=api_league_id,
-        api_season=api_season,
-        home_advantage_elo=0 if neutral_venue else home_advantage_elo,
-        odds_api_sport_key=odds_api_sport_key,
-        engine=engine,
-    )
-
-
 DEFAULT_LEAGUES_TO_SEED = [
     ("Premier League", "League", "league", 39, "2026/27", 2026, 3, 100),
     ("La Liga", "League", "league", 140, "2026/27", 2026, 3, 120),
@@ -734,10 +693,5 @@ DEFAULT_LEAGUES_TO_SEED = [
 
 DEFAULT_LEAGUES_BY_ID = {item[3]: item for item in DEFAULT_LEAGUES_TO_SEED}
 EURO_CUP_LEAGUE_IDS = (2, 3, 848)
-
-
-def retire_european_draw_placeholders(db: Session, tournament_id: int) -> int:
-    """No-op. Leftover draw rows stay in the table; the feed hides scheduled unstamped UCL."""
-    return 0
 
 

@@ -512,20 +512,3 @@ class CompetitionSyncAdapter(BaseFormatAdapter):
             pass
 
         return fixtures_updated, fixtures_finished
-
-
-def get_format_adapter(
-    format_engine: str,
-    competition_name: str = "",
-    fetch_json=None,
-    fetch_json_with_retry=None,
-) -> BaseFormatAdapter:
-    """
-    Factory method returning the unified CompetitionSyncAdapter for data ingestion.
-    Format engine and competition name are accepted for backward compatibility but are no longer used.
-    Optional fetch callables are forwarded for test dependency injection.
-    """
-    return CompetitionSyncAdapter(
-        fetch_json=fetch_json,
-        fetch_json_with_retry=fetch_json_with_retry,
-    )

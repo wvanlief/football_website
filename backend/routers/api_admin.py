@@ -1,8 +1,11 @@
 import os
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, Header, HTTPException, status, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 
 from backend.database import get_db, SessionLocal
+from backend.services import hygiene
 from backend.services.updater import (
     backfill_football_data_results,
     update_live_scores,
@@ -11,12 +14,53 @@ from backend.services.updater import (
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
-# Token retrieved from environment variables, defaulting to dev-admin-token for local runs
-ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "dev-admin-token")
+_DEV_ADMIN_TOKEN = "dev-admin-token"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _production_host() -> bool:
+    if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_PROJECT_ID"):
+        return True
+    env_name = (os.getenv("ENVIRONMENT") or os.getenv("ENV") or "").strip().lower()
+    return env_name in {"production", "prod"}
+
+
+def _local_dev_admin_opt_in() -> bool:
+    """Local laptops may use the dev token. Hosted deploys may not.
+
+    Opt-in is an explicit ``FFG_DEV_ADMIN`` flag, a repo-local env file, or the
+    default SQLite database used by ``uvicorn`` on a workstation.
+    """
+    if _production_host():
+        return False
+    flag = (os.getenv("FFG_DEV_ADMIN") or "").strip().lower()
+    if flag in {"1", "true", "yes"}:
+        return True
+    if (_REPO_ROOT / ".env").is_file() or (_REPO_ROOT / ".env.local").is_file():
+        return True
+    database_url = os.getenv("DATABASE_PUBLIC_URL") or os.getenv("DATABASE_URL") or ""
+    return database_url.startswith("sqlite")
+
+
+def configured_admin_token() -> str | None:
+    """Return the admin token, or None when a hosted deploy left it unset."""
+    token = (os.getenv("ADMIN_TOKEN") or "").strip()
+    if token:
+        return token
+    if _local_dev_admin_opt_in():
+        return _DEV_ADMIN_TOKEN
+    return None
+
 
 def verify_admin_token(x_admin_token: str = Header(None, alias="X-Admin-Token")):
     """Dependency to verify admin token from X-Admin-Token header."""
-    if not x_admin_token or x_admin_token != ADMIN_TOKEN:
+    expected = configured_admin_token()
+    if not expected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin token is not configured."
+        )
+    if not x_admin_token or x_admin_token != expected:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing admin token."
@@ -187,6 +231,24 @@ def trigger_seed_one(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Single-competition seeding task failed: {str(e)}"
         )
+
+
+@router.get("/hygiene", dependencies=[Depends(verify_admin_token)])
+def get_hygiene_report():
+    """Return the last report-only hygiene report. Does not change the database."""
+    report = hygiene.load_last_hygiene_report(hygiene.REPORT_PATH)
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No hygiene report has been generated."
+        )
+    return report
+
+
+@router.post("/hygiene", dependencies=[Depends(verify_admin_token)])
+def trigger_hygiene_report(db: Session = Depends(get_db)):
+    """Generate a hygiene report. Reads the database and writes the report file only."""
+    return hygiene.run_hygiene_report(db, hygiene.REPORT_PATH)
 
 
 

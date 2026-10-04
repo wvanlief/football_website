@@ -1,7 +1,9 @@
 import os
+import random
 from datetime import datetime
 from backend.database import Team, Fixture, Competition, Tournament, TournamentTeam
 from backend.services.simulation import (
+    apply_simulated_score,
     run_monte_carlo_simulation, 
     simulate_bracket,
     simulate_group_stage,
@@ -12,7 +14,55 @@ from backend.services.simulation import (
     results_path,
 )
 
-def test_simulation_service(db_session):
+
+def _blank_side() -> dict:
+    return {
+        "played": 0,
+        "won": 0,
+        "drawn": 0,
+        "lost": 0,
+        "goals_for": 0,
+        "goals_against": 0,
+        "goal_difference": 0,
+        "points": 0,
+    }
+
+
+def test_simulated_away_win_does_not_invent_goals():
+    home, away = _blank_side(), _blank_side()
+    apply_simulated_score(home, away, 1, 2)
+    assert (home["goals_for"], home["goals_against"]) == (1, 2)
+    assert (away["goals_for"], away["goals_against"]) == (2, 1)
+    assert home["goal_difference"] == home["goals_for"] - home["goals_against"]
+    assert away["goal_difference"] == away["goals_for"] - away["goals_against"]
+    assert away["points"] == 3
+    assert home["lost"] == 1
+
+
+def test_seeded_simulated_results_keep_goal_difference():
+    """Home win, away win, and draw from one seeded sequence."""
+    rng = random.Random(180)
+    seen = set()
+    home, away = _blank_side(), _blank_side()
+    for _ in range(40):
+        goals_home = rng.randint(0, 4)
+        goals_away = rng.randint(0, 4)
+        if goals_home > goals_away:
+            seen.add("home")
+        elif goals_home < goals_away:
+            seen.add("away")
+        else:
+            seen.add("draw")
+        apply_simulated_score(home, away, goals_home, goals_away)
+        assert home["goal_difference"] == home["goals_for"] - home["goals_against"]
+        assert away["goal_difference"] == away["goals_for"] - away["goals_against"]
+    assert seen == {"home", "away", "draw"}
+
+def test_simulation_service(db_session, monkeypatch, tmp_path):
+    import backend.services.simulation as simulation
+
+    monkeypatch.setattr(simulation, "_DATA_DIR", str(tmp_path))
+    simulation._PROBABILITIES_CACHE.clear()
     comp = Competition(name="Simulation Cup", type="International")
     db_session.add(comp)
     db_session.flush()
@@ -82,14 +132,6 @@ def test_simulation_service(db_session):
     bracket_res = simulate_bracket(db_session)
     assert "bracket" in bracket_res
     
-    # Clean up file after test
-    file_path = os.path.join(os.path.dirname(__file__), "..", "..", "backend", "data", "simulation_results.json")
-    try:
-        os.remove(file_path)
-    except Exception:
-        pass
-
-
 def test_get_probabilities_caches_and_parameterizes(monkeypatch, tmp_path):
     import backend.services.simulation as simulation
 

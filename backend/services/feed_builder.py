@@ -21,7 +21,7 @@ import backend.crud.fixture as crud_fixture
 
 CACHE_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "fixtures_feed_cache.json")
 
-def build_fixtures_feed_cache(db: Session, force_enrichment: bool = False) -> dict:
+def build_fixtures_feed_cache(db: Session, force_enrichment: bool = False, now: datetime | None = None) -> dict:
     """
     Pre-calculates and serializes the global fixture feed for active competitions
     in a rolling window (-14 days to +30 days).
@@ -30,7 +30,9 @@ def build_fixtures_feed_cache(db: Session, force_enrichment: bool = False) -> di
     print(f"Building pre-calculated feed cache (force_enrichment={force_enrichment})...")
     start_time = time.time()
 
-    now_utc = datetime.now(timezone.utc)
+    now_utc = now or datetime.now(timezone.utc)
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
 
     # Use canonical query for eligible fixtures (rolling window with strict future-only off-season fallback)
     fixtures = crud_fixture.get_eligible_fixtures(db, tournament_id=None, now_utc=now_utc)

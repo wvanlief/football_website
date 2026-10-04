@@ -57,7 +57,7 @@ def test_simulate_group_stage_finished_vs_unplayed(db_session):
 
 
 def test_get_all_third_placed_teams(db_session):
-    from backend.services.tournament import get_all_third_placed_teams
+    from backend.services.queries import get_all_third_placed_teams
     comp = Competition(name="World Cup 3", type="International")
     db_session.add(comp)
     db_session.flush()
@@ -83,7 +83,7 @@ def test_get_all_third_placed_teams(db_session):
 
 
 def test_resolve_placeholder_name(db_session):
-    from backend.services.tournament import resolve_placeholder_name
+    from backend.services.knockout import resolve_placeholder_name
     
     comp = Competition(name="World Cup Placeholder Test", type="International")
     db_session.add(comp)
@@ -143,7 +143,7 @@ def test_resolve_placeholder_name(db_session):
 
 
 def test_propagate_knockout_fixtures(db_session):
-    from backend.services.tournament import propagate_knockout_fixtures
+    from backend.services.knockout import propagate_knockout_fixtures
     
     comp = Competition(name="World Cup Knockout Propagation Test", type="International")
     db_session.add(comp)
@@ -242,7 +242,7 @@ def test_propagate_knockout_fixtures(db_session):
 
 
 def test_world_cup_fallback_is_scoped_to_tournament(db_session):
-    from backend.services.tournament import propagate_knockout_fixtures
+    from backend.services.knockout import propagate_knockout_fixtures
 
     comp = Competition(name="FIFA World Cup", type="International")
     db_session.add(comp)
@@ -290,7 +290,7 @@ def test_world_cup_fallback_is_scoped_to_tournament(db_session):
 
 
 def test_numeric_fallback_is_disabled_for_non_world_cup(db_session):
-    from backend.services.tournament import propagate_knockout_fixtures
+    from backend.services.knockout import propagate_knockout_fixtures
 
     comp = Competition(name="Domestic Cup", type="Cup")
     db_session.add(comp)
@@ -330,7 +330,7 @@ def test_numeric_fallback_is_disabled_for_non_world_cup(db_session):
 
 def test_db_driven_propagation(db_session):
     from backend.database import Competition, Tournament, Team, Fixture, FixtureDependency
-    from backend.services.tournament import propagate_knockout_fixtures
+    from backend.services.knockout import propagate_knockout_fixtures
     
     comp = Competition(name="DB Dependency Test", type="Cup", format_engine="league_phase_knockout")
     db_session.add(comp)
@@ -385,7 +385,7 @@ def test_db_driven_propagation(db_session):
 
 def test_get_grouped_fixtures_offseason_empty_today_tomorrow(db_session):
     from datetime import timedelta, timezone
-    from backend.services.tournament import get_grouped_fixtures
+    from backend.services.queries import get_grouped_fixtures
 
     comp = Competition(name="Future Cup", type="International")
     db_session.add(comp)
@@ -422,7 +422,7 @@ def test_get_grouped_fixtures_offseason_empty_today_tomorrow(db_session):
 
 def test_upcoming_gems_watchability_filter(db_session):
     from datetime import timedelta, timezone
-    from backend.services.tournament import get_grouped_fixtures
+    from backend.services.queries import get_grouped_fixtures
 
     comp = Competition(name="Gems League", type="League", format_engine="league")
     db_session.add(comp)

@@ -1,5 +1,41 @@
 from unittest.mock import patch
 
+def test_admin_update_missing_token_in_production_is_unavailable(monkeypatch, client):
+    monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    response = client.post("/api/admin/update", headers={"X-Admin-Token": "dev-admin-token"})
+    assert response.status_code == 503
+    assert "not configured" in response.json()["detail"]
+
+
+@patch("backend.routers.api_admin.update_results_and_odds")
+def test_admin_update_local_dev_flag_accepts_dev_token(mock_update, monkeypatch, client):
+    monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.delenv("ENV", raising=False)
+    monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("RAILWAY_PROJECT_ID", raising=False)
+    monkeypatch.setenv("FFG_DEV_ADMIN", "1")
+    mock_update.return_value = {"status": "success", "fixtures_created": 0, "fixtures_updated_results": 0, "simulation": "Skipped"}
+    response = client.post("/api/admin/update", headers={"X-Admin-Token": "dev-admin-token"})
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+
+
+def test_admin_hygiene_report_is_read_only(monkeypatch, tmp_path, client):
+    monkeypatch.setattr("backend.services.hygiene.REPORT_PATH", tmp_path / "hygiene_report.json")
+    missing = client.get("/api/admin/hygiene", headers={"X-Admin-Token": "test-admin-token"})
+    assert missing.status_code == 404
+    created = client.post("/api/admin/hygiene", headers={"X-Admin-Token": "test-admin-token"})
+    assert created.status_code == 200
+    body = created.json()
+    assert body["split_seasons"] == []
+    assert "#145" in body["european_cup_leftovers"]["note"]
+    stored = client.get("/api/admin/hygiene", headers={"X-Admin-Token": "test-admin-token"})
+    assert stored.status_code == 200
+    assert stored.json()["duplicate_fixtures"] == []
+
+
 def test_admin_update_unauthorized_no_header(client):
     response = client.post("/api/admin/update")
     assert response.status_code == 401
