@@ -137,6 +137,99 @@ def test_in_play_states_including_extra_time_are_live():
     }) == ("Finished", 2, 1)
 
 
+@pytest.mark.parametrize("failure", [None, "serialize", "replace"])
+def test_score_patch_is_atomic_and_cleans_up(isolated_feed_cache, monkeypatch, failure):
+    from backend.services import feed_builder
+
+    original = json.dumps({"fixtures": [{"id": 1, "status": "Scheduled", "score": None}]})
+    isolated_feed_cache.write_text(original, encoding="utf-8")
+    real_dump = json.dump
+    real_replace = feed_builder.os.replace
+
+    def dump(payload, handle, **kwargs):
+        assert isolated_feed_cache.read_text(encoding="utf-8") == original
+        assert handle.name != str(isolated_feed_cache)
+        if failure == "serialize":
+            handle.write('{"partial":')
+            raise OSError("write failed")
+        real_dump(payload, handle, **kwargs)
+
+    def replace(source, destination):
+        from pathlib import Path
+
+        assert Path(source).parent == isolated_feed_cache.parent
+        assert json.loads(Path(source).read_text())["fixtures"][0]["score"] == "0 - 0"
+        assert isolated_feed_cache.read_text(encoding="utf-8") == original
+        if failure == "replace":
+            raise OSError("replace failed")
+        real_replace(source, destination)
+
+    monkeypatch.setattr(feed_builder.json, "dump", dump)
+    monkeypatch.setattr(feed_builder.os, "replace", replace)
+    patch = [{"id": 1, "status": "Live", "score": "0 - 0"}]
+    if failure:
+        with pytest.raises(OSError):
+            feed_builder.patch_feed_cache_scores(patch)
+        assert isolated_feed_cache.read_text(encoding="utf-8") == original
+    else:
+        assert feed_builder.patch_feed_cache_scores(patch)
+        assert json.loads(isolated_feed_cache.read_text())["fixtures"] == patch
+        assert not feed_builder.patch_feed_cache_scores(patch)
+    assert list(isolated_feed_cache.parent.iterdir()) == [isolated_feed_cache]
+
+
+@pytest.mark.parametrize("miss", [None, "empty", "error"])
+def test_highlightly_polls_distinct_fixture_dates_and_falls_back_for_misses(
+    db_session, monkeypatch, miss
+):
+    from backend.services import updater
+
+    _comp, tourney = _competition(db_session, "Premier League", api_league_id=39)
+    fixtures = []
+    # Both sides of UTC midnight, with two matches on the earlier date.
+    for index, kickoff in enumerate([
+        datetime(2026, 10, 3, 23, 30),
+        datetime(2026, 10, 4, 0, 15),
+        datetime(2026, 10, 3, 23, 45),
+    ]):
+        home, away = _pair(db_session, f"Home {index}", f"Away {index}")
+        fixture, _ = _fixture(db_session, tourney, home, away, api_id=f"fd_{index}")
+        fixture.date_utc = kickoff
+        fixtures.append(fixture)
+    db_session.commit()
+    monkeypatch.setattr(updater, "fixtures_in_match_window", lambda db: fixtures)
+    calls = []
+
+    def fetch(self, date, league_name):
+        calls.append((date, league_name))
+        if date == "2026-10-03" and miss:
+            if miss == "error":
+                raise RuntimeError("provider unavailable")
+            return []
+        return [
+            _hl(f.id, f.date_utc, league_name, f.home_team.name, f.away_team.name, "First half", "2-1")
+            for f in fixtures if f.date_utc.date().isoformat() == date
+        ]
+
+    fallback_calls = []
+
+    def fallback(self):
+        fallback_calls.append(True)
+        return ([
+            _fa(f.id, f.date_utc, 39, "Premier League", f.home_team.name, f.away_team.name, "1H", 1, 0)
+            for f in fixtures
+        ], False)
+
+    monkeypatch.setattr(HighlightlyProvider, "fetch_matches_by_date", fetch)
+    monkeypatch.setattr(FootballApiProvider, "fetch_live_fixtures", fallback)
+    assert updater.sync_global_live_scores(db_session) == (3, 0)
+    assert calls == [("2026-10-03", "Premier League"), ("2026-10-04", "Premier League")]
+    assert len(fallback_calls) == int(miss is not None)
+    for f in fixtures:
+        expected = (1, 0) if miss and f.date_utc.day == 3 else (2, 1)
+        assert (f.home_score, f.away_score) == expected
+
+
 def test_highlightly_second_half_updates_fd_fixture_and_patches_score_only(
     db_session, monkeypatch, isolated_feed_cache
 ):

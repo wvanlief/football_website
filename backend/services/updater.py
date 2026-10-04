@@ -302,7 +302,7 @@ def _patch_cached_scores(patches: list[dict]) -> None:
 
 def sync_global_live_scores(db: Session) -> tuple:
     """
-    Poll Highlightly once per in-window competition.
+    Poll Highlightly for every UTC date represented in each competition's window.
 
     One API-Football ``GET /fixtures?live=all`` runs only for competitions
     Highlightly missed (error, empty, or quota). Writes status, home_score,
@@ -315,22 +315,27 @@ def sync_global_live_scores(db: Session) -> tuple:
     if not competitions:
         return 0, 0
 
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    competition_dates = {}
+    for fixture in window:
+        tournament = fixture.tournament
+        competition = tournament.competition if tournament else None
+        kickoff = _as_utc(fixture.date_utc)
+        if competition is not None and kickoff is not None:
+            competition_dates.setdefault(competition.id, set()).add(kickoff.date().isoformat())
     highlightly = HighlightlyProvider()
     missed: list[Competition] = []
+    covered_fixture_ids = set()
     updated = finished = 0
     patches: list[dict] = []
 
     for competition in competitions:
         league_name = _HIGHLIGHTLY_QUERY_NAMES.get(competition.name, competition.name)
-        try:
-            rows = highlightly.fetch_matches_by_date(today, league_name=league_name)
-        except Exception as exc:
-            print(f"Highlightly live poll failed for {competition.name}: {exc}")
-            rows = []
-        if not rows:
-            missed.append(competition)
-            continue
+        rows = []
+        for date in sorted(competition_dates.get(competition.id, set())):
+            try:
+                rows.extend(highlightly.fetch_matches_by_date(date, league_name=league_name) or [])
+            except Exception as exc:
+                print(f"Highlightly live poll failed for {competition.name} on {date}: {exc}")
         for item in rows:
             fields = highlightly_live_fields(item)
             if not fields or not _highlightly_row_for_competition(fields["league_name"], competition):
@@ -344,8 +349,15 @@ def sync_global_live_scores(db: Session) -> tuple:
             )
             if fixture is None:
                 continue
+            covered_fixture_ids.add(fixture.id)
             outcome = _apply_live_fields(fixture, fields, "hl_")
             updated, finished = _record_live_write(outcome, fixture, patches, updated, finished)
+        if any(
+            fixture.tournament and fixture.tournament.competition_id == competition.id
+            and fixture.id not in covered_fixture_ids
+            for fixture in window
+        ):
+            missed.append(competition)
 
     if missed:
         print(
@@ -369,7 +381,7 @@ def sync_global_live_scores(db: Session) -> tuple:
                     fields["away_name"],
                     fields["date_utc"],
                 )
-                if fixture is None:
+                if fixture is None or fixture.id in covered_fixture_ids:
                     continue
                 outcome = _apply_live_fields(fixture, fields, "fa_")
                 updated, finished = _record_live_write(outcome, fixture, patches, updated, finished)
