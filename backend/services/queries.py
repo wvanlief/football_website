@@ -64,7 +64,7 @@ def score_text(status: str | None, home_score, away_score) -> str | None:
 
 
 def fixtures_in_match_window(db: Session) -> list[Fixture]:
-    """Unfinished fixtures in the kickoff window, plus any row already Live."""
+    """Unfinished fixtures in the kickoff window, plus recent Live rows."""
     window_start, window_end = match_window_bounds()
     options = (
         joinedload(Fixture.home_team),
@@ -76,7 +76,10 @@ def fixtures_in_match_window(db: Session) -> list[Fixture]:
         Fixture.date_utc >= window_start,
         Fixture.date_utc <= window_end,
     ).all()
-    live = db.query(Fixture).options(*options).filter(Fixture.status == "Live").all()
+    live = db.query(Fixture).options(*options).filter(
+        Fixture.status == "Live",
+        Fixture.date_utc >= window_start - timedelta(hours=9),
+    ).all()
     by_id = {fixture.id: fixture for fixture in active}
     for fixture in live:
         by_id.setdefault(fixture.id, fixture)
@@ -84,13 +87,16 @@ def fixtures_in_match_window(db: Session) -> list[Fixture]:
 
 
 def list_match_window_scores(db: Session) -> list[dict]:
-    """``{id, status, score}`` for the match window, including a row already Live."""
+    """``{id, status, score}`` for the match window, including recent Live rows."""
     window_start, window_end = match_window_bounds()
     in_window = db.query(Fixture).filter(
         Fixture.date_utc >= window_start,
         Fixture.date_utc <= window_end,
     ).all()
-    live = db.query(Fixture).filter(Fixture.status == "Live").all()
+    live = db.query(Fixture).filter(
+        Fixture.status == "Live",
+        Fixture.date_utc >= window_start - timedelta(hours=9),
+    ).all()
     by_id = {fixture.id: fixture for fixture in in_window}
     for fixture in live:
         by_id.setdefault(fixture.id, fixture)

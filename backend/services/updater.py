@@ -298,7 +298,7 @@ def _patch_cached_scores(patches: list[dict]) -> None:
 
 def sync_global_live_scores(db: Session) -> tuple:
     """
-    Poll Highlightly once per in-window competition.
+    Poll Highlightly for each competition's distinct UTC kickoff dates.
 
     One API-Football ``GET /fixtures?live=all`` runs only for competitions
     Highlightly missed (error, empty, or quota). Writes status, home_score,
@@ -311,7 +311,6 @@ def sync_global_live_scores(db: Session) -> tuple:
     if not competitions:
         return 0, 0
 
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     highlightly = HighlightlyProvider()
     missed: list[Competition] = []
     updated = finished = 0
@@ -319,14 +318,27 @@ def sync_global_live_scores(db: Session) -> tuple:
 
     for competition in competitions:
         league_name = _HIGHLIGHTLY_QUERY_NAMES.get(competition.name, competition.name)
-        try:
-            rows = highlightly.fetch_matches_by_date(today, league_name=league_name)
-        except Exception as exc:
-            print(f"Highlightly live poll failed for {competition.name}: {exc}")
-            rows = []
-        if not rows:
+        dates = sorted({
+            _as_utc(fixture.date_utc).date().isoformat()
+            for fixture in window
+            if fixture.date_utc is not None
+            and fixture.tournament is not None
+            and fixture.tournament.competition_id == competition.id
+        })
+        rows = []
+        date_missed = False
+        for date in dates:
+            try:
+                date_rows = highlightly.fetch_matches_by_date(date, league_name=league_name)
+            except Exception as exc:
+                print(f"Highlightly live poll failed for {competition.name} on {date}: {exc}")
+                date_rows = []
+            if not date_rows:
+                date_missed = True
+            else:
+                rows.extend(date_rows)
+        if date_missed:
             missed.append(competition)
-            continue
         for item in rows:
             fields = highlightly_live_fields(item)
             if not fields or not _highlightly_row_for_competition(fields["league_name"], competition):

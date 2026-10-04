@@ -9,6 +9,63 @@ from backend.services.providers.football_api import FootballApiProvider
 from backend.services.providers.highlightly import HighlightlyProvider, _status_and_scores
 from backend.services.queries import _FIXTURES_CACHE, _RECOMMENDED_CACHE
 from backend.services.updater import update_live_scores
+from backend.services import queries, updater
+
+
+def test_live_queries_exclude_stale_rows_at_nine_hour_boundary(db_session, monkeypatch):
+    now = datetime(2026, 10, 4, 0, 10, tzinfo=timezone.utc)
+    start, end = queries.match_window_bounds(now)
+    monkeypatch.setattr(queries, "match_window_bounds", lambda: (start, end))
+    _comp, tourney = _competition(db_session, "Premier League")
+    home, away = _pair(db_session, "Arsenal", "Chelsea")
+    dates = [start - timedelta(hours=9, seconds=1), start - timedelta(hours=9),
+             start - timedelta(hours=1), now]
+    fixtures = []
+    for index, kickoff in enumerate(dates):
+        fixture, _ = _fixture(db_session, tourney, home, away, api_id=f"fd_{index}", status="Live")
+        fixture.date_utc = kickoff
+        fixtures.append(fixture)
+    db_session.commit()
+    expected = {fixture.id for fixture in fixtures[1:]}
+    assert {f.id for f in queries.fixtures_in_match_window(db_session)} == expected
+    assert {row["id"] for row in queries.list_match_window_scores(db_session)} == expected
+
+
+@pytest.mark.parametrize("miss", [None, "empty", "error"])
+def test_live_poll_queries_distinct_kickoff_dates_and_preserves_fallback(db_session, monkeypatch, miss):
+    now = datetime(2026, 10, 4, 0, 10, tzinfo=timezone.utc)
+    monkeypatch.setattr(queries, "match_window_bounds", lambda: queries_bounds)
+    queries_bounds = (now - timedelta(hours=3), now + timedelta(minutes=15))
+    _comp, tourney = _competition(db_session, "Premier League", api_league_id=39)
+    fixtures = []
+    for index, minutes in enumerate([60, 45, 5]):
+        home, away = _pair(db_session, f"Home {index}", f"Away {index}")
+        fixture, _ = _fixture(db_session, tourney, home, away, api_id=f"fd_{index}")
+        fixture.date_utc = now - timedelta(minutes=minutes)
+        fixtures.append(fixture)
+    db_session.commit()
+    calls, fallback_calls = [], []
+
+    def fetch(self, date, league_name=None):
+        calls.append((date, league_name))
+        if date == "2026-10-03" and miss:
+            if miss == "error":
+                raise RuntimeError("provider unavailable")
+            return []
+        return [_hl(f.id, f.date_utc, league_name, f.home_team.name, f.away_team.name,
+                    "Second half", "2-1") for f in fixtures if f.date_utc.date().isoformat() == date]
+
+    def fallback(self):
+        fallback_calls.append(True)
+        return [_fa(f.id, f.date_utc, 39, "Premier League", f.home_team.name, f.away_team.name,
+                    "2H", 2, 1) for f in fixtures[:2]], False
+
+    monkeypatch.setattr(HighlightlyProvider, "fetch_matches_by_date", fetch)
+    monkeypatch.setattr(FootballApiProvider, "fetch_live_fixtures", fallback)
+    assert updater.sync_global_live_scores(db_session) == (3, 0)
+    assert calls == [("2026-10-03", "Premier League"), ("2026-10-04", "Premier League")]
+    assert len(fallback_calls) == int(miss is not None)
+    assert all((f.status, f.home_score, f.away_score) == ("Live", 2, 1) for f in fixtures)
 
 
 def _forbid(message):

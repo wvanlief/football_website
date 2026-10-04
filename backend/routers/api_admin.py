@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status, BackgroundTasks, Query
 from sqlalchemy.orm import Session
@@ -15,7 +14,6 @@ from backend.services.updater import (
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
 _DEV_ADMIN_TOKEN = "dev-admin-token"
-_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _production_host() -> bool:
@@ -26,20 +24,11 @@ def _production_host() -> bool:
 
 
 def _local_dev_admin_opt_in() -> bool:
-    """Local laptops may use the dev token. Hosted deploys may not.
-
-    Opt-in is an explicit ``FFG_DEV_ADMIN`` flag, a repo-local env file, or the
-    default SQLite database used by ``uvicorn`` on a workstation.
-    """
+    """Require explicit ``FFG_DEV_ADMIN`` opt-in outside production hosts."""
     if _production_host():
         return False
     flag = (os.getenv("FFG_DEV_ADMIN") or "").strip().lower()
-    if flag in {"1", "true", "yes"}:
-        return True
-    if (_REPO_ROOT / ".env").is_file() or (_REPO_ROOT / ".env.local").is_file():
-        return True
-    database_url = os.getenv("DATABASE_PUBLIC_URL") or os.getenv("DATABASE_URL") or ""
-    return database_url.startswith("sqlite")
+    return flag in {"1", "true", "yes"}
 
 
 def configured_admin_token() -> str | None:

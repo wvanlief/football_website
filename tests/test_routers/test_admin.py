@@ -1,4 +1,32 @@
 from unittest.mock import patch
+from pathlib import Path
+
+import pytest
+
+from backend.routers import api_admin
+
+
+@pytest.mark.parametrize("flag", [None, "", "0", "false", "no", "enabled"])
+def test_dev_admin_requires_explicit_enabled_flag(monkeypatch, flag):
+    for name in ("ADMIN_TOKEN", "FFG_DEV_ADMIN", "ENVIRONMENT", "ENV",
+                 "RAILWAY_ENVIRONMENT", "RAILWAY_PROJECT_ID"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("DATABASE_PUBLIC_URL", "sqlite:///:memory:")
+    monkeypatch.setattr(Path, "is_file", lambda self: True)
+    if flag is not None:
+        monkeypatch.setenv("FFG_DEV_ADMIN", flag)
+    assert api_admin.configured_admin_token() is None
+
+
+@pytest.mark.parametrize("flag", ["1", "true", "yes", " TRUE "])
+@pytest.mark.parametrize("host", [None, "ENVIRONMENT", "ENV", "RAILWAY_ENVIRONMENT", "RAILWAY_PROJECT_ID"])
+def test_dev_admin_flag_respects_production_guard(monkeypatch, flag, host):
+    for name in ("ADMIN_TOKEN", "ENVIRONMENT", "ENV", "RAILWAY_ENVIRONMENT", "RAILWAY_PROJECT_ID"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("FFG_DEV_ADMIN", flag)
+    if host:
+        monkeypatch.setenv(host, "production")
+    assert api_admin.configured_admin_token() == (None if host else "dev-admin-token")
 
 def test_admin_update_missing_token_in_production_is_unavailable(monkeypatch, client):
     monkeypatch.delenv("ADMIN_TOKEN", raising=False)
