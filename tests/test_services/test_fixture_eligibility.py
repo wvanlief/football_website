@@ -1,5 +1,8 @@
 import json
+import os
 from datetime import datetime, timedelta, timezone
+
+import pytest
 from zoneinfo import ZoneInfo
 import backend.crud.fixture as crud_fixture
 from backend.services.enrichment import group_enriched_fixtures
@@ -256,6 +259,51 @@ def test_feed_builder_writes_empty_cache_without_active_tournaments(db_session, 
 
     assert result["total_fixtures"] == 0
     assert json.loads(cache_path.read_text(encoding="utf-8")) == result
+    assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_feed_cache_replace_failure_keeps_the_previous_file(db_session, monkeypatch, tmp_path):
+    """A failed publish leaves the previous cache intact and removes the temp file."""
+    cache_path = tmp_path / "fixtures_feed_cache.json"
+    original = {"updated_at": "old", "total_fixtures": 1, "fixtures": [{"id": 7}]}
+    cache_path.write_text(json.dumps(original), encoding="utf-8")
+    monkeypatch.setattr(feed_builder, "CACHE_FILE_PATH", str(cache_path))
+
+    def fail_replace(src, dst):
+        assert os.path.exists(src)
+        assert json.loads(cache_path.read_text(encoding="utf-8")) == original
+        raise OSError("disk full")
+
+    monkeypatch.setattr(feed_builder.os, "replace", fail_replace)
+
+    with pytest.raises(OSError, match="disk full"):
+        feed_builder.build_fixtures_feed_cache(db_session, now=FROZEN_NOW)
+
+    assert json.loads(cache_path.read_text(encoding="utf-8")) == original
+    assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_score_patch_replace_failure_keeps_the_previous_file(monkeypatch, tmp_path):
+    cache_path = tmp_path / "fixtures_feed_cache.json"
+    original = {
+        "updated_at": "old",
+        "total_fixtures": 1,
+        "fixtures": [{"id": 7, "status": "Scheduled", "score": "-"}],
+    }
+    cache_path.write_text(json.dumps(original), encoding="utf-8")
+    monkeypatch.setattr(feed_builder, "CACHE_FILE_PATH", str(cache_path))
+
+    def fail_replace(src, dst):
+        assert json.loads(cache_path.read_text(encoding="utf-8")) == original
+        raise OSError("disk full")
+
+    monkeypatch.setattr(feed_builder.os, "replace", fail_replace)
+
+    with pytest.raises(OSError, match="disk full"):
+        feed_builder.patch_feed_cache_scores([{"id": 7, "status": "Live", "score": "1-0"}])
+
+    assert json.loads(cache_path.read_text(encoding="utf-8")) == original
+    assert list(tmp_path.glob("*.tmp")) == []
 
 
 def test_eligible_hides_scheduled_unstamped_once_tournament_is_stamped(db_session):

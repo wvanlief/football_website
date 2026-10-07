@@ -6,6 +6,7 @@ within a rolling window (-14 days to +30 days) for instant zero-latency serving.
 import os
 import sys
 import json
+import tempfile
 import time
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
@@ -20,6 +21,24 @@ from backend.services.enrichment import enrich_fixture
 from backend.services.eligibility import active_tournament_ids, eligible_fixtures
 
 CACHE_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "fixtures_feed_cache.json")
+
+
+def _write_feed_cache(payload: dict) -> None:
+    """Replace the cache file in one step so readers never see a partial JSON document."""
+    directory = os.path.dirname(os.path.abspath(CACHE_FILE_PATH))
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=directory, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, CACHE_FILE_PATH)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
 
 def build_fixtures_feed_cache(db: Session, force_enrichment: bool = False, now: datetime | None = None) -> dict:
     """
@@ -73,10 +92,7 @@ def build_fixtures_feed_cache(db: Session, force_enrichment: bool = False, now: 
         "fixtures": enriched_fixtures
     }
 
-    # Save to disk
-    os.makedirs(os.path.dirname(CACHE_FILE_PATH), exist_ok=True)
-    with open(CACHE_FILE_PATH, "w", encoding="utf-8") as f:
-        json.dump(feed_payload, f, ensure_ascii=False, indent=2)
+    _write_feed_cache(feed_payload)
 
     elapsed = round((time.time() - start_time) * 1000, 2)
     print(f"Successfully generated {CACHE_FILE_PATH} with {len(enriched_fixtures)} fixtures in {elapsed}ms.")
@@ -112,9 +128,7 @@ def patch_feed_cache_scores(updates: list[dict]) -> bool:
         changed = True
     if not changed:
         return False
-    os.makedirs(os.path.dirname(CACHE_FILE_PATH), exist_ok=True)
-    with open(CACHE_FILE_PATH, "w", encoding="utf-8") as handle:
-        json.dump(cache, handle, ensure_ascii=False, indent=2)
+    _write_feed_cache(cache)
     return True
 
 

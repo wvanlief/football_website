@@ -5,7 +5,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.database import init_db
+from backend.database import SessionLocal, init_db
+from backend.services.feed_builder import build_fixtures_feed_cache, load_precalculated_feed_cache
 from backend.routers.pages import router as pages_router
 from backend.routers.api_fixtures import router as fixtures_router
 from backend.routers.api_groups import router as groups_router
@@ -18,8 +19,18 @@ from backend.routers.api_competitions import router as competitions_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize database schema on startup safely within context manager
+    # Initialize database schema on startup safely within context manager.
+    # Feed warm reads this process's database only (ADR 0001: no external API calls).
     init_db()
+    if os.getenv("TESTING") != "True":
+        db = SessionLocal()
+        try:
+            if not load_precalculated_feed_cache():
+                build_fixtures_feed_cache(db)
+        except Exception as e:
+            print(f"Warning: Failed to warm feed cache at startup: {e}")
+        finally:
+            db.close()
     yield
 
 
