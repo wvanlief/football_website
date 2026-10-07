@@ -313,7 +313,6 @@ def sync_global_live_scores(db: Session) -> tuple:
 
     highlightly = HighlightlyProvider()
     missed: list[Competition] = []
-    covered_fixture_ids = set()
     updated = finished = 0
     patches: list[dict] = []
 
@@ -327,11 +326,19 @@ def sync_global_live_scores(db: Session) -> tuple:
             and fixture.tournament.competition_id == competition.id
         })
         rows = []
+        date_missed = False
         for date in dates:
             try:
-                rows.extend(highlightly.fetch_matches_by_date(date, league_name=league_name) or [])
+                date_rows = highlightly.fetch_matches_by_date(date, league_name=league_name)
             except Exception as exc:
                 print(f"Highlightly live poll failed for {competition.name} on {date}: {exc}")
+                date_rows = []
+            if not date_rows:
+                date_missed = True
+            else:
+                rows.extend(date_rows)
+        if date_missed:
+            missed.append(competition)
         for item in rows:
             fields = highlightly_live_fields(item)
             if not fields or not _highlightly_row_for_competition(fields["league_name"], competition):
@@ -345,15 +352,8 @@ def sync_global_live_scores(db: Session) -> tuple:
             )
             if fixture is None:
                 continue
-            covered_fixture_ids.add(fixture.id)
             outcome = _apply_live_fields(fixture, fields, "hl_")
             updated, finished = _record_live_write(outcome, fixture, patches, updated, finished)
-        if any(
-            fixture.tournament and fixture.tournament.competition_id == competition.id
-            and fixture.id not in covered_fixture_ids
-            for fixture in window
-        ):
-            missed.append(competition)
 
     if missed:
         print(
@@ -377,7 +377,7 @@ def sync_global_live_scores(db: Session) -> tuple:
                     fields["away_name"],
                     fields["date_utc"],
                 )
-                if fixture is None or fixture.id in covered_fixture_ids:
+                if fixture is None:
                     continue
                 outcome = _apply_live_fields(fixture, fields, "fa_")
                 updated, finished = _record_live_write(outcome, fixture, patches, updated, finished)

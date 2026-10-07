@@ -7,7 +7,6 @@ import os
 import sys
 import json
 import time
-import tempfile
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -114,18 +113,8 @@ def patch_feed_cache_scores(updates: list[dict]) -> bool:
     if not changed:
         return False
     os.makedirs(os.path.dirname(CACHE_FILE_PATH), exist_ok=True)
-    temporary_path = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", dir=os.path.dirname(CACHE_FILE_PATH),
-            prefix=".fixtures_feed_cache-", suffix=".tmp", delete=False,
-        ) as handle:
-            temporary_path = handle.name
-            json.dump(cache, handle, ensure_ascii=False, indent=2)
-        os.replace(temporary_path, CACHE_FILE_PATH)
-    finally:
-        if temporary_path is not None:
-            Path(temporary_path).unlink(missing_ok=True)
+    with open(CACHE_FILE_PATH, "w", encoding="utf-8") as handle:
+        json.dump(cache, handle, ensure_ascii=False, indent=2)
     return True
 
 
