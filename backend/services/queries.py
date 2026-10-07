@@ -15,6 +15,11 @@ from backend.database import Fixture, PlayerContract, Tournament, TournamentTeam
 import backend.crud.fixture as crud_fixture
 import backend.crud.player as crud_player
 import backend.crud.team as crud_team
+from backend.services.eligibility import (
+    eligible_fixtures,
+    recommended_fixtures as eligible_recommended_fixtures,
+    select_recommended,
+)
 from backend.services.enrichment import (
     enrich_fixture,
     get_timezone,
@@ -41,21 +46,89 @@ def invalidate_fixtures_cache():
     _RECOMMENDED_CACHE.clear()
 
 
-def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) -> dict:
+MATCH_WINDOW_LOOKBACK = timedelta(hours=3)
+MATCH_WINDOW_LOOKAHEAD = timedelta(minutes=15)
+
+
+def match_window_bounds(now: datetime | None = None) -> tuple[datetime, datetime]:
+    """Kickoff window for a live check: started within 3 hours, or within 15 minutes."""
+    now_time = now or datetime.now(timezone.utc)
+    return now_time - MATCH_WINDOW_LOOKBACK, now_time + MATCH_WINDOW_LOOKAHEAD
+
+
+def score_text(status: str | None, home_score, away_score) -> str | None:
+    """Same ``"2 - 1"`` string ``enrich_fixture`` stores on a live or finished match."""
+    if status in ("Finished", "Live") and home_score is not None and away_score is not None:
+        return f"{home_score} - {away_score}"
+    return None
+
+
+def fixtures_in_match_window(db: Session) -> list[Fixture]:
+    """Unfinished fixtures in the kickoff window, plus recent Live rows."""
+    window_start, window_end = match_window_bounds()
+    options = (
+        joinedload(Fixture.home_team),
+        joinedload(Fixture.away_team),
+        joinedload(Fixture.tournament).joinedload(Tournament.competition),
+    )
+    active = db.query(Fixture).options(*options).filter(
+        Fixture.status != "Finished",
+        Fixture.date_utc >= window_start,
+        Fixture.date_utc <= window_end,
+    ).all()
+    live = db.query(Fixture).options(*options).filter(
+        Fixture.status == "Live",
+        Fixture.date_utc >= window_start - timedelta(hours=9),
+    ).all()
+    by_id = {fixture.id: fixture for fixture in active}
+    for fixture in live:
+        by_id.setdefault(fixture.id, fixture)
+    return list(by_id.values())
+
+
+def list_match_window_scores(db: Session) -> list[dict]:
+    """``{id, status, score}`` for the match window, including recent Live rows."""
+    window_start, window_end = match_window_bounds()
+    in_window = db.query(Fixture).filter(
+        Fixture.date_utc >= window_start,
+        Fixture.date_utc <= window_end,
+    ).all()
+    live = db.query(Fixture).filter(
+        Fixture.status == "Live",
+        Fixture.date_utc >= window_start - timedelta(hours=9),
+    ).all()
+    by_id = {fixture.id: fixture for fixture in in_window}
+    for fixture in live:
+        by_id.setdefault(fixture.id, fixture)
+    rows = [
+        {
+            "id": fixture.id,
+            "status": fixture.status or "Scheduled",
+            "score": score_text(fixture.status, fixture.home_score, fixture.away_score),
+        }
+        for fixture in by_id.values()
+    ]
+    rows.sort(key=lambda row: row["id"])
+    return rows
+
+
+def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None, now: datetime | None = None) -> dict:
     """
     Returns fixtures grouped by time buckets (today, tomorrow, this_week, finished).
     Includes off-season detection and uses in-memory caching for performance.
     """
     use_cache = os.getenv("TESTING") != "True"
     cache_key = (tz_str, tournament_id)
-    now = time.time()
+    cached_at = time.time()
     if use_cache and cache_key in _FIXTURES_CACHE:
         cached_time, cached_payload = _FIXTURES_CACHE[cache_key]
-        if now - cached_time < _CACHE_TTL:
+        if cached_at - cached_time < _CACHE_TTL:
             return cached_payload
 
     target_tz = get_timezone(tz_str)
-    now_utc = datetime.now(timezone.utc)
+    now_utc = now or datetime.now(timezone.utc)
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
 
     # Fast path for global feed using pre-calculated JSON cache (bypassed in test environment)
     if tournament_id is None and use_cache:
@@ -66,11 +139,11 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
 
         cached_list = feed_cache.get("fixtures", []) if feed_cache else []
         payload = group_enriched_fixtures(cached_list, target_tz, now_dt=now_utc, updated_at=feed_cache.get("updated_at") if feed_cache else None)
-        _FIXTURES_CACHE[cache_key] = (now, payload)
+        _FIXTURES_CACHE[cache_key] = (cached_at, payload)
         return payload
 
     # Specific tournament path or live test environment
-    fixtures = crud_fixture.get_eligible_fixtures(db, tournament_id=tournament_id, now_utc=now_utc)
+    fixtures = eligible_fixtures(db, tournament_id=tournament_id, now_utc=now_utc)
     tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all() if tournament_id else db.query(TournamentTeam).all()
 
     contracts = db.query(PlayerContract).options(joinedload(PlayerContract.player)).filter(
@@ -85,21 +158,21 @@ def get_grouped_fixtures(db: Session, tz_str: str, tournament_id: int = None) ->
 
     payload = group_enriched_fixtures(enriched_fixtures, target_tz, now_dt=now_utc, updated_at=now_utc.isoformat())
     if use_cache:
-        _FIXTURES_CACHE[cache_key] = (now, payload)
+        _FIXTURES_CACHE[cache_key] = (cached_at, payload)
     return payload
 
 
-def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None, min_score: float = 65.0, min_count: int = 7) -> list:
+def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None, min_score: float = 65.0, min_count: int = 7, now: datetime | None = None) -> list:
     """
     Returns a list of high-watchability fixtures in Recommended+ tier with guaranteed Top 7 fallback.
     Preloads player and group data to avoid N+1 queries.
     """
     use_cache = os.getenv("TESTING") != "True"
     cache_key = (tz_str, tournament_id, min_score, min_count)
-    now = time.time()
+    cached_at = time.time()
     if use_cache and cache_key in _RECOMMENDED_CACHE:
         cached_time, cached_payload = _RECOMMENDED_CACHE[cache_key]
-        if now - cached_time < _CACHE_TTL:
+        if cached_at - cached_time < _CACHE_TTL:
             return cached_payload
 
     target_tz = get_timezone(tz_str)
@@ -112,7 +185,9 @@ def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None
             feed_cache = build_fixtures_feed_cache(db)
         if feed_cache:
             all_cached = feed_cache.get("fixtures", [])
-            now_utc = datetime.now(timezone.utc)
+            now_utc = now or datetime.now(timezone.utc)
+            if now_utc.tzinfo is None:
+                now_utc = now_utc.replace(tzinfo=timezone.utc)
             future_cached = []
             for f in all_cached:
                 dt_str = f.get("date")
@@ -126,20 +201,28 @@ def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None
                 else:
                     future_cached.append(f)
 
-            recs = [f for f in future_cached if f.get("watchability", {}).get("overall", 0) >= min_score]
-            if len(recs) < min_count:
-                sorted_f = sorted(future_cached, key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
-                recs = sorted_f[:min_count]
-            recs.sort(key=lambda x: x.get("watchability", {}).get("overall", 0), reverse=True)
+            recs = select_recommended(
+                future_cached,
+                lambda row: row.get("watchability", {}).get("overall", 0),
+                min_score=min_score,
+                min_count=min_count,
+            )
             recs = [localize_fixture_display(f, target_tz) for f in recs]
-            _RECOMMENDED_CACHE[cache_key] = (now, recs)
+            _RECOMMENDED_CACHE[cache_key] = (cached_at, recs)
             return recs
 
+    now_utc = now or datetime.now(timezone.utc)
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
     if tournament_id is not None:
-        fixtures = crud_fixture.get_recommended_fixtures(db, tournament_id=tournament_id, min_score=min_score, min_count=min_count)
+        fixtures = eligible_recommended_fixtures(
+            db, tournament_id=tournament_id, min_score=min_score, min_count=min_count, now=now_utc
+        )
         tts = db.query(TournamentTeam).filter(TournamentTeam.tournament_id == tournament_id).all()
     else:
-        fixtures = crud_fixture.get_recommended_fixtures(db, tournament_id=None, min_score=min_score, min_count=min_count)
+        fixtures = eligible_recommended_fixtures(
+            db, tournament_id=None, min_score=min_score, min_count=min_count, now=now_utc
+        )
         tts = db.query(TournamentTeam).all()
 
     # Preload maps to avoid N+1 queries
@@ -156,7 +239,7 @@ def get_recommended_fixtures(db: Session, tz_str: str, tournament_id: int = None
 
     result = [enrich_fixture(f, db, target_tz, team_players_map, team_group_map) for f in fixtures]
     if use_cache:
-        _RECOMMENDED_CACHE[cache_key] = (now, result)
+        _RECOMMENDED_CACHE[cache_key] = (cached_at, result)
     return result
 
 

@@ -1,5 +1,5 @@
 from unittest.mock import patch
-from backend.services.seeder import seed_competition
+from backend.services.ingestion.engine import seed_competition
 from backend.database import Competition, Tournament, Fixture
 
 

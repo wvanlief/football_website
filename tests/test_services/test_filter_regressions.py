@@ -8,11 +8,11 @@ that contract lands.
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from backend.database import Competition, Fixture, Team, Tournament, TournamentTeam
 import backend.crud.fixture as crud_fixture
 from backend.services.enrichment import group_enriched_fixtures
 from backend.services.feed_builder import build_fixtures_feed_cache
-from backend.services.tournament import get_grouped_fixtures
+from backend.services.queries import get_grouped_fixtures
+from tests.factories import FROZEN_NOW, fixture, league, membership, team, tournament
 
 
 UPCOMING_KEYS = ("today", "tomorrow", "this_week")
@@ -23,43 +23,31 @@ def _naive(dt):
 
 
 def _seed_league(db, name, status="Active"):
-    comp = Competition(name=name, type="League")
-    db.add(comp)
-    db.flush()
-    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status=status)
-    db.add(tourney)
-    db.flush()
-    home = Team(name=f"{name} Home", elo=1700)
-    away = Team(name=f"{name} Away", elo=1680)
-    db.add_all([home, away])
-    db.flush()
-    db.add_all(
-        [
-            TournamentTeam(tournament_id=tourney.id, team_id=home.id),
-            TournamentTeam(tournament_id=tourney.id, team_id=away.id),
-        ]
-    )
-    db.flush()
+    comp = league(db, name)
+    tourney = tournament(db, comp, status=status)
+    home = team(db, f"{name} Home", elo=1700)
+    away = team(db, f"{name} Away", elo=1680)
+    membership(db, tourney, home)
+    membership(db, tourney, away)
     return tourney, home, away
 
 
 def _add_fixture(db, tourney, home, away, date_utc, status="Scheduled", score=None, watchability=70.0):
-    kwargs = dict(
-        tournament_id=tourney.id,
-        home_team_id=home.id,
-        away_team_id=away.id,
-        stage="Regular Season",
+    home_score = away_score = None
+    if score is not None:
+        home_score, away_score = score
+    return fixture(
+        db,
+        tourney,
+        home,
+        away,
         status=status,
-        date_utc=_naive(date_utc) if getattr(date_utc, "tzinfo", None) else date_utc,
+        kickoff=date_utc,
+        stage="Regular Season",
+        home_score=home_score,
+        away_score=away_score,
         watchability_score=watchability,
     )
-    if score is not None:
-        kwargs["home_score"] = score[0]
-        kwargs["away_score"] = score[1]
-    fixture = Fixture(**kwargs)
-    db.add(fixture)
-    db.flush()
-    return fixture
 
 
 def _upcoming_ids(grouped):
@@ -84,7 +72,7 @@ def _assert_upcoming_dates_not_before_today(grouped, now_dt, tz_name="UTC"):
 def test_upcoming_view_excludes_past_dated_scheduled_fixtures(db_session):
     """B12 / #91: a stale Scheduled row from yesterday must not appear as upcoming."""
     tourney, home, away = _seed_league(db_session, "Stale Scheduled League")
-    now_utc = datetime.now(timezone.utc)
+    now_utc = FROZEN_NOW
 
     stale = _add_fixture(db_session, tourney, home, away, now_utc - timedelta(days=1, hours=2))
     last_month = _add_fixture(
@@ -107,7 +95,7 @@ def test_upcoming_view_excludes_past_dated_scheduled_fixtures(db_session):
     assert stale.id in eligible_ids  # still inside the -14d rolling window
     assert last_month.id not in eligible_ids
 
-    grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id)
+    grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id, now=now_utc)
     upcoming = _upcoming_ids(grouped)
     assert today_match.id in upcoming
     assert tomorrow_match.id in upcoming
@@ -119,7 +107,7 @@ def test_upcoming_view_excludes_past_dated_scheduled_fixtures(db_session):
 def test_finished_in_rolling_window_goes_to_finished_not_upcoming(db_session):
     """Adjacent: recent Finished results stay on the results bar, not Today/Week."""
     tourney, home, away = _seed_league(db_session, "Finished Adjacent League")
-    now_utc = datetime.now(timezone.utc)
+    now_utc = FROZEN_NOW
     finished = _add_fixture(
         db_session,
         tourney,
@@ -144,7 +132,7 @@ def test_finished_in_rolling_window_goes_to_finished_not_upcoming(db_session):
     )
     db_session.commit()
 
-    grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id)
+    grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id, now=now_utc)
     upcoming = _upcoming_ids(grouped)
     finished_ids = [m["id"] for m in grouped["finished"]]
 
@@ -205,7 +193,7 @@ def test_group_enriched_fixtures_drops_past_calendar_dates_from_upcoming():
 def test_offseason_fallback_excludes_legacy_and_respects_now_gate(db_session):
     """Off-season fallback is date_utc >= now; past Scheduled leftovers stay out."""
     tourney, home, away = _seed_league(db_session, "Offseason Gate League")
-    now_utc = datetime.now(timezone.utc)
+    now_utc = FROZEN_NOW
     # Outside the -14/+30 rolling window so the future-only fallback is used.
     just_before_window = _add_fixture(
         db_session, tourney, home, away, now_utc - timedelta(days=40)
@@ -228,7 +216,7 @@ def test_offseason_fallback_excludes_legacy_and_respects_now_gate(db_session):
     for fixture in eligible:
         assert fixture.date_utc >= _naive(now_utc)
 
-    grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id)
+    grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id, now=now_utc)
     assert grouped["is_offseason"] is True
     upcoming = _upcoming_ids(grouped)
     assert set(upcoming) == {future_a.id, future_b.id}
@@ -243,14 +231,14 @@ def test_feed_cache_grouping_hides_in_window_stale_rows(db_session, monkeypatch,
     )
 
     tourney, home, away = _seed_league(db_session, "Feed Stale League")
-    now_utc = datetime.now(timezone.utc)
+    now_utc = FROZEN_NOW
     stale = _add_fixture(db_session, tourney, home, away, now_utc - timedelta(days=3))
     future = _add_fixture(
         db_session, tourney, home, away, now_utc + timedelta(days=2), watchability=77.0
     )
     db_session.commit()
 
-    payload = build_fixtures_feed_cache(db_session)
+    payload = build_fixtures_feed_cache(db_session, now=now_utc)
     cached_ids = {m["id"] for m in payload["fixtures"]}
     assert stale.id in cached_ids
     assert future.id in cached_ids
@@ -290,8 +278,8 @@ def test_competition_filter_isolates_fixtures_on_api(client, db_session):
     assert premier_ids == {pl_match.id}
     assert laliga_ids == {ll_match.id}
 
-    premier_grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=premier.id)
-    laliga_grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=laliga.id)
+    premier_grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=premier.id, now=now_utc)
+    laliga_grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=laliga.id, now=now_utc)
     assert premier_grouped["today"][0]["competition_name"] == "Premier League Filter"
     assert laliga_grouped["today"][0]["competition_name"] == "La Liga Filter"
 
@@ -323,7 +311,7 @@ def test_viewer_timezone_excludes_previous_local_calendar_day():
 def test_offseason_fallback_empty_when_only_legacy_past_exists(db_session):
     """Rule 8 adjacent: no future records means upcoming stays empty, not first Scheduled leftover."""
     tourney, home, away = _seed_league(db_session, "Legacy Only League")
-    now_utc = datetime.now(timezone.utc)
+    now_utc = FROZEN_NOW
     leftover = _add_fixture(
         db_session, tourney, home, away, now_utc - timedelta(days=40)
     )
@@ -335,7 +323,7 @@ def test_offseason_fallback_empty_when_only_legacy_past_exists(db_session):
     assert eligible == []
     assert leftover.id not in {f.id for f in eligible}
 
-    grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id)
+    grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id, now=now_utc)
     assert _upcoming_ids(grouped) == []
     _assert_upcoming_dates_not_before_today(grouped, now_utc)
 
@@ -343,7 +331,7 @@ def test_offseason_fallback_empty_when_only_legacy_past_exists(db_session):
 def test_postponed_past_date_is_not_upcoming(db_session):
     """Adjacent status: Postponed leftover with a past kickoff stays out of upcoming."""
     tourney, home, away = _seed_league(db_session, "Postponed Adjacent League")
-    now_utc = datetime.now(timezone.utc)
+    now_utc = FROZEN_NOW
     postponed = _add_fixture(
         db_session,
         tourney,
@@ -357,7 +345,7 @@ def test_postponed_past_date_is_not_upcoming(db_session):
     )
     db_session.commit()
 
-    grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id)
+    grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id, now=now_utc)
     upcoming = _upcoming_ids(grouped)
     assert postponed.id not in upcoming
     assert scheduled.id in upcoming

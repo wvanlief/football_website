@@ -4,7 +4,11 @@ from datetime import datetime
 from backend.database import Team, Fixture, Competition, Tournament, TournamentTeam
 from backend.services.simulation import run_monte_carlo_simulation, simulate_bracket
 
-def test_monte_carlo_simulation(db_session):
+def test_monte_carlo_simulation(db_session, monkeypatch, tmp_path):
+    import backend.services.simulation as simulation
+
+    monkeypatch.setattr(simulation, "_DATA_DIR", str(tmp_path))
+    simulation._PROBABILITIES_CACHE.clear()
     comp = Competition(name="World Cup", type="International")
     db_session.add(comp)
     db_session.flush()
@@ -76,12 +80,4 @@ def test_monte_carlo_simulation(db_session):
     assert "final" in bracket
     assert "champion" in bracket
     
-    # Verify file was written
-    file_path = os.path.join(os.path.dirname(__file__), "..", "..", "backend", "data", "simulation_results.json")
-    assert os.path.exists(file_path)
-    
-    # Clean up file after test
-    try:
-        os.remove(file_path)
-    except Exception:
-        pass
+    assert os.path.exists(os.path.join(tmp_path, "simulation_results.json"))

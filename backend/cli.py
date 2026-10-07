@@ -117,9 +117,8 @@ def main():
                     season=str(args.season),
                     api_league_id=args.league,
                     api_season=args.season,
-                    neutral_venue=args.neutral,
                     odds_api_sport_key=args.odds_key,
-                    home_advantage_elo=args.home_advantage
+                    home_advantage_elo=0 if args.neutral else args.home_advantage,
                 )
     finally:
         db.close()

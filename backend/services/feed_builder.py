@@ -17,11 +17,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from sqlalchemy.orm import Session, joinedload
 from backend.database import Fixture, Tournament, Competition, Team, TournamentTeam, PlayerContract
 from backend.services.enrichment import enrich_fixture
-import backend.crud.fixture as crud_fixture
+from backend.services.eligibility import active_tournament_ids, eligible_fixtures
 
 CACHE_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "fixtures_feed_cache.json")
 
-def build_fixtures_feed_cache(db: Session, force_enrichment: bool = False) -> dict:
+def build_fixtures_feed_cache(db: Session, force_enrichment: bool = False, now: datetime | None = None) -> dict:
     """
     Pre-calculates and serializes the global fixture feed for active competitions
     in a rolling window (-14 days to +30 days).
@@ -30,12 +30,14 @@ def build_fixtures_feed_cache(db: Session, force_enrichment: bool = False) -> di
     print(f"Building pre-calculated feed cache (force_enrichment={force_enrichment})...")
     start_time = time.time()
 
-    now_utc = datetime.now(timezone.utc)
+    now_utc = now or datetime.now(timezone.utc)
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
 
     # Use canonical query for eligible fixtures (rolling window with strict future-only off-season fallback)
-    fixtures = crud_fixture.get_eligible_fixtures(db, tournament_id=None, now_utc=now_utc)
+    fixtures = eligible_fixtures(db, tournament_id=None, now_utc=now_utc)
 
-    active_ids = crud_fixture.get_active_tournament_ids(db)
+    active_ids = active_tournament_ids(db)
     has_active_tournaments = bool(active_ids)
     if not active_ids:
         active_ids = [t.id for t in db.query(Tournament.id).all()]
@@ -79,6 +81,42 @@ def build_fixtures_feed_cache(db: Session, force_enrichment: bool = False) -> di
     elapsed = round((time.time() - start_time) * 1000, 2)
     print(f"Successfully generated {CACHE_FILE_PATH} with {len(enriched_fixtures)} fixtures in {elapsed}ms.")
     return feed_payload
+
+def patch_feed_cache_scores(updates: list[dict]) -> bool:
+    """Replace ``status`` and ``score`` on cached fixtures. Leave every other key.
+
+    Does not rebuild or re-enrich the feed. Returns True when the file changes.
+    """
+    if not updates:
+        return False
+    cache = load_precalculated_feed_cache()
+    if not cache or not isinstance(cache.get("fixtures"), list):
+        return False
+    by_id = {}
+    for item in updates:
+        fixture_id = item.get("id")
+        if fixture_id is None:
+            continue
+        by_id[fixture_id] = item
+    changed = False
+    for fixture in cache["fixtures"]:
+        patch = by_id.get(fixture.get("id"))
+        if not patch:
+            continue
+        status = patch.get("status")
+        score = patch.get("score")
+        if fixture.get("status") == status and fixture.get("score") == score:
+            continue
+        fixture["status"] = status
+        fixture["score"] = score
+        changed = True
+    if not changed:
+        return False
+    os.makedirs(os.path.dirname(CACHE_FILE_PATH), exist_ok=True)
+    with open(CACHE_FILE_PATH, "w", encoding="utf-8") as handle:
+        json.dump(cache, handle, ensure_ascii=False, indent=2)
+    return True
+
 
 def load_precalculated_feed_cache() -> dict:
     """Loads pre-calculated feed cache from disk if available."""

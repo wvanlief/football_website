@@ -3,11 +3,8 @@ import pytest
 from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 
-from backend.database import Competition, Tournament, Fixture, Team, TournamentTeam
-from backend.services.seeder import (
-    seed_single_competition,
-    retire_european_draw_placeholders,
-)
+from backend.database import Competition, Tournament, Fixture, Team
+from backend.services.seeder import seed_single_competition
 import backend.crud.fixture as crud_fixture
 
 
@@ -43,51 +40,6 @@ def test_seed_single_competition_european_cup(db_session, monkeypatch):
 
     uel_comp = db_session.query(Competition).filter(Competition.name == "UEFA Europa League").first()
     assert uel_comp is None
-
-
-def test_retire_european_draw_placeholders_never_deletes(db_session):
-    comp = Competition(name="UCL Placeholder Retire", type="Cup", format_engine="league_phase_knockout")
-    db_session.add(comp)
-    db_session.flush()
-    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
-    db_session.add(tourney)
-    db_session.flush()
-    home = Team(name="Liverpool Retire", team_type="Club")
-    away = Team(name="Atletico Retire", team_type="Club")
-    db_session.add_all([home, away])
-    db_session.flush()
-    db_session.add_all([
-        TournamentTeam(tournament_id=tourney.id, team_id=home.id),
-        TournamentTeam(tournament_id=tourney.id, team_id=away.id),
-    ])
-    now = datetime(2026, 9, 9, 19, 0, tzinfo=timezone.utc)
-    live = Fixture(
-        tournament_id=tourney.id,
-        home_team_id=home.id,
-        away_team_id=away.id,
-        date_utc=now,
-        stage="League Phase",
-        status="Scheduled",
-        api_id="140001",
-    )
-    stale = Fixture(
-        tournament_id=tourney.id,
-        home_team_id=home.id,
-        away_team_id=away.id,
-        date_utc=datetime(2026, 9, 17, 21, 0, tzinfo=timezone.utc),
-        stage="League Phase",
-        status="Scheduled",
-        api_id=None,
-    )
-    db_session.add_all([live, stale])
-    db_session.commit()
-
-    removed = retire_european_draw_placeholders(db_session, tourney.id)
-    db_session.commit()
-
-    remaining = db_session.query(Fixture).filter(Fixture.tournament_id == tourney.id).all()
-    assert removed == 0
-    assert len(remaining) == 2
 
 
 @patch("backend.services.seeder.fetch_and_seed_teams")

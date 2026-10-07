@@ -38,6 +38,8 @@ _tmp*
 scratch/
 .scratch/
 graphify-out/
+.graphify/
+graph-cache/
 logs/*.log
 
 

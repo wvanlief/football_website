@@ -4,7 +4,8 @@ from zoneinfo import ZoneInfo
 from backend.database import Fixture, Tournament, Competition, Team, FixtureOdds
 from backend.scoring import calculate_global_percentile, get_score_tier
 import backend.crud.fixture as crud_fixture
-from backend.services.tournament import group_enriched_fixtures, enrich_fixture, get_recommended_fixtures
+from backend.services.enrichment import enrich_fixture, group_enriched_fixtures
+from backend.services.queries import get_recommended_fixtures
 
 def test_global_percentile_and_tier_calculation():
     # Boundary checks

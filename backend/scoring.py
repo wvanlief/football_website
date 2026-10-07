@@ -203,10 +203,8 @@ def _persist_result(fixture: Fixture, result: WatchabilityResult) -> None:
 def score(fixture: Fixture, db: Session, weights: dict = None) -> WatchabilityResult:
     """Calculate watchability for a fixture and persist the scores on the ORM row.
 
-    Absorbs weight resolution, regional ELO baselines, inline DB lookups, and
-    the former ``update_fixture_score`` write-back.  Callers that previously
-    split ``calculate_watchability`` + ``update_fixture_score`` should call
-    this once.
+    Resolves weights, regional ELO baselines, and inline DB lookups, then writes
+    the scores onto the fixture.
     """
     home_team = fixture.home_team
     away_team = fixture.away_team
@@ -547,21 +545,3 @@ def get_score_tier(score: float) -> str:
     if score >= 45.0:
         return "Average"
     return "Skip"
-
-
-def calculate_watchability(
-    fixture: Fixture,
-    home_team: Team,
-    away_team: Team,
-    db: Session,
-    weights: dict = None
-) -> dict:
-    """Compatibility wrapper.  Prefer ``score(fixture, db)``."""
-    result = score(fixture, db, weights)
-    return result.as_dict()
-
-
-def update_fixture_score(fixture: Fixture, db: Session, weights: dict = None) -> Fixture:
-    """Compatibility wrapper.  Prefer ``score(fixture, db)``."""
-    score(fixture, db, weights)
-    return fixture

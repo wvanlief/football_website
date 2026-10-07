@@ -6,13 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsBarContainer = document.getElementById('results-bar-container');
     const resultsListHorizontal = document.getElementById('results-list-horizontal');
 
-    // Country Explorer elements
-    const countrySearchInput = document.getElementById('country-search');
-    const searchClearBtn = document.getElementById('search-clear');
-    const flagCarouselContainer = document.getElementById('flag-carousel-container');
-
-
-
     // Columns
     const lists = {
         today: document.getElementById('list-today'),
@@ -72,6 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Periodically update freshness relative text
     setInterval(updateFreshnessIndicator, 30000);
+    // Provider scores change when the live job runs, about every 5 minutes.
+    setInterval(pollLiveScores, 5 * 60 * 1000);
 
     // Initialize Page
     selectedTimezone = localStorage.getItem('findfootball-timezone') || 'local';
@@ -88,10 +83,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Resolve timezone and trigger fetch
     resolveAndTimezoneFetch();
-
-    // Initialize Country Selection Panel
-    initCountryExplorer();
-
 
     async function resolveAndTimezoneFetch() {
         resolvedTimezone = await resolveTimezone(selectedTimezone);
@@ -136,29 +127,55 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Fetch and Load Fixtures
 
-    function processHydratedFixtures(fixturesList, userTz) {
+    function processHydratedFixtures(feedOrList, userTz) {
+        const todayStr = ymdInTimeZone(new Date(), userTz);
+        const matchDateStrOf = (fdata) => {
+            if (!fdata.date) return todayStr;
+            try {
+                const parsed = parseFixtureDate(fdata.date);
+                if (parsed) return ymdInTimeZone(parsed, userTz);
+            } catch (e) {}
+            return todayStr;
+        };
+        const localizeUpcoming = (rows) => {
+            const kept = [];
+            (rows || []).forEach(raw => {
+                const fdata = localizeFixtureDisplay(raw, userTz);
+                if (fdata.status === "Finished") return;
+                if (matchDateStrOf(fdata) >= todayStr) kept.push(fdata);
+            });
+            return kept;
+        };
+
+        const grouped = feedOrList && !Array.isArray(feedOrList) && (
+            Array.isArray(feedOrList.this_week) ||
+            Array.isArray(feedOrList.today) ||
+            Array.isArray(feedOrList.tomorrow)
+        );
+        if (grouped) {
+            const finishedFixtures = (feedOrList.finished || []).map(raw => localizeFixtureDisplay(raw, userTz));
+            finishedFixtures.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+            return {
+                today: localizeUpcoming(feedOrList.today),
+                tomorrow: localizeUpcoming(feedOrList.tomorrow),
+                this_week: localizeUpcoming(feedOrList.this_week),
+                finished: finishedFixtures.slice(0, 30),
+                is_offseason: !!feedOrList.is_offseason,
+                offseason_notice: feedOrList.offseason_notice || null
+            };
+        }
+
         let todayFixtures = [];
         let tomorrowFixtures = [];
         let weekFixtures = [];
         let finishedFixtures = [];
         let scheduledFixtures = [];
+        const tomorrowStr = addCalendarDays(todayStr, 1);
+        const maxDateStr = addCalendarDays(todayStr, 8);
 
-        let now = new Date();
-        let todayStr = ymdInTimeZone(now, userTz);
-        let tomorrowStr = addCalendarDays(todayStr, 1);
-        let maxDateStr = addCalendarDays(todayStr, 8);
-
-        (fixturesList || []).forEach(raw => {
+        (feedOrList || []).forEach(raw => {
             const fdata = localizeFixtureDisplay(raw, userTz);
-            let matchDateStr = todayStr;
-            if (fdata.date) {
-                try {
-                    const parsed = parseFixtureDate(fdata.date);
-                    if (parsed) {
-                        matchDateStr = ymdInTimeZone(parsed, userTz);
-                    }
-                } catch(e) {}
-            }
+            const matchDateStr = matchDateStrOf(fdata);
 
             if (fdata.status === "Finished") {
                 finishedFixtures.push(fdata);
@@ -178,10 +195,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Sort today and tomorrow by ascending kick-off time
         todayFixtures.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
         tomorrowFixtures.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-        // Sort finished descending by date
         finishedFixtures.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 
         let isOffseason = false;
@@ -190,34 +205,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (todayFixtures.length === 0 && tomorrowFixtures.length === 0 && weekFixtures.length === 0 && scheduledFixtures.length > 0) {
             isOffseason = true;
             scheduledFixtures.sort((a, b) => a.matchDateStr.localeCompare(b.matchDateStr));
-            let firstMatchDate = scheduledFixtures[0].matchDateStr;
-            
-            // Calculate 8-day block starting from firstMatchDate
-            let firstDateObj = new Date(firstMatchDate + 'T00:00:00');
-            let blockEndDateObj = new Date(firstDateObj);
-            blockEndDateObj.setDate(blockEndDateObj.getDate() + 8);
-            let blockEndDateStr = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(blockEndDateObj);
-
-            let upcomingBlock = [];
-            scheduledFixtures.forEach(item => {
-                if (item.matchDateStr >= firstMatchDate && item.matchDateStr <= blockEndDateStr) {
-                    upcomingBlock.push(item.fdata);
-                }
-            });
-            upcomingBlock.sort((a, b) => ((b.watchability && b.watchability.overall) || 0) - ((a.watchability && a.watchability.overall) || 0));
-            weekFixtures = upcomingBlock.slice(0, 8);
-
-            let formattedFirstDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(firstDateObj);
+            const firstMatchDate = scheduledFixtures[0].matchDateStr;
+            const blockEndDateStr = addCalendarDays(firstMatchDate, 8);
+            weekFixtures = scheduledFixtures
+                .filter(item => item.matchDateStr >= firstMatchDate && item.matchDateStr <= blockEndDateStr)
+                .map(item => item.fdata);
+            const [year, month, day] = firstMatchDate.split('-').map(Number);
+            const formattedFirstDate = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric'
+            }).format(new Date(Date.UTC(year, month - 1, day, 12)));
             offseasonNotice = `Off-season: Showing next upcoming matches starting ${formattedFirstDate}.`;
-        } else {
-            let highQualityGems = weekFixtures.filter(f => (f.watchability && f.watchability.overall >= 70.0));
-            highQualityGems.sort((a, b) => ((b.watchability && b.watchability.overall) || 0) - ((a.watchability && a.watchability.overall) || 0));
-            if (highQualityGems.length >= 3) {
-                weekFixtures = highQualityGems.slice(0, 8);
-            } else {
-                weekFixtures.sort((a, b) => ((b.watchability && b.watchability.overall) || 0) - ((a.watchability && a.watchability.overall) || 0));
-                weekFixtures = weekFixtures.slice(0, 5);
-            }
         }
 
         return {
@@ -240,14 +237,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (hydratedElement && hydratedElement.textContent.trim()) {
             try {
                 const parsed = JSON.parse(hydratedElement.textContent);
-                if (parsed && parsed.fixtures && parsed.fixtures.length > 0) {
-                    activeFixtures = processHydratedFixtures(parsed.fixtures, resolvedTimezone);
+                const alreadyGrouped = parsed && !Array.isArray(parsed) && (
+                    Array.isArray(parsed.this_week) || Array.isArray(parsed.today) || Array.isArray(parsed.tomorrow)
+                );
+                if (alreadyGrouped) {
+                    activeFixtures = processHydratedFixtures(parsed, resolvedTimezone);
                     if (parsed.updated_at) {
                         lastFeedUpdatedAt = parsed.updated_at;
                         updateFreshnessIndicator();
                     }
                     renderAllColumns();
                     return;
+                }
+                if (parsed && parsed.updated_at) {
+                    lastFeedUpdatedAt = parsed.updated_at;
+                    updateFreshnessIndicator();
                 }
             } catch(e) {
                 console.warn("Failed to parse inline hydrated fixtures:", e);
@@ -259,9 +263,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (cachedSession) {
             try {
-                activeFixtures = JSON.parse(cachedSession);
-                if (activeFixtures && activeFixtures.updated_at) {
-                    lastFeedUpdatedAt = activeFixtures.updated_at;
+                const cachedPayload = JSON.parse(cachedSession);
+                activeFixtures = processHydratedFixtures(cachedPayload, resolvedTimezone);
+                if (cachedPayload && cachedPayload.updated_at) {
+                    lastFeedUpdatedAt = cachedPayload.updated_at;
                     updateFreshnessIndicator();
                 }
                 renderAllColumns();
@@ -280,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch(`/api/fixtures?tz=${encodeURIComponent(resolvedTimezone)}`);
             const data = await res.json();
-            activeFixtures = data;
+            activeFixtures = processHydratedFixtures(data, resolvedTimezone);
             if (data && data.updated_at) {
                 lastFeedUpdatedAt = data.updated_at;
                 updateFreshnessIndicator();
@@ -296,6 +301,61 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
+    function rememberLiveScore(row) {
+        if (!activeFixtures || row.id == null) return;
+        ['today', 'tomorrow', 'this_week', 'finished'].forEach(key => {
+            (activeFixtures[key] || []).forEach(match => {
+                if (match.id === row.id) {
+                    match.status = row.status;
+                    match.score = row.score;
+                }
+            });
+        });
+    }
+
+    function applyLiveScoreToCard(card, row) {
+        if (!card || (row.status !== 'Live' && row.status !== 'Finished')) return;
+        const center = card.querySelector('.match-info-center');
+        if (!center) return;
+        const vs = center.querySelector('.match-vs');
+        center.querySelectorAll('.match-score, .match-time, .live-indicator').forEach(node => node.remove());
+        const scoreEl = document.createElement('span');
+        scoreEl.className = row.status === 'Live' ? 'match-score live' : 'match-score';
+        scoreEl.textContent = row.score || '';
+        if (vs) center.insertBefore(scoreEl, vs);
+        else center.appendChild(scoreEl);
+        if (row.status === 'Live') {
+            const indicator = document.createElement('span');
+            indicator.className = 'live-indicator';
+            const dot = document.createElement('span');
+            dot.className = 'live-dot';
+            indicator.append(dot, document.createTextNode('Live'));
+            if (vs) center.insertBefore(indicator, vs);
+            else center.appendChild(indicator);
+        }
+    }
+
+    async function pollLiveScores() {
+        try {
+            const res = await fetch('/api/fixtures/scores');
+            if (!res.ok) return;
+            const rows = await res.json();
+            if (!Array.isArray(rows)) return;
+            rows.forEach(row => {
+                rememberLiveScore(row);
+                document.querySelectorAll('.match-card').forEach(card => {
+                    if (card.getAttribute('data-fixture-id') === String(row.id)) {
+                        applyLiveScoreToCard(card, row);
+                    }
+                });
+            });
+        } catch (err) {
+            console.warn('Live score poll failed', err);
+        }
+    }
+
+    window.pollLiveScores = pollLiveScores;
 
     function renderResultsBar(fixtures) {
         if (!resultsBarContainer || !resultsListHorizontal) return;
@@ -736,6 +796,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const compName = match.competition_name || '';
             const matchRegion = match.region || (['Copa Libertadores', 'Copa Sudamericana', 'Brasileirão', 'MLS', 'Major League Soccer', 'Argentina', 'Liga Profesional', 'CONCACAF'].some(c => compName.includes(c)) ? 'Americas' : 'Europe');
             card.className = `match-card ${ratingClass}`;
+            card.setAttribute('data-fixture-id', String(match.id));
             card.setAttribute('data-region', matchRegion);
             card.setAttribute('data-competition', compName);
             card.innerHTML = `
@@ -908,151 +969,6 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-    // Country Explorer Functions
-    async function initCountryExplorer() {
-        if (!flagCarouselContainer) return;
-
-        try {
-            const res = await fetch('/api/country');
-            if (!res.ok) throw new Error("Failed to fetch countries list");
-
-            const countries = await res.json();
-            renderCountryCarousel(countries);
-            renderCompetitionPills(countries);
-            setupSearchFiltering();
-        } catch (err) {
-            console.error("Error initializing Country Explorer:", err);
-            flagCarouselContainer.innerHTML = '<p class="text-muted" style="padding: 0.5rem 1rem;">Failed to load countries.</p>';
-        }
-    }
-
-    function renderCountryCarousel(countries) {
-        flagCarouselContainer.innerHTML = '';
-        countries.forEach(country => {
-            const pill = document.createElement('div');
-            pill.className = 'flag-pill';
-            pill.setAttribute('data-name', country.name.toLowerCase());
-            pill.setAttribute('data-competition', country.competition_name || '');
-            pill.setAttribute('data-upcoming', country.has_upcoming_game ? 'true' : 'false');
-            
-            if (country.has_upcoming_game) {
-                pill.style.border = '1px solid rgba(251, 191, 36, 0.6)';
-                pill.style.boxShadow = '0 0 10px rgba(251, 191, 36, 0.2)';
-            }
-            
-            let badgeText = country.competition_badge || '⚽';
-            let titleText = `${country.name} (ELO ${country.elo})`;
-            if (country.competition_name) {
-                titleText += `\n${badgeText} ${country.competition_name}`;
-            }
-            if (country.has_upcoming_game) {
-                titleText += `\n🔥 Match in next 7 days`;
-            }
-            
-            pill.title = titleText;
-            pill.innerHTML = `
-                <img src="${getFlagUrl(country)}" class="flag-pill-img" alt="${country.name} flag">
-            `;
-            pill.addEventListener('click', () => {
-                if (country.tournament_id) {
-                    localStorage.setItem('findfootball-tournament-id', country.tournament_id);
-                }
-                window.location.href = `/team/${encodeURIComponent(country.name)}`;
-            });
-            flagCarouselContainer.appendChild(pill);
-        });
-    }
-
-    function renderCompetitionPills(countries) {
-        const compFiltersContainer = document.getElementById('explorer-comp-filters');
-        if (!compFiltersContainer) return;
-
-        // Get unique competitions
-        const competitions = [];
-        const compNames = new Set();
-        countries.forEach(c => {
-            if (c.competition_name && !compNames.has(c.competition_name)) {
-                compNames.add(c.competition_name);
-                competitions.push({
-                    name: c.competition_name,
-                    badge: c.competition_badge,
-                    tournamentId: c.tournament_id
-                });
-            }
-        });
-
-        compFiltersContainer.innerHTML = '';
-
-        const createPill = (label, value) => {
-            const btn = document.createElement('button');
-            btn.className = `comp-filter-pill${activeCompFilter === value ? ' active' : ''}`;
-            btn.innerHTML = label;
-            btn.addEventListener('click', () => {
-                compFiltersContainer.querySelectorAll('.comp-filter-pill').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                activeCompFilter = value;
-                applyExplorerFilters();
-                renderAllColumns();
-            });
-            return btn;
-        };
-
-        compFiltersContainer.appendChild(createPill('⚽ All Active', 'all'));
-        compFiltersContainer.appendChild(createPill('🔥 Next 7 Days', 'upcoming'));
-
-        competitions.forEach(comp => {
-            compFiltersContainer.appendChild(createPill(`${comp.badge || '⚽'} ${comp.name}`, comp.name));
-        });
-    }
-
-    function applyExplorerFilters() {
-        const query = countrySearchInput ? countrySearchInput.value.trim().toLowerCase() : '';
-        const pills = flagCarouselContainer.querySelectorAll('.flag-pill');
-
-        pills.forEach(pill => {
-            const name = pill.getAttribute('data-name');
-            const comp = pill.getAttribute('data-competition');
-            const upcoming = pill.getAttribute('data-upcoming') === 'true';
-
-            let matchesQuery = name.includes(query);
-            let matchesComp = false;
-
-            if (activeCompFilter === 'all') {
-                matchesComp = true;
-            } else if (activeCompFilter === 'upcoming') {
-                matchesComp = upcoming;
-            } else {
-                matchesComp = (comp === activeCompFilter);
-            }
-
-            if (matchesQuery && matchesComp) {
-                pill.classList.remove('hidden');
-            } else {
-                pill.classList.add('hidden');
-            }
-        });
-    }
-
-    function setupSearchFiltering() {
-        if (!countrySearchInput) return;
-
-        countrySearchInput.addEventListener('input', () => {
-            const query = countrySearchInput.value.trim().toLowerCase();
-            if (searchClearBtn) {
-                searchClearBtn.style.display = query ? 'flex' : 'none';
-            }
-            applyExplorerFilters();
-        });
-
-        if (searchClearBtn) {
-            searchClearBtn.addEventListener('click', () => {
-                countrySearchInput.value = '';
-                searchClearBtn.style.display = 'none';
-                applyExplorerFilters();
-                countrySearchInput.focus();
-            });
-        }
-    }
 
     // Expose global filterMatchesByName function for Drawer & Navigation controls
     window.filterMatchesByName = function(leagueName) {

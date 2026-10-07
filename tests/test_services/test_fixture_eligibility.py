@@ -1,12 +1,12 @@
 import json
-import os
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
-from backend.database import Competition, Tournament, Team, Fixture, TournamentTeam
 import backend.crud.fixture as crud_fixture
-from backend.services.tournament import group_enriched_fixtures, get_grouped_fixtures, enrich_fixture
+from backend.services.enrichment import group_enriched_fixtures
+from backend.services.queries import get_grouped_fixtures
 from backend.services.feed_builder import build_fixtures_feed_cache
 import backend.services.feed_builder as feed_builder
+from tests.factories import FROZEN_NOW, cup, fixture, kickoff, league, membership, team, tournament
 
 def test_offseason_fallback_returns_only_future_fixtures(db_session):
     """
@@ -14,63 +14,32 @@ def test_offseason_fallback_returns_only_future_fixtures(db_session):
     off-season fallback MUST strictly return only future fixtures (date_utc >= now_utc).
     Past fixtures (both finished and scheduled) must NEVER be included.
     """
-    comp = Competition(name="Offseason Cup", type="International")
-    db_session.add(comp)
-    db_session.flush()
-    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
-    db_session.add(tourney)
-    db_session.flush()
+    comp = cup(db_session, "Offseason Cup", type="International", format_engine="group_knockout")
+    tourney = tournament(db_session, comp)
+    t1 = team(db_session, "Team Future A", elo=1600)
+    t2 = team(db_session, "Team Future B", elo=1600)
+    t3 = team(db_session, "Team Legacy Past", elo=1500)
+    now_utc = FROZEN_NOW
 
-    t1 = Team(name="Team Future A", elo=1600)
-    t2 = Team(name="Team Future B", elo=1600)
-    t3 = Team(name="Team Legacy Past", elo=1500)
-    db_session.add_all([t1, t2, t3])
-    db_session.flush()
-
-    now_utc = datetime.now(timezone.utc)
-
-    # 1. Legacy past fixtures (e.g. from previous season 60 and 90 days ago)
-    # One finished, one erroneously unplayed/scheduled
-    f_past_finished = Fixture(
-        tournament_id=tourney.id,
-        home_team_id=t3.id,
-        away_team_id=t1.id,
-        stage="Group Stage",
-        status="Finished",
-        home_score=1,
-        away_score=0,
-        date_utc=(now_utc - timedelta(days=90)).replace(tzinfo=None)
+    f_past_finished = fixture(
+        db_session, tourney, t3, t1,
+        status="Finished", kickoff=kickoff(-90), stage="Group Stage",
+        home_score=1, away_score=0,
     )
-    f_past_scheduled = Fixture(
-        tournament_id=tourney.id,
-        home_team_id=t3.id,
-        away_team_id=t2.id,
-        stage="Group Stage",
-        status="Scheduled",
-        date_utc=(now_utc - timedelta(days=60)).replace(tzinfo=None)
+    f_past_scheduled = fixture(
+        db_session, tourney, t3, t2,
+        status="Scheduled", kickoff=kickoff(-60), stage="Group Stage",
     )
-
-    # 2. Future fixtures outside standard 30-day window (e.g. 50 and 52 days in the future)
-    f_future_1 = Fixture(
-        tournament_id=tourney.id,
-        home_team_id=t1.id,
-        away_team_id=t2.id,
-        stage="Group Stage",
-        status="Scheduled",
-        date_utc=(now_utc + timedelta(days=50)).replace(tzinfo=None),
-        watchability_score=85.0
+    f_future_1 = fixture(
+        db_session, tourney, t1, t2,
+        status="Scheduled", kickoff=kickoff(50), stage="Group Stage",
+        watchability_score=85.0,
     )
-    f_future_2 = Fixture(
-        tournament_id=tourney.id,
-        home_team_id=t2.id,
-        away_team_id=t1.id,
-        stage="Group Stage",
-        status="Scheduled",
-        date_utc=(now_utc + timedelta(days=52)).replace(tzinfo=None),
-        watchability_score=78.0
+    f_future_2 = fixture(
+        db_session, tourney, t2, t1,
+        status="Scheduled", kickoff=kickoff(52), stage="Group Stage",
+        watchability_score=78.0,
     )
-
-    db_session.add_all([f_past_finished, f_past_scheduled, f_future_1, f_future_2])
     db_session.commit()
 
     # Query eligible fixtures via canonical CRUD function
@@ -84,7 +53,7 @@ def test_offseason_fallback_returns_only_future_fixtures(db_session):
         assert f.id not in (f_past_finished.id, f_past_scheduled.id)
 
     # Test grouped output
-    grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id)
+    grouped = get_grouped_fixtures(db_session, "UTC", tournament_id=tourney.id, now=now_utc)
     assert grouped["is_offseason"] is True
     assert len(grouped["today"]) == 0
     assert len(grouped["tomorrow"]) == 0
@@ -105,39 +74,14 @@ def test_active_tournaments_gating(db_session):
     Verifies that global eligible fixtures queries only pull from tournaments with status='Active',
     while specific tournament_id queries can query any tournament.
     """
-    comp = Competition(name="Active Filter Test Comp", type="League")
-    db_session.add(comp)
-    db_session.flush()
-
-    tourney_active = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
-    tourney_inactive = Tournament(competition_id=comp.id, season_name="2025/26", status="Completed")
-    db_session.add_all([tourney_active, tourney_inactive])
-    db_session.flush()
-
-    t1 = Team(name="Active Team 1", elo=1700)
-    t2 = Team(name="Active Team 2", elo=1700)
-    db_session.add_all([t1, t2])
-    db_session.flush()
-
-    now_utc = datetime.now(timezone.utc)
-    
-    f_active = Fixture(
-        tournament_id=tourney_active.id,
-        home_team_id=t1.id,
-        away_team_id=t2.id,
-        stage="Regular Season",
-        status="Scheduled",
-        date_utc=(now_utc + timedelta(days=2)).replace(tzinfo=None)
-    )
-    f_inactive = Fixture(
-        tournament_id=tourney_inactive.id,
-        home_team_id=t1.id,
-        away_team_id=t2.id,
-        stage="Regular Season",
-        status="Scheduled",
-        date_utc=(now_utc + timedelta(days=2)).replace(tzinfo=None)
-    )
-    db_session.add_all([f_active, f_inactive])
+    comp = league(db_session, "Active Filter Test Comp")
+    tourney_active = tournament(db_session, comp, status="Active")
+    tourney_inactive = tournament(db_session, comp, season="2025/26", status="Completed")
+    t1 = team(db_session, "Active Team 1", elo=1700)
+    t2 = team(db_session, "Active Team 2", elo=1700)
+    now_utc = FROZEN_NOW
+    f_active = fixture(db_session, tourney_active, t1, t2, kickoff=kickoff(2), stage="Regular Season")
+    f_inactive = fixture(db_session, tourney_inactive, t1, t2, kickoff=kickoff(2), stage="Regular Season")
     db_session.commit()
 
     # Global query (tournament_id=None) -> only active tournament fixtures
@@ -162,7 +106,7 @@ def test_group_enriched_fixtures_canonical_parity(db_session):
     - High-quality gems ranking
     - Finished matches capped at 30 and sorted descending
     """
-    now_utc = datetime.now(timezone.utc)
+    now_utc = FROZEN_NOW
     target_tz = ZoneInfo("UTC")
 
     # Construct sample enriched fixture dictionaries
@@ -254,43 +198,26 @@ def test_feed_builder_imports_without_odds_cycle():
     assert calculate_default_odds(1800, 1500)[0] > 1
 
 
-def test_feed_builder_integration(db_session):
+def test_feed_builder_integration(db_session, monkeypatch, tmp_path):
     """
     Tests build_fixtures_feed_cache producing a non-empty payload and
     properly integrating with get_eligible_fixtures.
     """
-    comp = Competition(name="Feed Test League", type="League")
-    db_session.add(comp)
-    db_session.flush()
-
-    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
-    db_session.add(tourney)
-    db_session.flush()
-
-    t1 = Team(name="Feed Team 1", elo=1750)
-    t2 = Team(name="Feed Team 2", elo=1720)
-    db_session.add_all([t1, t2])
-    db_session.flush()
-
-    tt1 = TournamentTeam(tournament_id=tourney.id, team_id=t1.id)
-    tt2 = TournamentTeam(tournament_id=tourney.id, team_id=t2.id)
-    db_session.add_all([tt1, tt2])
-    db_session.flush()
-
-    now_utc = datetime.now(timezone.utc)
-    f = Fixture(
-        tournament_id=tourney.id,
-        home_team_id=t1.id,
-        away_team_id=t2.id,
-        stage="Regular Season",
-        status="Scheduled",
-        date_utc=(now_utc + timedelta(days=1)).replace(tzinfo=None),
-        watchability_score=80.0
+    comp = league(db_session, "Feed Test League")
+    tourney = tournament(db_session, comp)
+    t1 = team(db_session, "Feed Team 1", elo=1750)
+    t2 = team(db_session, "Feed Team 2", elo=1720)
+    membership(db_session, tourney, t1)
+    membership(db_session, tourney, t2)
+    now_utc = FROZEN_NOW
+    f = fixture(
+        db_session, tourney, t1, t2,
+        kickoff=kickoff(1), stage="Regular Season", watchability_score=80.0,
     )
-    db_session.add(f)
     db_session.commit()
 
-    feed_payload = build_fixtures_feed_cache(db_session)
+    monkeypatch.setattr(feed_builder, "CACHE_FILE_PATH", str(tmp_path / "fixtures_feed_cache.json"))
+    feed_payload = build_fixtures_feed_cache(db_session, now=now_utc)
     assert feed_payload is not None
     assert feed_payload["total_fixtures"] >= 1
     assert len(feed_payload["fixtures"]) >= 1
@@ -298,26 +225,11 @@ def test_feed_builder_integration(db_session):
 
 
 def test_feed_builder_preserves_cache_when_all_enrichment_fails(db_session, monkeypatch, tmp_path):
-    comp = Competition(name="Failed Enrichment League", type="League")
-    db_session.add(comp)
-    db_session.flush()
-    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
-    db_session.add(tourney)
-    db_session.flush()
-
-    home = Team(name="Failed Enrichment Home", elo=1700)
-    away = Team(name="Failed Enrichment Away", elo=1650)
-    db_session.add_all([home, away])
-    db_session.flush()
-    fixture = Fixture(
-        tournament_id=tourney.id,
-        home_team_id=home.id,
-        away_team_id=away.id,
-        stage="Regular Season",
-        status="Scheduled",
-        date_utc=(datetime.now(timezone.utc) + timedelta(days=1)).replace(tzinfo=None),
-    )
-    db_session.add(fixture)
+    comp = league(db_session, "Failed Enrichment League")
+    tourney = tournament(db_session, comp)
+    home = team(db_session, "Failed Enrichment Home", elo=1700)
+    away = team(db_session, "Failed Enrichment Away", elo=1650)
+    fixture(db_session, tourney, home, away, kickoff=kickoff(1), stage="Regular Season")
     db_session.commit()
 
     cache_path = tmp_path / "fixtures_feed_cache.json"
@@ -330,7 +242,7 @@ def test_feed_builder_preserves_cache_when_all_enrichment_fails(db_session, monk
 
     monkeypatch.setattr(feed_builder, "enrich_fixture", fail_enrichment)
 
-    result = feed_builder.build_fixtures_feed_cache(db_session)
+    result = feed_builder.build_fixtures_feed_cache(db_session, now=FROZEN_NOW)
 
     assert result == existing_payload
     assert json.loads(cache_path.read_text(encoding="utf-8")) == existing_payload
@@ -340,7 +252,7 @@ def test_feed_builder_writes_empty_cache_without_active_tournaments(db_session, 
     cache_path = tmp_path / "fixtures_feed_cache.json"
     monkeypatch.setattr(feed_builder, "CACHE_FILE_PATH", str(cache_path))
 
-    result = feed_builder.build_fixtures_feed_cache(db_session)
+    result = feed_builder.build_fixtures_feed_cache(db_session, now=FROZEN_NOW)
 
     assert result["total_fixtures"] == 0
     assert json.loads(cache_path.read_text(encoding="utf-8")) == result
@@ -348,51 +260,30 @@ def test_feed_builder_writes_empty_cache_without_active_tournaments(db_session, 
 
 def test_eligible_hides_scheduled_unstamped_once_tournament_is_stamped(db_session):
     """Homepage eligibility omits scheduled draw leftovers after a stamped UCL row exists."""
-    comp = Competition(name="UCL Hide Unstamped", type="Cup", format_engine="league_phase_knockout")
-    db_session.add(comp)
-    db_session.flush()
-    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
-    db_session.add(tourney)
-    db_session.flush()
-
-    villa = Team(name="BSC Young Boys")
-    yb_opp = Team(name="Aston Villa")
-    liv = Team(name="Liverpool")
-    atl = Team(name="Atlético Madrid")
-    db_session.add_all([villa, yb_opp, liv, atl])
-    db_session.flush()
+    comp = cup(db_session, "UCL Hide Unstamped", format_engine="league_phase_knockout")
+    tourney = tournament(db_session, comp)
+    villa = team(db_session, "BSC Young Boys")
+    yb_opp = team(db_session, "Aston Villa")
+    liv = team(db_session, "Liverpool")
+    atl = team(db_session, "Atlético Madrid")
 
     now_utc = datetime(2026, 9, 16, 12, 0, tzinfo=timezone.utc)
-    draw_row = Fixture(
-        tournament_id=tourney.id,
-        home_team_id=villa.id,
-        away_team_id=yb_opp.id,
-        stage="League Phase",
-        status="Scheduled",
-        api_id=None,
-        date_utc=datetime(2026, 9, 17, 18, 45),
+    draw_row = fixture(
+        db_session, tourney, villa, yb_opp,
+        status="Scheduled", stamp=None,
+        kickoff=datetime(2026, 9, 17, 18, 45, tzinfo=timezone.utc),
     )
-    finished_unstamped = Fixture(
-        tournament_id=tourney.id,
-        home_team_id=liv.id,
-        away_team_id=yb_opp.id,
-        stage="League Phase",
-        status="Finished",
-        api_id=None,
-        date_utc=datetime(2026, 9, 10, 19, 0),
-        home_score=1,
-        away_score=0,
+    finished_unstamped = fixture(
+        db_session, tourney, liv, yb_opp,
+        status="Finished", stamp=None,
+        kickoff=datetime(2026, 9, 10, 19, 0, tzinfo=timezone.utc),
+        home_score=1, away_score=0,
     )
-    stamped = Fixture(
-        tournament_id=tourney.id,
-        home_team_id=liv.id,
-        away_team_id=atl.id,
-        stage="League Phase",
-        status="Scheduled",
-        api_id="fd_9002",
-        date_utc=datetime(2026, 9, 16, 19, 0),
+    stamped = fixture(
+        db_session, tourney, liv, atl,
+        status="Scheduled", stamp="fd_9002",
+        kickoff=datetime(2026, 9, 16, 19, 0, tzinfo=timezone.utc),
     )
-    db_session.add_all([draw_row, finished_unstamped, stamped])
     db_session.commit()
 
     eligible = crud_fixture.get_eligible_fixtures(

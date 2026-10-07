@@ -30,9 +30,9 @@ def _shared_helpers() -> str:
     if not SHARED_JS.exists():
         return ""
     src = SHARED_JS.read_text(encoding="utf-8")
-    if "function ymdInTimeZone" not in src:
+    if "function parseFixtureDate" not in src:
         return ""
-    start = src.index("function ymdInTimeZone")
+    start = src.index("function parseFixtureDate")
     end = src.index("function getRatingClass") if "function getRatingClass" in src else len(src)
     return src[start:end]
 
@@ -134,3 +134,73 @@ def test_homepage_competition_chip_isolates_rows():
         "process.stdout.write(JSON.stringify(filtered.map(m => m.id)));\n"
     )
     assert _eval_js(body) == [10]
+
+
+def test_homepage_week_list_keeps_feed_order_and_drops_past_dates():
+    """Feed this_week order is the homepage week list; past dates still drop."""
+    now = datetime.now(timezone.utc)
+    feed = {
+        "today": [],
+        "tomorrow": [],
+        "this_week": [
+            {
+                "id": 50,
+                "date": (now + timedelta(days=3)).isoformat(),
+                "status": "Scheduled",
+                "watchability": {"overall": 40.0},
+            },
+            {
+                "id": 51,
+                "date": (now + timedelta(days=4)).isoformat(),
+                "status": "Scheduled",
+                "watchability": {"overall": 99.0},
+            },
+            {
+                "id": 52,
+                "date": (now - timedelta(days=2)).isoformat(),
+                "status": "Scheduled",
+                "watchability": {"overall": 88.0},
+            },
+        ],
+        "finished": [],
+        "is_offseason": False,
+        "offseason_notice": None,
+    }
+    grouped = _eval_js(
+        "process.stdout.write(JSON.stringify(processHydratedFixtures("
+        + json.dumps(feed)
+        + ", 'UTC')));\n"
+    )
+    assert [m["id"] for m in grouped["this_week"]] == [50, 51]
+    assert 52 not in _upcoming_ids(grouped)
+    week_fn = _extract_process_hydrated()
+    assert ">= 70" not in week_fn
+    assert "slice(0, 5)" not in week_fn
+    assert "slice(0, 7)" not in week_fn
+
+
+def test_homepage_week_list_keeps_an_adjacent_low_score_fixture():
+    """A quiet-week fixture below every old cutoff stays, in feed order."""
+    now = datetime.now(timezone.utc)
+    feed = {
+        "this_week": [
+            {
+                "id": 70,
+                "date": (now + timedelta(days=5)).isoformat(),
+                "status": "Scheduled",
+                "watchability": {"overall": 12.0},
+            },
+            {
+                "id": 71,
+                "date": (now + timedelta(days=6)).isoformat(),
+                "status": "Scheduled",
+                "watchability": {"overall": 64.0},
+            },
+        ]
+    }
+    grouped = _eval_js(
+        "process.stdout.write(JSON.stringify(processHydratedFixtures("
+        + json.dumps(feed)
+        + ", 'UTC')));\n"
+    )
+    assert [m["id"] for m in grouped["this_week"]] == [70, 71]

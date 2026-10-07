@@ -1,6 +1,8 @@
 from datetime import datetime
 from backend.database import Team, Fixture, Competition, Tournament, TournamentTeam, FixtureDependency
-from backend.services.tournament import propagate_knockout_fixtures, evaluate_nations_league_promotions, calculate_standings
+from backend.services.knockout import propagate_knockout_fixtures
+from backend.services.queries import evaluate_nations_league_promotions
+from backend.services.standings import calculate_standings
 from backend.crud.team import get_teams_by_group
 
 def test_two_legged_tie_propagation(db_session):

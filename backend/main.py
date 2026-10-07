@@ -5,8 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.database import init_db, get_db, Fixture
-from backend.services.seeder import seed_database
+from backend.database import init_db
 from backend.routers.pages import router as pages_router
 from backend.routers.api_fixtures import router as fixtures_router
 from backend.routers.api_groups import router as groups_router

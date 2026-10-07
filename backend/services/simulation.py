@@ -214,6 +214,37 @@ def simulate_bracket(db: Session, tournament_id: int = None) -> dict:
     return run_monte_carlo_simulation(db, tournament_id=tournament_id)
 
 
+def apply_simulated_score(home: dict, away: dict, goals_home: int, goals_away: int) -> None:
+    """Record one simulated match using only the goals the model drew.
+
+    Goal difference is goals for minus goals against after the match. Away wins
+    do not add extra goals on top of the simulated score.
+    """
+    home["played"] = home.get("played", 0) + 1
+    away["played"] = away.get("played", 0) + 1
+    home["goals_for"] = home.get("goals_for", 0) + goals_home
+    home["goals_against"] = home.get("goals_against", 0) + goals_away
+    away["goals_for"] = away.get("goals_for", 0) + goals_away
+    away["goals_against"] = away.get("goals_against", 0) + goals_home
+
+    if goals_home > goals_away:
+        home["won"] = home.get("won", 0) + 1
+        home["points"] = home.get("points", 0) + 3
+        away["lost"] = away.get("lost", 0) + 1
+    elif goals_home < goals_away:
+        away["won"] = away.get("won", 0) + 1
+        away["points"] = away.get("points", 0) + 3
+        home["lost"] = home.get("lost", 0) + 1
+    else:
+        home["drawn"] = home.get("drawn", 0) + 1
+        home["points"] = home.get("points", 0) + 1
+        away["drawn"] = away.get("drawn", 0) + 1
+        away["points"] = away.get("points", 0) + 1
+
+    home["goal_difference"] = home["goals_for"] - home["goals_against"]
+    away["goal_difference"] = away["goals_for"] - away["goals_against"]
+
+
 def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000, tournament_id: int = None) -> dict:
     # Try importing numpy for faster poisson random number generation, fallback to pure python Knuth's algorithm
     try:
@@ -352,30 +383,7 @@ def run_monte_carlo_simulation(db: Session, num_simulations: int = 5000, tournam
             elo_map[h_name] = elo_h + change
             elo_map[a_name] = elo_a - change
             
-            h["played"] += 1
-            a["played"] += 1
-            h["goals_for"] += g_h
-            h["goals_against"] += g_a
-            a["goals_for"] += g_a
-            a["goals_against"] += g_h
-            h["goal_difference"] = h["goals_for"] - h["goals_against"]
-            a["goal_difference"] = a["goals_for"] - a["goals_against"]
-            
-            if g_h > g_a:
-                h["won"] += 1
-                h["points"] += 3
-                a["lost"] += 1
-            elif g_h < g_a:
-                a["won"] += 1
-                a["points"] += 3
-                a["goals_for"] += 2
-                h["goals_against"] += 2
-                h["lost"] += 1
-            else:
-                h["drawn"] += 1
-                h["points"] += 1
-                a["drawn"] += 1
-                a["points"] += 1
+            apply_simulated_score(h, a, g_h, g_a)
                 
         # 4. Process groups
         groups_data = {}

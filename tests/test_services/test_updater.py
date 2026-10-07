@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 from backend.database import Team, Fixture, Competition, Tournament, TournamentTeam, FixtureOdds, EloHistory
 from backend.services.updater import update_results_and_odds
-from backend.services.format_adapters import get_format_adapter
+from backend.services.format_adapters import CompetitionSyncAdapter
 
 def test_update_results_and_odds(db_session):
     # 1. Setup base competition and tournament
@@ -99,7 +99,7 @@ def test_update_results_and_odds(db_session):
             
         mock_fetch.side_effect = fetch_side_effect
         
-        adapter = get_format_adapter(comp.format_engine, comp.name)
+        adapter = CompetitionSyncAdapter()
         c, u = adapter.sync_results(db_session, tourney)
         result = {"status": "success", "fixtures_created": c, "fixtures_updated_results": u}
         
@@ -230,7 +230,7 @@ def test_update_live_scores(mock_sim, mock_fetch, db_session, monkeypatch):
     mock_fetch.return_value = {"games": mock_games}
 
     # Test 2: Active match window updates to Live
-    adapter = get_format_adapter(comp.format_engine, comp.name, fetch_json=mock_fetch)
+    adapter = CompetitionSyncAdapter(fetch_json=mock_fetch)
     u, f = adapter.sync_live_scores(db_session, tourney)
     res = {"status": "success", "fixtures_updated_live": u, "fixtures_finished": f}
     assert res["status"] == "success"
@@ -254,86 +254,6 @@ def test_update_live_scores(mock_sim, mock_fetch, db_session, monkeypatch):
     db_session.refresh(f_live)
     assert f_live.status == "Finished"
     assert f_live.winner_id == t1.id
-
-
-@patch("backend.services.providers.football_data.fetch_json_with_retry")
-@patch("backend.services.updater.run_monte_carlo_simulation")
-def test_update_live_scores_football_data_org(mock_sim, mock_fetch, db_session, monkeypatch):
-    from datetime import timedelta
-    from backend.services.updater import update_live_scores
-
-    monkeypatch.delenv("FOOTBALL_API_KEY", raising=False)
-    monkeypatch.delenv("API_FOOTBALL_KEY", raising=False)
-    monkeypatch.setenv("FOOTBALL_DATA_ORG_KEY", "test-fd-key")
-
-    comp = Competition(name="Premier League", type="League", format_engine="league")
-    db_session.add(comp)
-    db_session.flush()
-    tourney = Tournament(competition_id=comp.id, season_name="2026/27", status="Active")
-    db_session.add(tourney)
-    db_session.flush()
-
-    t1 = Team(name="Arsenal", elo=1900, form_score=70.0)
-    t2 = Team(name="Chelsea", elo=1800, form_score=65.0)
-    db_session.add_all([t1, t2])
-    db_session.flush()
-
-    kickoff = datetime.now(timezone.utc) - timedelta(minutes=30)
-    f_live = Fixture(
-        tournament_id=tourney.id,
-        home_team_id=t1.id,
-        away_team_id=t2.id,
-        api_id="fd_4242",
-        stage="Regular Season",
-        status="Scheduled",
-        date_utc=kickoff,
-        winner_id=None,
-    )
-    db_session.add(f_live)
-    db_session.commit()
-
-    live_payload = {
-        "matches": [
-            {
-                "id": 4242,
-                "utcDate": kickoff.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "status": "IN_PLAY",
-                "homeTeam": {"id": 57, "name": "Arsenal FC", "shortName": "Arsenal"},
-                "awayTeam": {"id": 61, "name": "Chelsea FC", "shortName": "Chelsea"},
-                "score": {"fullTime": {"home": 1, "away": 0}},
-                "competition": {"code": "PL", "name": "Premier League"},
-            }
-        ]
-    }
-    mock_fetch.return_value = live_payload
-
-    res = update_live_scores(db_session, force=False)
-    assert res["status"] == "success"
-    assert res["fixtures_updated_live"] == 1
-    assert res["fixtures_finished"] == 0
-
-    db_session.refresh(f_live)
-    assert f_live.status == "Live"
-    assert f_live.home_score == 1
-    assert f_live.away_score == 0
-
-    live_payload["matches"][0]["status"] = "FINISHED"
-    live_payload["matches"][0]["score"]["fullTime"] = {"home": 2, "away": 0}
-    res = update_live_scores(db_session, force=False)
-    assert res["fixtures_finished"] == 1
-
-    db_session.refresh(f_live)
-    assert f_live.status == "Finished"
-    assert f_live.home_score == 2
-    assert f_live.winner_id == t1.id
-    mock_sim.assert_not_called()
-
-    url = mock_fetch.call_args[0][0]
-    assert "api.football-data.org/v4/matches" in url
-    assert "dateFrom=" in url
-    assert "dateTo=" in url
-    assert "live=all" not in url
-    assert "v3.football.api-sports.io" not in url
 
 
 @patch("backend.services.updater.fetch_json")
@@ -395,7 +315,7 @@ def test_newly_created_finished_fixture_updates_team_stats(mock_fetch_elo, mock_
 
     mock_fetch.side_effect = fetch_side_effect
 
-    adapter = get_format_adapter(comp.format_engine, comp.name)
+    adapter = CompetitionSyncAdapter()
     c, u = adapter.sync_results(db_session, tourney)
     result = {"status": "success", "fixtures_created": c, "fixtures_updated_results": u}
 
@@ -477,7 +397,7 @@ def test_update_placeholder_fixtures_resolution(mock_fetch_elo, mock_sim, mock_o
     mock_fetch.side_effect = fetch_side_effect_1
 
     # Run update: this should create the placeholder fixture
-    adapter = get_format_adapter(comp.format_engine, comp.name)
+    adapter = CompetitionSyncAdapter()
     c1, u1 = adapter.sync_results(db_session, tourney)
     res1 = {"status": "success", "fixtures_created": c1}
     assert res1["status"] == "success"
@@ -585,11 +505,7 @@ def test_update_live_scores_league(mock_odds_api, mock_fetch_retry, db_session, 
         ]
     }
 
-    adapter = get_format_adapter(
-        comp.format_engine,
-        comp.name,
-        fetch_json_with_retry=mock_fetch_retry,
-    )
+    adapter = CompetitionSyncAdapter(fetch_json_with_retry=mock_fetch_retry)
     u, f = adapter.sync_live_scores(db_session, tourney)
     res = {"status": "success", "fixtures_updated_live": u, "fixtures_finished": f}
     
@@ -687,10 +603,9 @@ def test_update_results_and_odds_league(mock_odds_api, mock_fetch_clubelo, mock_
 
 def test_format_adapter_does_not_accept_api_football_client():
     import inspect
-    from backend.services.format_adapters import CompetitionSyncAdapter, get_format_adapter
+    from backend.services.format_adapters import CompetitionSyncAdapter
 
     assert "call_football_api" not in inspect.signature(CompetitionSyncAdapter.__init__).parameters
-    assert "call_football_api" not in inspect.signature(get_format_adapter).parameters
 
 
 def test_calculate_default_odds_custom_advantage():

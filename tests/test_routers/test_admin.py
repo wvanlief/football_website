@@ -1,4 +1,68 @@
 from unittest.mock import patch
+from pathlib import Path
+
+import pytest
+
+from backend.routers import api_admin
+
+
+@pytest.mark.parametrize("flag", [None, "", "0", "false", "no", "enabled"])
+def test_dev_admin_requires_explicit_enabled_flag(monkeypatch, flag):
+    for name in ("ADMIN_TOKEN", "FFG_DEV_ADMIN", "ENVIRONMENT", "ENV",
+                 "RAILWAY_ENVIRONMENT", "RAILWAY_PROJECT_ID"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("DATABASE_PUBLIC_URL", "sqlite:///:memory:")
+    monkeypatch.setattr(Path, "is_file", lambda self: True)
+    if flag is not None:
+        monkeypatch.setenv("FFG_DEV_ADMIN", flag)
+    assert api_admin.configured_admin_token() is None
+
+
+@pytest.mark.parametrize("flag", ["1", "true", "yes", " TRUE "])
+@pytest.mark.parametrize("host", [None, "ENVIRONMENT", "ENV", "RAILWAY_ENVIRONMENT", "RAILWAY_PROJECT_ID"])
+def test_dev_admin_flag_respects_production_guard(monkeypatch, flag, host):
+    for name in ("ADMIN_TOKEN", "ENVIRONMENT", "ENV", "RAILWAY_ENVIRONMENT", "RAILWAY_PROJECT_ID"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("FFG_DEV_ADMIN", flag)
+    if host:
+        monkeypatch.setenv(host, "production")
+    assert api_admin.configured_admin_token() == (None if host else "dev-admin-token")
+
+def test_admin_update_missing_token_in_production_is_unavailable(monkeypatch, client):
+    monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    response = client.post("/api/admin/update", headers={"X-Admin-Token": "dev-admin-token"})
+    assert response.status_code == 503
+    assert "not configured" in response.json()["detail"]
+
+
+@patch("backend.routers.api_admin.update_results_and_odds")
+def test_admin_update_local_dev_flag_accepts_dev_token(mock_update, monkeypatch, client):
+    monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.delenv("ENV", raising=False)
+    monkeypatch.delenv("RAILWAY_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("RAILWAY_PROJECT_ID", raising=False)
+    monkeypatch.setenv("FFG_DEV_ADMIN", "1")
+    mock_update.return_value = {"status": "success", "fixtures_created": 0, "fixtures_updated_results": 0, "simulation": "Skipped"}
+    response = client.post("/api/admin/update", headers={"X-Admin-Token": "dev-admin-token"})
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+
+
+def test_admin_hygiene_report_is_read_only(monkeypatch, tmp_path, client):
+    monkeypatch.setattr("backend.services.hygiene.REPORT_PATH", tmp_path / "hygiene_report.json")
+    missing = client.get("/api/admin/hygiene", headers={"X-Admin-Token": "test-admin-token"})
+    assert missing.status_code == 404
+    created = client.post("/api/admin/hygiene", headers={"X-Admin-Token": "test-admin-token"})
+    assert created.status_code == 200
+    body = created.json()
+    assert body["split_seasons"] == []
+    assert "#145" in body["european_cup_leftovers"]["note"]
+    stored = client.get("/api/admin/hygiene", headers={"X-Admin-Token": "test-admin-token"})
+    assert stored.status_code == 200
+    assert stored.json()["duplicate_fixtures"] == []
+
 
 def test_admin_update_unauthorized_no_header(client):
     response = client.post("/api/admin/update")

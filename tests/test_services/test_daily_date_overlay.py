@@ -60,12 +60,14 @@ def test_daily_docstring_names_fd_plus_two_football_api_calls():
     assert "Highlightly" in text
 
 
-def test_live_path_does_not_call_football_api_or_highlightly():
+def test_live_path_polls_highlightly_then_api_football():
     source = inspect.getsource(update_live_scores) + inspect.getsource(sync_global_live_scores)
-    assert "HighlightlyProvider" not in source
-    assert "FootballApiProvider" not in source
+    assert "fetch_matches_by_date" in source
+    assert "fetch_live_fixtures" in source
     assert "fetch_fixtures_by_date" not in source
-    assert "fetch_matches_by_date" not in source
+    assert "sync_football_data_matches" not in source
+    assert "finish_fixture" not in source
+    assert "build_fixtures_feed_cache" not in source
 
 
 def test_two_football_api_date_calls_skip_highlightly_on_200(db_session):

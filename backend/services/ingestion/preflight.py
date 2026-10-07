@@ -48,10 +48,3 @@ class PreflightGuard:
                 f"fetched fixture count ({fetched_count}) is below 50% threshold of "
                 f"existing count ({existing_count}, minimum required: {int(min_threshold)})."
             )
-
-    def assert_no_deletes(self, operation_name: str) -> None:
-        """
-        Runtime assertion documenting the architectural invariant:
-        Ingestion and sync operations are strictly additive (INSERT and UPDATE only).
-        """
-        pass

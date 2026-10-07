@@ -23,7 +23,7 @@ Scheduled, unstamped, 2026/27 European cups, and no stamped twin with the **same
 - Invented knockout placeholders (Play-offs through Final before those rounds exist in the provider) → human may delete.
 - Unstamped row whose stamped twin already exists with the same team ids → overlay inserted beside the draw row; the unstamped id is the leftover.
 
-There is no admin purge. Seeder `retire_european_draw_placeholders` is a no-op. Cascaded fixture odds go with a deleted fixture. Do not delete teams.
+There is no purge job for European leftovers. Human SQL review (#145) is the only path that may remove a row. Overlay stays additive. Cascaded fixture odds go with a deleted fixture. Do not delete teams.
 
 ## Production snapshot (2026-09-17)
 
