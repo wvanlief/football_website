@@ -20,6 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Local state
     let activeFixtures = null;
+    let scorePollSequence = 0;
+    let lastAppliedScorePoll = 0;
     let selectedTimezone = 'local';
     let resolvedTimezone = 'UTC';
     let activeCompFilter = 'all';
@@ -319,12 +321,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const center = card.querySelector('.match-info-center');
         if (!center) return;
         const vs = center.querySelector('.match-vs');
-        center.querySelectorAll('.match-score, .match-time, .live-indicator').forEach(node => node.remove());
-        const scoreEl = document.createElement('span');
-        scoreEl.className = row.status === 'Live' ? 'match-score live' : 'match-score';
-        scoreEl.textContent = row.score || '';
-        if (vs) center.insertBefore(scoreEl, vs);
-        else center.appendChild(scoreEl);
+        center.querySelectorAll('.match-score, .live-indicator').forEach(node => node.remove());
+        if (row.score) {
+            center.querySelectorAll('.match-time').forEach(node => node.remove());
+        }
+        if (row.score || !center.querySelector('.match-time')) {
+            const scoreEl = document.createElement('span');
+            scoreEl.className = row.status === 'Live' ? 'match-score live' : 'match-score';
+            scoreEl.textContent = row.score || 'Score unavailable';
+            if (vs) center.insertBefore(scoreEl, vs);
+            else center.appendChild(scoreEl);
+        }
         if (row.status === 'Live') {
             const indicator = document.createElement('span');
             indicator.className = 'live-indicator';
@@ -337,11 +344,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function pollLiveScores() {
+        const sequence = ++scorePollSequence;
         try {
             const res = await fetch('/api/fixtures/scores');
             if (!res.ok) return;
             const rows = await res.json();
-            if (!Array.isArray(rows)) return;
+            if (!Array.isArray(rows) || sequence < lastAppliedScorePoll) return;
+            lastAppliedScorePoll = sequence;
             rows.forEach(row => {
                 rememberLiveScore(row);
                 document.querySelectorAll('.match-card').forEach(card => {
